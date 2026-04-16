@@ -748,6 +748,9 @@ function onPOSProdChange(sel){
 
 function calcPOSTotal(){
   let subtotal=0,totalCost=0;
+  const patchCost=Number(S.settings.patchDefaultCost)||0;
+  const namePrintCost=Number(S.settings.namePrintDefaultCost)||0;
+
   document.querySelectorAll('#posItems tr').forEach(tr=>{
     const price=Number(tr.querySelector('.pos-price').value)||0;
     const cost=Number(tr.querySelector('.pos-cost').value)||0;
@@ -757,9 +760,10 @@ function calcPOSTotal(){
     const patchP=hasPatch?(Number(tr.querySelector('.pos-patchprice').value)||0):0;
     const nameP=hasName?(Number(tr.querySelector('.pos-nameprice').value)||0):0;
     const lineTotal=(price*qty)+((patchP+nameP)*qty);
+    const lineCost=(cost*qty)+((hasPatch?patchCost:0)+(hasName?namePrintCost:0))*qty;
     tr.querySelector('.pos-linetotal').value=lineTotal;
     subtotal+=lineTotal;
-    totalCost+=cost*qty;
+    totalCost+=lineCost;
   });
 
   const disc=Number(document.getElementById('posDisc').value)||0;
@@ -1268,8 +1272,10 @@ async function renderSettings(area){
     <div class="form-group"><label>Next Invoice #</label><input type="number" class="fc" id="stNum" value="${s.nextInvoiceNum||1001}"></div>
     <div class="form-group"><label>Phone</label><input class="fc" id="stPhone" value="${s.phone||''}"></div>
     <div class="form-group"><label>Address</label><input class="fc" id="stAddr" value="${s.address||''}"></div>
-    <div class="form-group"><label>Default Patch Price</label><input type="number" class="fc" id="stPatch" value="${s.patchDefaultPrice||50}"></div>
-    <div class="form-group"><label>Default Name Print Price</label><input type="number" class="fc" id="stName" value="${s.namePrintDefaultPrice||100}"></div>
+    <div class="form-group"><label>Default Patch Sell Price</label><input type="number" class="fc" id="stPatch" value="${s.patchDefaultPrice||150}"></div>
+    <div class="form-group"><label>Default Patch Cost</label><input type="number" class="fc" id="stPatchCost" value="${s.patchDefaultCost||130}"></div>
+    <div class="form-group"><label>Default Name Print Sell Price</label><input type="number" class="fc" id="stName" value="${s.namePrintDefaultPrice||150}"></div>
+    <div class="form-group"><label>Default Name Print Cost</label><input type="number" class="fc" id="stNameCost" value="${s.namePrintDefaultCost||130}"></div>
   </div><button class="btn btn-primary" onclick="saveSets()" style="margin-top:14px"><i class="fas fa-save"></i>Save Settings</button></div></div>`;
 }
 
@@ -1278,8 +1284,11 @@ async function saveSets(){
     businessName:document.getElementById('stBiz').value,motto:document.getElementById('stMotto').value,
     currency:document.getElementById('stCur').value,invoicePrefix:document.getElementById('stPfx').value,
     nextInvoiceNum:document.getElementById('stNum').value,phone:document.getElementById('stPhone').value,
-    address:document.getElementById('stAddr').value,patchDefaultPrice:document.getElementById('stPatch').value,
-    namePrintDefaultPrice:document.getElementById('stName').value
+    address:document.getElementById('stAddr').value,
+    patchDefaultPrice:document.getElementById('stPatch').value,
+    patchDefaultCost:document.getElementById('stPatchCost').value,
+    namePrintDefaultPrice:document.getElementById('stName').value,
+    namePrintDefaultCost:document.getElementById('stNameCost').value
   };
   const r=await apiPost('updateSettings',{settings});
   if(r.success){toast('Settings saved!');S.currency=settings.currency;S.settings=settings}
