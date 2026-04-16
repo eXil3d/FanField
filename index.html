@@ -506,7 +506,7 @@ async function renderDashboard(area) {
     ${statCard('fa-hand-holding-dollar','purple',c+(d.totalProfit||0).toLocaleString(),'Total Profit')}
     ${statCard('fa-boxes-stacked','blue',String(d.totalProducts||0),`Products (${d.totalItems||0} items)`)}
     ${statCard('fa-triangle-exclamation','red',String(d.lowStockCount||0),`Low Stock (${d.outOfStockCount||0} out)`)}
-    ${statCard('fa-warehouse','blue',c+(d.totalRetailValue||0).toLocaleString(),'Inventory Value (Retail)')}
+    ${statCard('fa-shirt','green',String(d.totalUnitsSold||0),'Total Units Sold')}
     ${statCard('fa-boxes-packing','orange',c+(d.totalStockValue||0).toLocaleString(),'Inventory Value (Cost)')}
     ${statCard('fa-wallet','orange',c+(d.totalExpenses||0).toLocaleString(),'Total Expenses')}
     ${statCard('fa-users','purple',String(d.totalCustomers||0),'Total Customers')}
