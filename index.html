@@ -690,7 +690,7 @@ async function renderPOS(area){
       <div class="form-group"><label>Affiliate Code</label><input class="fc" id="posAffCode" placeholder="Enter code" oninput="calcPOSTotal()"></div>
     </div>
     <h4 style="margin:18px 0 10px;font-size:13px;font-weight:600"><i class="fas fa-list" style="color:var(--primary);margin-right:5px"></i>Sale Items</h4>
-    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product</th><th>Mod: Patch</th><th>Mod: Name Print</th><th>Patch ₹</th><th>Print ₹</th><th>Unit Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
+    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product</th><th>Mod: Patch</th><th>Mod: Name Print</th><th>Patch ৳</th><th>Print ৳</th><th>Unit Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
     <button class="btn btn-outline btn-sm" onclick="addPOSRow()" style="margin-top:10px"><i class="fas fa-plus"></i>Add Item</button>
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
     <div class="fg" style="max-width:500px;margin-left:auto">
@@ -860,7 +860,7 @@ function showInvoice(invoiceNo,saleData,items){
   document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px"><div class="modal-hdr"><h3>Invoice</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div></div><div class="modal-body">
     <div class="inv-preview" id="invPrint">
       <div class="inv-hdr-row">
-        <div class="inv-brand"><div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><img src="YOUR_LOGO_URL_HERE" alt="Fan Field" style="width:56px;height:56px;border-radius:8px;object-fit:cover"><h2 style="margin:0">${esc(s.businessName||'Fan Field')}</h2></div><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div>
+        <div class="inv-brand"><div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><img src="https://raw.githubusercontent.com/eXil3d/FanField/refs/heads/main/logo.jpg" alt="Fan Field" style="width:56px;height:56px;border-radius:8px;object-fit:cover"><h2 style="margin:0">${esc(s.businessName||'Fan Field')}</h2></div><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div>
         <div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${new Date().toLocaleDateString()}</p><p>Time: ${new Date().toLocaleTimeString()}</p></div>
       </div>
       <div class="inv-parties">
