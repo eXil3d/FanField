@@ -221,12 +221,12 @@ textarea.fc{resize:vertical;min-height:70px}
 <aside class="sidebar" id="sidebar">
   <div class="sb-header">
     <div class="sb-logo">
-      <div class="icon"><i class="fas fa-futbol"></i></div>
-      <div>
-        <h1>Fan Field</h1>
-        <p>Home of Authentic & Quality Jerseys</p>
-      </div>
-    </div>
+  <img src="https://github.com/eXil3d/FanField/blob/main/logo.jpg" alt="Fan Field" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
+  <div>
+    <h1>Fan Field</h1>
+    <p>Home of Authentic & Quality Jerseys</p>
+  </div>
+</div>
   </div>
   <nav class="sb-nav">
     <div class="nav-section">
@@ -860,7 +860,7 @@ function showInvoice(invoiceNo,saleData,items){
   document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px"><div class="modal-hdr"><h3>Invoice</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div></div><div class="modal-body">
     <div class="inv-preview" id="invPrint">
       <div class="inv-hdr-row">
-        <div class="inv-brand"><h2>⚽ ${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div>
+        <div class="inv-brand"><div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><img src="YOUR_LOGO_URL_HERE" alt="Fan Field" style="width:56px;height:56px;border-radius:8px;object-fit:cover"><h2 style="margin:0">${esc(s.businessName||'Fan Field')}</h2></div><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div>
         <div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${new Date().toLocaleDateString()}</p><p>Time: ${new Date().toLocaleTimeString()}</p></div>
       </div>
       <div class="inv-parties">
@@ -887,7 +887,7 @@ function showInvoice(invoiceNo,saleData,items){
 function printInvoice(){
   const content=document.getElementById('invPrint').innerHTML;
   const w=window.open('','_blank');
-  w.document.write(`<html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif;padding:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:12px}th{background:#2563eb;color:#fff}.inv-hdr-row{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #2563eb}.inv-brand h2{font-size:24px;color:#2563eb}.motto{font-size:11px;font-style:italic;color:#475569}.inv-meta{text-align:right}.inv-meta h3{font-size:18px}.inv-parties{display:flex;justify-content:space-between;margin-bottom:20px}.inv-parties h4{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:4px}.name{font-weight:700;font-size:14px}.inv-totals{display:flex;justify-content:flex-end;margin-top:14px}.inv-totals table{width:260px}.inv-totals tr:last-child td{font-weight:700;font-size:14px;border-top:2px solid #0f172a}.inv-footer{margin-top:28px;text-align:center;font-size:10px;color:#94a3b8;padding-top:14px;border-top:1px solid #e2e8f0}p{margin:1px 0;font-size:11px}small{font-size:10px}</style></head><body>${content}</body></html>`);
+  w.document.write(`<html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif;padding:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:12px}th{background:#2563eb;color:#fff}.inv-hdr-row{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #2563eb}.inv-brand h2{font-size:24px;color:#2563eb}.motto{font-size:11px;font-style:italic;color:#475569}.inv-meta{text-align:right}.inv-meta h3{font-size:18px}.inv-parties{display:flex;justify-content:space-between;margin-bottom:20px}.inv-parties h4{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:4px}.name{font-weight:700;font-size:14px}.inv-totals{display:flex;justify-content:flex-end;margin-top:14px}.inv-totals table{width:260px}.inv-totals tr:last-child td{font-weight:700;font-size:14px;border-top:2px solid #0f172a}.inv-footer{margin-top:28px;text-align:center;font-size:10px;color:#94a3b8;padding-top:14px;border-top:1px solid #e2e8f0}img{max-width:56px;height:auto;border-radius:8px}p{margin:1px 0;font-size:11px}small{font-size:10px}</style></head><body>${content}</body></html>`);
   w.document.close();setTimeout(()=>w.print(),500);
 }
 
