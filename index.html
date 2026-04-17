@@ -8,18 +8,18 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <style>
 :root{
---primary:#2563eb;--primary-dark:#1d4ed8;--primary-light:#dbeafe;
---secondary:#059669;--secondary-light:#d1fae5;
---warning:#d97706;--warning-light:#fef3c7;
---danger:#dc2626;--danger-light:#fee2e2;
---purple:#7c3aed;--purple-light:#ede9fe;
---bg:#f1f5f9;--surface:#fff;--surface-hover:#f8fafc;
---border:#e2e8f0;--text:#0f172a;--text-sec:#475569;--text-muted:#94a3b8;
---sidebar-bg:#0f172a;--sidebar-text:#cbd5e1;
+--primary:#3b82f6;--primary-dark:#2563eb;--primary-light:rgba(59,130,246,.15);
+--secondary:#10b981;--secondary-light:rgba(16,185,129,.15);
+--warning:#f59e0b;--warning-light:rgba(245,158,11,.15);
+--danger:#ef4444;--danger-light:rgba(239,68,68,.15);
+--purple:#8b5cf6;--purple-light:rgba(139,92,246,.15);
+--bg:#0b0f19;--surface:#111827;--surface-hover:#1a2236;
+--border:#1e293b;--text:#e2e8f0;--text-sec:#94a3b8;--text-muted:#64748b;
+--sidebar-bg:#060a13;--sidebar-text:#94a3b8;
 --radius:12px;--radius-sm:8px;
---shadow:0 1px 3px rgba(0,0,0,.08);
---shadow-md:0 4px 6px -1px rgba(0,0,0,.07);
---shadow-lg:0 10px 15px -3px rgba(0,0,0,.08);
+--shadow:0 1px 3px rgba(0,0,0,.3);
+--shadow-md:0 4px 6px -1px rgba(0,0,0,.4);
+--shadow-lg:0 10px 15px -3px rgba(0,0,0,.5);
 --transition:all .2s ease;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -28,7 +28,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 
 /* SIDEBAR */
 .sidebar{width:260px;background:var(--sidebar-bg);color:var(--sidebar-text);position:fixed;top:0;left:0;bottom:0;z-index:1000;transition:transform .3s;overflow-y:auto;display:flex;flex-direction:column}
-.sb-header{padding:22px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-header{padding:22px 18px;border-bottom:1px solid rgba(255,255,255,.05)}
 .sb-logo{display:flex;align-items:center;gap:12px}
 .sb-logo .icon{width:42px;height:42px;background:linear-gradient(135deg,var(--primary),#8b5cf6);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff}
 .sb-logo h1{font-size:18px;font-weight:800;color:#fff;letter-spacing:-.3px}
@@ -94,7 +94,7 @@ body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var
 /* TABLES */
 .tbl-wrap{overflow-x:auto}
 table{width:100%;border-collapse:collapse}
-table th{background:var(--bg);padding:10px 14px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);text-align:left;white-space:nowrap}
+table th{background:#151d2e;padding:10px 14px;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);text-align:left;white-space:nowrap}
 table td{padding:10px 14px;font-size:12.5px;border-bottom:1px solid var(--border);color:var(--text-sec)}
 table tbody tr:hover{background:var(--surface-hover)}
 .badge{padding:3px 9px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap}
@@ -108,13 +108,13 @@ table tbody tr:hover{background:var(--surface-hover)}
 .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:11.5px;font-weight:600;color:var(--text-sec);margin-bottom:5px}
-.fc{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12.5px;font-family:inherit;transition:var(--transition);background:var(--surface);color:var(--text)}
+.fc{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:12.5px;font-family:inherit;transition:var(--transition);background:#0d1321;color:var(--text)} .fc option{background:#111827;color:var(--text)}
 .fc:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 select.fc{cursor:pointer}
 textarea.fc{resize:vertical;min-height:70px}
 
 /* MODAL */
-.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);backdrop-filter:blur(4px);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);backdrop-filter:blur(6px);z-index:2000;display:none;align-items:center;justify-content:center;padding:16px}
 .modal-overlay.active{display:flex}
 .modal{background:var(--surface);border-radius:var(--radius);width:100%;max-width:700px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg)}
 .modal-hdr{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
@@ -161,7 +161,10 @@ textarea.fc{resize:vertical;min-height:70px}
 @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
 
 /* INVOICE */
-.inv-preview{border:1px solid var(--border);border-radius:var(--radius);padding:28px;background:#fff}
+.inv-preview{border:1px solid var(--border);border-radius:var(--radius);padding:28px;background:#fff;color:#0f172a}
+.inv-preview *{color:#0f172a}
+.inv-preview .inv-table th{color:#fff!important}
+.inv-preview .badge{color:inherit}
 .inv-hdr-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid var(--primary)}
 .inv-brand h2{font-size:26px;font-weight:900;color:var(--primary)}
 .inv-brand .motto{font-size:11px;color:var(--text-sec);font-style:italic;margin:2px 0 6px}
@@ -204,12 +207,37 @@ textarea.fc{resize:vertical;min-height:70px}
   .modal{max-width:100%;margin:8px}
 }
 @media(max-width:480px){.stats-grid{grid-template-columns:1fr}.toolbar{flex-direction:column;align-items:stretch}}
+/* DARK THEME ADDITIONS */
+.si-tbl input,.si-tbl select{background:#0d1321;color:var(--text);border-color:var(--border)}
+.search-box input{background:#0d1321;color:var(--text);border-color:var(--border)}
+.search-box input::placeholder,.fc::placeholder{color:var(--text-muted)}
+.btn-outline{background:transparent;color:var(--text-sec);border:1px solid var(--border)}
+.btn-outline:hover{border-color:var(--primary);color:var(--primary);background:rgba(59,130,246,.08)}
+.btn-icon{background:var(--surface);color:var(--text-sec);border-color:var(--border)}
+.btn-icon:hover{border-color:var(--primary);color:var(--primary);background:rgba(59,130,246,.08)}
+.stat-card{background:var(--surface);border-color:var(--border)}
+.stat-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.4);border-color:#2a3548}
+.card{background:var(--surface);border-color:var(--border)}
+.card-hdr{border-color:var(--border)}
+.modal{background:var(--surface);border:1px solid var(--border)}
+.modal-hdr{border-color:var(--border)}
+.modal-foot{border-color:var(--border)}
+.topbar{background:var(--surface);border-color:var(--border)}
+table td{border-color:var(--border)}
+hr{border-color:var(--border)}
+::selection{background:rgba(59,130,246,.3);color:#fff}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:#2a3548;border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:#3a4a60}
 @media print{
   .sidebar,.topbar,.no-print{display:none!important}
   .main{margin-left:0}
   .content{padding:0}
   .card{border:none;box-shadow:none}
-  .inv-preview{border:none;padding:0}
+  .inv-preview{border:none;padding:0;background:#fff!important;color:#000!important}
+  .inv-preview *{color:#000!important}
+  .inv-preview .inv-table th{background:#2563eb!important;color:#fff!important}
 }
 </style>
 </head>
@@ -537,7 +565,7 @@ async function renderDashboard(area) {
   document.getElementById('dAlerts').innerHTML=alerts.length?`<table><thead><tr><th>Product</th><th>Stock</th><th>Status</th></tr></thead><tbody>${alerts.slice(0,12).map(i=>`<tr><td><strong>${esc(i.ProductName)}</strong></td><td>${i.Stock}</td><td>${i._t==='out'?'<span class="badge badge-d">Out</span>':'<span class="badge badge-w">Low</span>'}</td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)"><i class="fas fa-check-circle"></i> All stock healthy!</div>';
 
   // Recent sales
-  document.getElementById('dRecent').innerHTML=(d.recentSales||[]).length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th></tr></thead><tbody>${(d.recentSales||[]).map(s=>`<tr><td><strong>${s.InvoiceNo}</strong><br><small style="color:var(--text-muted)">${fmtD(s.Date)}</small></td><td>${esc(s.CustomerName||'Walk-in')}</td><td><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td><td>${statusBadge(s.Status)}</td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales yet</div>';
+  document.getElementById('dRecent').innerHTML=(d.recentSales||[]).length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${(d.recentSales||[]).map(s=>`<tr><td><strong>${s.InvoiceNo}</strong><br><small style="color:var(--text-muted)">${fmtD(s.Date)}</small></td><td>${esc(s.CustomerName||'Walk-in')}</td><td><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td><td>${statusBadge(s.Status)}</td><td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="View Invoice"><i class="fas fa-file-invoice"></i></button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales yet</div>';
 
   // Top products
   document.getElementById('dTop').innerHTML=(d.topProducts||[]).length?`<table><thead><tr><th>#</th><th>Product</th><th>Sold</th><th>Revenue</th></tr></thead><tbody>${(d.topProducts||[]).map((p,i)=>`<tr><td><span class="badge badge-i">${i+1}</span></td><td><strong>${esc(p.name)}</strong></td><td>${p.qty}</td><td><strong>${c}${p.revenue.toLocaleString()}</strong></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No data</div>';
@@ -888,6 +916,72 @@ function showInvoice(invoiceNo,saleData,items){
   openModal('invoiceModal');
 }
 
+async function viewInvoice(invoiceNo){
+  // Get sale data
+  if(!S.sales.length) S.sales=await apiGet('getSales');
+  const sale=S.sales.find(s=>String(s.InvoiceNo)===String(invoiceNo));
+  if(!sale){toast('Invoice not found','error');return}
+
+  // Get sale items
+  const items=await apiGet('getSalesItems',{invoiceNo:invoiceNo});
+  if(!S.settings||!S.settings.businessName) S.settings=await apiGet('getSettings');
+  const s=S.settings;
+  const c=C();
+
+  const totalAmount=Number(sale.TotalAmount)||0;
+  const discount=Number(sale.Discount)||0;
+  const affDiscount=Number(sale.AffiliateDiscount)||0;
+  const finalAmount=Number(sale.FinalAmount)||0;
+  const paidAmount=Number(sale.PaidAmount)||0;
+  const dueAmount=Number(sale.DueAmount)||0;
+
+  let itemsHtml='';
+  if(items.length){
+    itemsHtml=items.map((item,idx)=>{
+      const qty=Number(item.Quantity)||0;
+      const up=Number(item.UnitPrice)||0;
+      const patchP=(item.Patch==='Yes')?(Number(item.PatchPrice)||0):0;
+      const nameP=item.NamePrint?(Number(item.NamePrintPrice)||0):0;
+      const mod=(patchP+nameP)*qty;
+      const lineT=Number(item.LineTotal)||(up*qty+mod);
+      let mods=[];
+      if(item.Patch==='Yes')mods.push('Patch');
+      if(item.NamePrint)mods.push('Name: '+item.NamePrint);
+      return`<tr><td>${idx+1}</td><td>${esc(item.ProductName||'')}${mods.length?'<br><small style="color:#7c3aed">'+mods.join(', ')+'</small>':''}</td><td>${c}${up.toLocaleString()}</td><td>${qty}</td><td>${mod>0?c+mod.toLocaleString():'-'}</td><td style="text-align:right">${c}${lineT.toLocaleString()}</td></tr>`;
+    }).join('');
+  } else {
+    // No detailed items — show summary from sale record
+    itemsHtml=`<tr><td>1</td><td>${esc(sale.Items||'Items')}<br><small style="color:#7c3aed">${esc(sale.Modifications||'')}</small></td><td>-</td><td>-</td><td>-</td><td style="text-align:right">${c}${totalAmount.toLocaleString()}</td></tr>`;
+  }
+
+  let m=document.getElementById('invoiceModal');if(m)m.remove();
+  document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px"><div class="modal-hdr"><h3>Invoice: ${invoiceNo}</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div></div><div class="modal-body">
+    <div class="inv-preview" id="invPrint">
+      <div class="inv-hdr-row">
+        <div class="inv-brand"><h2>⚽ ${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div>
+        <div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${fmtD(sale.Date)}</p></div>
+      </div>
+      <div class="inv-parties">
+        <div><h4>Bill To</h4><p class="name">${esc(sale.CustomerName||'Walk-in Customer')}</p><p>Phone: ${esc(sale.CustomerPhone||'-')}</p></div>
+        <div style="text-align:right"><h4>Payment</h4><p>Method: ${sale.PaymentMethod||'-'}</p>
+          <p style="font-size:16px;font-weight:700;color:${dueAmount>0?'#dc2626':'#059669'}">${dueAmount>0?'DUE: '+c+dueAmount.toLocaleString():'PAID IN FULL'}</p>
+          ${sale.AffiliateCode?`<p style="color:#7c3aed">Affiliate: ${esc(sale.AffiliateCode)}</p>`:''}</div>
+      </div>
+      <table class="inv-table"><thead><tr><th>#</th><th>Product</th><th>Price</th><th>Qty</th><th>Mods</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
+      <div class="inv-totals"><table>
+        <tr><td>Subtotal</td><td style="text-align:right">${c}${totalAmount.toLocaleString()}</td></tr>
+        ${discount>0?`<tr><td>Discount</td><td style="text-align:right">-${c}${discount.toLocaleString()}</td></tr>`:''}
+        ${affDiscount>0?`<tr><td>Affiliate Discount</td><td style="text-align:right">-${c}${affDiscount.toLocaleString()}</td></tr>`:''}
+        <tr><td>Grand Total</td><td style="text-align:right">${c}${finalAmount.toLocaleString()}</td></tr>
+        <tr><td>Paid</td><td style="text-align:right">${c}${paidAmount.toLocaleString()}</td></tr>
+        ${dueAmount>0?`<tr><td style="color:#dc2626">Due</td><td style="text-align:right;color:#dc2626">${c}${dueAmount.toLocaleString()}</td></tr>`:''}
+      </table></div>
+      <div class="inv-footer"><p>Thank you for shopping with ${esc(s.businessName||'Fan Field')}! ⚽</p><p>${esc(s.motto||'Home of Authentic & Quality Jerseys')}</p><p>Contact: ${esc(s.phone||'')}</p></div>
+    </div>
+  </div></div></div>`);
+  openModal('invoiceModal');
+}
+
 function printInvoice(){
   const content=document.getElementById('invPrint').innerHTML;
   const w=window.open('','_blank');
@@ -926,7 +1020,7 @@ function filterSL(){
     <td style="color:${Number(s.DueAmount)>0?'var(--danger)':'inherit'};font-weight:${Number(s.DueAmount)>0?'600':'400'}">${c}${Number(s.DueAmount).toLocaleString()}</td>
     <td style="color:var(--secondary)">${c}${(Number(s.ProfitOverride)||Number(s.Profit)||0).toLocaleString()}</td>
     <td>${statusBadge(s.Status)}</td>
-    <td><div class="btn-group">${Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})" title="Receive Payment"><i class="fas fa-money-bill"></i></button>`:''}</div></td>
+    <td><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="View Invoice"><i class="fas fa-file-invoice"></i></button>${Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})" title="Receive Payment"><i class="fas fa-money-bill"></i></button>`:''}</div></td>
   </tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales found</div>';
 }
 
@@ -1042,7 +1136,7 @@ async function renderPayments(area){
       <td><strong>${s.InvoiceNo}</strong><br><small>${fmtD(s.Date)}</small></td><td>${esc(s.CustomerName||'Walk-in')}</td>
       <td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td>
       <td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td>${statusBadge(s.Status)}</td>
-      <td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td>
+      <td><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="View Invoice"><i class="fas fa-file-invoice"></i></button><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></div></td>
     </tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)"><i class="fas fa-check-circle"></i> No pending payments!</div>'}</div></div></div>
 
     <div class="card"><div class="card-hdr"><h3><i class="fas fa-history" style="color:var(--secondary);margin-right:6px"></i>All Payment Records</h3></div>
