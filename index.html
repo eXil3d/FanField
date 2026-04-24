@@ -834,13 +834,140 @@ async function saveDlvUpdate(id,inv){const r=await apiPost('updateDeliveryStatus
 async function renderProfits(area){if(!S.sales.length)S.sales=await apiGet('getSales');const c=C();const sorted=[...S.sales].filter(s=>s.Status!=='Cancelled').reverse();area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-chart-line" style="color:var(--secondary);margin-right:6px"></i>Profit Tracker</h3></div><div class="card-body np"><div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Type</th><th>Action</th></tr></thead><tbody>${sorted.map(s=>{const profit=Number(s.ProfitOverride)||Number(s.Profit)||0;return`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${fmtD(s.Date)}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.CostTotal).toLocaleString()}</td><td style="color:${profit>=0?'var(--secondary)':'var(--danger)'};font-weight:700">${c}${profit.toLocaleString()}</td><td>${s.ProfitOverride?'<span class="badge badge-p">Manual</span>':'<span class="badge badge-i">Auto</span>'}</td><td><button class="btn btn-outline btn-sm" onclick="editProfit('${s.ID}',${profit})"><i class="fas fa-pen"></i></button></td></tr>`}).join('')}</tbody></table></div></div></div>`}
 function editProfit(id,cur){const val=prompt('Corrected profit:',cur);if(val===null)return;apiPost('updateSaleProfit',{ID:id,Profit:Number(val),ProfitOverride:Number(val)}).then(r=>{if(r.success){toast('Updated!');S.sales=[];renderPage('profits')}})}
 
-async function renderCustomers(area){S.customers=await apiGet('getCustomers');area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="cSrch" placeholder="Search..." oninput="filterCust()"></div><button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="cTbl"></div></div></div>`;filterCust()}
-function filterCust(){const srch=(document.getElementById('cSrch')?.value||'').toLowerCase();const data=S.customers.filter(c=>!srch||(c.Name||'').toLowerCase().includes(srch)||(c.Phone||'').includes(srch));const c=C();document.getElementById('cTbl').innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Phone</th><th>Purchases</th><th>Spent</th><th>Pending</th><th>Actions</th></tr></thead><tbody>${data.map(cu=>`<tr><td><strong>${esc(cu.Name)}</strong></td><td>${cu.Phone||'-'}</td><td>${cu.TotalPurchases||0}</td><td>${c}${Number(cu.TotalSpent||0).toLocaleString()}</td><td style="color:${Number(cu.PendingAmount)>0?'var(--danger)':'inherit'}">${c}${Number(cu.PendingAmount||0).toLocaleString()}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="editCust('${cu.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delCust('${cu.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No customers</div>'}
-function openCustModal(cust=null){let m=document.getElementById('custModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="custModal"><div class="modal"><div class="modal-hdr"><h3>${cust?'Edit':'Add'} Customer</h3><button class="modal-close" onclick="closeModal('custModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Name *</label><input class="fc" id="cuName" value="${cust?.Name||''}"></div><div class="form-group"><label>Phone</label><input class="fc" id="cuPhone" value="${cust?.Phone||''}"></div><div class="form-group"><label>Email</label><input class="fc" id="cuEmail" value="${cust?.Email||''}"></div><div class="form-group"><label>Address</label><input class="fc" id="cuAddr" value="${cust?.Address||''}"></div><div class="form-group" style="grid-column:1/-1"><label>Notes</label><textarea class="fc" id="cuNotes">${cust?.Notes||''}</textarea></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('custModal')">Cancel</button><button class="btn btn-primary" onclick="saveCust('${cust?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('custModal')}
-function editCust(id){const c=S.customers.find(x=>x.ID===id);if(c)openCustModal(c)}
-async function saveCust(id){const data={ID:id,Name:document.getElementById('cuName').value,Phone:document.getElementById('cuPhone').value,Email:document.getElementById('cuEmail').value,Address:document.getElementById('cuAddr').value,Notes:document.getElementById('cuNotes').value};if(!data.Name){toast('Name required','error');return}const r=await apiPost(id?'updateCustomer':'addCustomer',data);if(r.success){toast(id?'Updated!':'Added!');closeModal('custModal');renderPage('customers')}}
-async function delCust(id){if(!confirm('Delete?'))return;const r=await apiPost('deleteCustomer',{ID:id});if(r.success){toast('Deleted');renderPage('customers')}}
+// ============================================================
+// CUSTOMERS - with ledger view
+// ============================================================
+async function renderCustomers(area) {
+  S.customers = await apiGet('getCustomers');
+  area.innerHTML = `<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
+    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="cSrch" placeholder="Search customers..." oninput="filterCust()"></div>
+    <button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i><span class="hide-mobile"> Add Customer</span></button>
+  </div></div><div class="card-body np"><div class="tbl-wrap" id="cTbl"></div></div></div>`;
+  filterCust();
+}
 
+function filterCust() {
+  const srch = (document.getElementById('cSrch')?.value || '').toLowerCase();
+  const data = S.customers.filter(c => !srch || 
+    (c.Name || '').toLowerCase().includes(srch) || 
+    (c.Phone || '').includes(srch) ||
+    (c.Email || '').toLowerCase().includes(srch));
+  const c = C();
+  
+  document.getElementById('cTbl').innerHTML = data.length ? `
+    <table><thead><tr>
+      <th>Name</th><th>Phone</th><th>Email</th>
+      <th>Purchases</th><th>Total Spent</th><th>Pending</th>
+      <th>Actions</th>
+    </tr></thead><tbody>${data.map(cu => {
+      const purchases = Number(cu.TotalPurchases) || 0;
+      const spent = Number(cu.TotalSpent) || 0;
+      const pending = Number(cu.PendingAmount) || 0;
+      return `<tr>
+        <td><strong>${esc(cu.Name || '-')}</strong></td>
+        <td>${esc(cu.Phone || '-')}</td>
+        <td>${esc(cu.Email || '-')}</td>
+        <td><span class="badge badge-i">${purchases}</span></td>
+        <td>${c}${spent.toLocaleString()}</td>
+        <td style="color:${pending > 0 ? 'var(--danger)' : 'inherit'};font-weight:${pending > 0 ? '700' : '400'}">${c}${pending.toLocaleString()}</td>
+        <td><div class="btn-group">
+          <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="View History"><i class="fas fa-history"></i></button>
+          <button class="btn btn-outline btn-sm" onclick="editCust('${cu.ID}')" title="Edit"><i class="fas fa-pen"></i></button>
+          <button class="btn btn-danger btn-sm" onclick="delCust('${cu.ID}')" title="Delete"><i class="fas fa-trash"></i></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody></table>` 
+    : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No customers found</div>';
+}
+
+async function viewCustomerLedger(custId, custName) {
+  const ledger = await apiGet('getCustomerLedger', {customerId: custId});
+  const c = C();
+  const sales = ledger.sales || [];
+  const payments = ledger.payments || [];
+  
+  const totalSpent = sales.reduce((s, x) => s + (Number(x.FinalAmount) || 0), 0);
+  const totalPaid = sales.reduce((s, x) => s + (Number(x.PaidAmount) || 0), 0);
+  const totalDue = sales.reduce((s, x) => s + (Number(x.DueAmount) || 0), 0);
+  
+  let m = document.getElementById('custLedgerModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="custLedgerModal"><div class="modal" style="max-width:900px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-history" style="color:var(--primary);margin-right:6px"></i>Customer History: ${esc(custName)}</h3>
+        <button class="modal-close" onclick="closeModal('custLedgerModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+          <div style="background:var(--bg);padding:12px;border-radius:8px;text-align:center"><div style="font-size:11px;color:var(--text-muted)">Total Orders</div><div style="font-size:20px;font-weight:700;color:var(--primary)">${sales.length}</div></div>
+          <div style="background:var(--bg);padding:12px;border-radius:8px;text-align:center"><div style="font-size:11px;color:var(--text-muted)">Total Spent</div><div style="font-size:20px;font-weight:700">${c}${totalSpent.toLocaleString()}</div></div>
+          <div style="background:var(--bg);padding:12px;border-radius:8px;text-align:center"><div style="font-size:11px;color:var(--text-muted)">Total Paid</div><div style="font-size:20px;font-weight:700;color:var(--secondary)">${c}${totalPaid.toLocaleString()}</div></div>
+          <div style="background:var(--bg);padding:12px;border-radius:8px;text-align:center"><div style="font-size:11px;color:var(--text-muted)">Pending Due</div><div style="font-size:20px;font-weight:700;color:${totalDue>0?'var(--danger)':'var(--secondary)'}">${c}${totalDue.toLocaleString()}</div></div>
+        </div>
+        
+        <h4 style="font-size:13px;margin:14px 0 8px"><i class="fas fa-receipt" style="color:var(--primary);margin-right:5px"></i>Purchase History (${sales.length})</h4>
+        <div class="tbl-wrap">${sales.length ? `<table><thead><tr><th>Invoice</th><th>Date</th><th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th></th></tr></thead><tbody>${[...sales].reverse().map(s => `<tr>
+          <td><strong>${s.InvoiceNo}</strong></td>
+          <td>${fmtD(s.Date)}</td>
+          <td>${c}${Number(s.FinalAmount).toLocaleString()}</td>
+          <td>${c}${Number(s.PaidAmount).toLocaleString()}</td>
+          <td style="color:${Number(s.DueAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.DueAmount).toLocaleString()}</td>
+          <td>${statusBadge(s.Status)}</td>
+          <td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${s.InvoiceNo}')"><i class="fas fa-file-invoice"></i></button></td>
+        </tr>`).join('')}</tbody></table>` : '<div style="padding:20px;text-align:center;color:var(--text-muted)">No purchases yet</div>'}</div>
+        
+        <h4 style="font-size:13px;margin:18px 0 8px"><i class="fas fa-money-bill" style="color:var(--secondary);margin-right:5px"></i>Payment History (${payments.length})</h4>
+        <div class="tbl-wrap">${payments.length ? `<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th><th>Notes</th></tr></thead><tbody>${[...payments].reverse().map(p => `<tr>
+          <td>${fmtD(p.Date)}</td>
+          <td><strong>${p.InvoiceNo}</strong></td>
+          <td style="color:var(--secondary);font-weight:600">${c}${Number(p.Amount).toLocaleString()}</td>
+          <td><span class="badge badge-i">${p.PaymentMethod || '-'}</span></td>
+          <td>${esc(p.Notes || '-')}</td>
+        </tr>`).join('')}</tbody></table>` : '<div style="padding:20px;text-align:center;color:var(--text-muted)">No payments recorded</div>'}</div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('custLedgerModal')">Close</button>
+      </div>
+    </div></div>`);
+  openModal('custLedgerModal');
+}
+
+function openCustModal(cust = null) {
+  let m = document.getElementById('custModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal-overlay" id="custModal"><div class="modal"><div class="modal-hdr"><h3>${cust?'Edit':'Add'} Customer</h3><button class="modal-close" onclick="closeModal('custModal')">&times;</button></div><div class="modal-body"><div class="fg">
+    <div class="form-group"><label>Name *</label><input class="fc" id="cuName" value="${esc(cust?.Name || '')}"></div>
+    <div class="form-group"><label>Phone</label><input class="fc" id="cuPhone" value="${esc(cust?.Phone || '')}"></div>
+    <div class="form-group"><label>Email</label><input class="fc" id="cuEmail" value="${esc(cust?.Email || '')}"></div>
+    <div class="form-group"><label>Address</label><input class="fc" id="cuAddr" value="${esc(cust?.Address || '')}"></div>
+    <div class="form-group" style="grid-column:1/-1"><label>Notes</label><textarea class="fc" id="cuNotes">${esc(cust?.Notes || '')}</textarea></div>
+  </div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('custModal')">Cancel</button><button class="btn btn-primary" onclick="saveCust('${cust?.ID || ''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);
+  openModal('custModal');
+}
+
+function editCust(id) {
+  const c = S.customers.find(x => x.ID === id);
+  if (c) openCustModal(c);
+}
+
+async function saveCust(id) {
+  const data = {
+    ID: id,
+    Name: document.getElementById('cuName').value,
+    Phone: document.getElementById('cuPhone').value,
+    Email: document.getElementById('cuEmail').value,
+    Address: document.getElementById('cuAddr').value,
+    Notes: document.getElementById('cuNotes').value
+  };
+  if (!data.Name) { toast('Name required', 'error'); return; }
+  const r = await apiPost(id ? 'updateCustomer' : 'addCustomer', data);
+  if (r.success) { toast(id ? 'Updated!' : 'Added!'); closeModal('custModal'); renderPage('customers'); }
+}
+
+async function delCust(id) {
+  if (!confirm('Delete this customer?')) return;
+  const r = await apiPost('deleteCustomer', {ID: id});
+  if (r.success) { toast('Deleted'); renderPage('customers'); }
+}
 async function renderPayments(area){if(!S.sales.length)S.sales=await apiGet('getSales');S.payments=await apiGet('getPayments');const c=C();const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${esc(s.CustomerName||'Walk-in')}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td><td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td>${fmtD(p.Date)}</td><td>${p.InvoiceNo}</td><td style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`}
 function openPayModal(inv,custId,custName,due){let m=document.getElementById('payModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="payModal"><div class="modal" style="max-width:500px"><div class="modal-hdr"><h3>Receive Payment</h3><button class="modal-close" onclick="closeModal('payModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Invoice</label><input class="fc" value="${inv}" readonly></div><div class="form-group"><label>Due</label><input class="fc" value="${due}" readonly></div><input type="hidden" id="pyInv" value="${inv}"><input type="hidden" id="pyCustId" value="${custId}"><input type="hidden" id="pyCustN" value="${custName}"><div class="form-group"><label>Amount</label><input type="number" class="fc" id="pyAmt" value="${due}"></div><div class="form-group"><label>Method</label><select class="fc" id="pyMethod">${makeOptions(PAY_METHODS)}</select></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('payModal')">Cancel</button><button class="btn btn-success" onclick="submitPayment()"><i class="fas fa-check"></i>Receive</button></div></div></div>`);openModal('payModal')}
 async function submitPayment(){const data={InvoiceNo:document.getElementById('pyInv').value,CustomerID:document.getElementById('pyCustId').value,CustomerName:document.getElementById('pyCustN').value,Amount:document.getElementById('pyAmt').value,PaymentMethod:document.getElementById('pyMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid amount','error');return}const r=await apiPost('addPayment',data);if(r.success){toast('Received!');closeModal('payModal');S.sales=await apiGet('getSales');renderPage('payments')}}
