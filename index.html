@@ -509,16 +509,95 @@ async function submitSale(){
   if(r.success){toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);showInvoice(r.invoiceNo,payload,items);clearPOS();S.inventory=await apiGet('getInventory')}
 }
 
+
+
+
+
 // ============================================================
-// INVOICE DISPLAY (with notes, delivery, voucher)
+// INVOICE DISPLAY (with Full + Compact views, notes, delivery, voucher)
 // ============================================================
-function showInvoice(invoiceNo,sd,items){
-  const c=C();const s=S.settings;
-  const total=Number(sd.TotalAmount);const disc=Number(sd.Discount);const affDisc=Number(sd.AffiliateDiscount)||0;const vchDisc=Number(sd.VoucherDiscount)||0;const delCharge=Number(sd.DeliveryCharge)||0;const grand=total-disc-affDisc-vchDisc+delCharge;const paid=Number(sd.PaidAmount);const due=Math.max(0,grand-paid);const notes=sd.Notes||'';
-  let itemsHtml=items.map((item,idx)=>{const pN=buildPN(item.Club_Country,item.Type,item.Edition,item.Size);const qty=Number(item.Quantity);const up=Number(item.UnitPrice);const pP=item.Patch?(Number(item.PatchPrice)||0):0;const nP=item.NamePrint?(Number(item.NamePrintPrice)||0):0;const mod=(pP+nP)*qty;const lt=(up*qty)+mod;let mods=[];if(item.Patch)mods.push('Patch');if(item.NamePrint)mods.push('Name: '+item.NamePrint);return`<tr><td>${idx+1}</td><td>${esc(pN)}${mods.length?'<br><small style="color:#8b5cf6">'+mods.join(', ')+'</small>':''}</td><td>${c}${up.toLocaleString()}</td><td>${qty}</td><td>${mod>0?c+mod.toLocaleString():'-'}</td><td style="text-align:right">${c}${lt.toLocaleString()}</td></tr>`}).join('');
-  const fullHTML=`<div class="inv-preview" id="invPrint" style="display:block">
-    <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${new Date().toLocaleDateString()}</p></div></div>
-    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sd.CustomerName)}</p><p>Phone: ${esc(sd.CustomerPhone||'-')}</p>${sd.DeliveryType&&sd.DeliveryType!=='None'?`<p>Delivery: ${sd.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sd.PaymentMethod}</p><p style="font-size:16px;font-weight:700;color:${due>0?'#ef4444':'#10b981'}">${due>0?'DUE: '+c+due.toLocaleString():'PAID IN FULL'}</p></div></div>
+function buildCompactInvoice(invoiceNo, data) {
+  const c = C(); const s = S.settings;
+  const {customerName, customerPhone, payMethod, deliveryType, affCode,
+         total, disc, affDisc, vchDisc, delCharge, grand, paid, due, notes,
+         itemsHtml, dateStr, timeStr} = data;
+  return `<div id="invPrint" style="display:block;background:#fff;color:#000;font-family:monospace;padding:14px 16px;max-width:320px;margin:0 auto;border:1px solid #ddd;border-radius:8px">
+    <div style="text-align:center;margin-bottom:10px;border-bottom:2px solid #000;padding-bottom:10px">
+      <img src="${LOGO_URL}" alt="Logo" style="width:54px;height:54px;border-radius:8px;object-fit:cover;margin-bottom:6px">
+      <div style="font-size:18px;font-weight:700;letter-spacing:1px">${esc(s.businessName||'Fan Field')}</div>
+      <div style="font-size:10px;color:#555;margin:2px 0">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div>
+      <div style="font-size:10px;color:#555">${esc(s.address||'')}</div>
+      <div style="font-size:10px;color:#555">Tel: ${esc(s.phone||'')}</div>
+    </div>
+    <div style="font-size:11px;margin-bottom:8px;border-bottom:1px dashed #ccc;padding-bottom:8px">
+      <div style="display:flex;justify-content:space-between"><span><strong>Invoice:</strong> ${invoiceNo}</span><span><strong>Date:</strong> ${dateStr}</span></div>
+      <div style="margin-top:4px"><strong>Customer:</strong> ${esc(customerName)}</div>
+      <div><strong>Phone:</strong> ${esc(customerPhone||'-')}</div>
+      <div><strong>Payment:</strong> ${payMethod}</div>
+      ${deliveryType&&deliveryType!=='None'?`<div><strong>Delivery:</strong> ${deliveryType}</div>`:''}
+      ${affCode?`<div><strong>Affiliate:</strong> ${esc(affCode)}</div>`:''}
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px"><tbody>${itemsHtml}</tbody></table>
+    <div style="border-top:1px dashed #ccc;padding-top:8px;font-size:12px">
+      <div style="display:flex;justify-content:space-between"><span>Subtotal:</span><span>${c}${total.toLocaleString()}</span></div>
+      ${disc>0?`<div style="display:flex;justify-content:space-between"><span>Discount:</span><span>-${c}${disc.toLocaleString()}</span></div>`:''}
+      ${affDisc>0?`<div style="display:flex;justify-content:space-between"><span>Aff. Disc:</span><span>-${c}${affDisc.toLocaleString()}</span></div>`:''}
+      ${vchDisc>0?`<div style="display:flex;justify-content:space-between"><span>Voucher:</span><span>-${c}${vchDisc.toLocaleString()}</span></div>`:''}
+      ${delCharge>0?`<div style="display:flex;justify-content:space-between"><span>Delivery:</span><span>+${c}${delCharge.toLocaleString()}</span></div>`:''}
+      <div style="display:flex;justify-content:space-between;font-weight:700;font-size:14px;margin-top:4px;border-top:2px solid #000;padding-top:4px"><span>TOTAL:</span><span>${c}${grand.toLocaleString()}</span></div>
+      <div style="display:flex;justify-content:space-between"><span>Paid:</span><span>${c}${paid.toLocaleString()}</span></div>
+      ${due>0?`<div style="display:flex;justify-content:space-between;font-weight:700;color:#dc2626"><span>DUE:</span><span>${c}${due.toLocaleString()}</span></div>`:''}
+    </div>
+    ${notes?`<div style="margin-top:10px;padding:8px;background:#f8fafc;border-radius:4px;font-size:10px;border:1px dashed #ccc"><strong>Notes:</strong> ${esc(notes)}</div>`:''}
+    <div style="text-align:center;margin-top:12px;padding-top:8px;border-top:2px dashed #000;font-size:10px;color:#555">
+      <div>Thank you for your purchase!</div>
+      <div>${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div>
+      ${timeStr?`<div>Time: ${timeStr}</div>`:''}
+    </div>
+  </div>`;
+}
+
+function showInvoice(invoiceNo, sd, items) {
+  const c = C(); const s = S.settings;
+  const total = Number(sd.TotalAmount);
+  const disc = Number(sd.Discount);
+  const affDisc = Number(sd.AffiliateDiscount) || 0;
+  const vchDisc = Number(sd.VoucherDiscount) || 0;
+  const delCharge = Number(sd.DeliveryCharge) || 0;
+  const grand = total - disc - affDisc - vchDisc + delCharge;
+  const paid = Number(sd.PaidAmount);
+  const due = Math.max(0, grand - paid);
+  const notes = sd.Notes || '';
+  const dateStr = new Date().toLocaleDateString();
+  const timeStr = new Date().toLocaleTimeString();
+
+  // Full items HTML
+  let itemsHtml = items.map((item, idx) => {
+    const pN = buildPN(item.Club_Country, item.Type, item.Edition, item.Size);
+    const qty = Number(item.Quantity); const up = Number(item.UnitPrice);
+    const pP = item.Patch ? (Number(item.PatchPrice) || 0) : 0;
+    const nP = item.NamePrint ? (Number(item.NamePrintPrice) || 0) : 0;
+    const mod = (pP + nP) * qty;
+    const lt = (up * qty) + mod;
+    let mods = []; if (item.Patch) mods.push('Patch'); if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
+    return `<tr><td>${idx+1}</td><td>${esc(pN)}${mods.length?'<br><small style="color:#8b5cf6">'+mods.join(', ')+'</small>':''}</td><td>${c}${up.toLocaleString()}</td><td>${qty}</td><td>${mod>0?c+mod.toLocaleString():'-'}</td><td style="text-align:right">${c}${lt.toLocaleString()}</td></tr>`;
+  }).join('');
+
+  // Compact items HTML
+  let compactItemsHtml = items.map((item, idx) => {
+    const pN = buildPN(item.Club_Country, item.Type, item.Edition, item.Size);
+    const qty = Number(item.Quantity); const up = Number(item.UnitPrice);
+    const pP = item.Patch ? (Number(item.PatchPrice) || 0) : 0;
+    const nP = item.NamePrint ? (Number(item.NamePrintPrice) || 0) : 0;
+    const mod = (pP + nP) * qty;
+    const lt = (up * qty) + mod;
+    let mods = []; if (item.Patch) mods.push('Patch'); if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
+    return `<tr><td style="padding:4px 6px;font-size:12px;border-bottom:1px dashed #ccc">${idx+1}. ${esc(pN)}${mods.length?' <span style="font-size:10px;color:#555">('+mods.join(', ')+')</span>':''}<br><span style="font-size:10px;color:#555">@${c}${up.toLocaleString()} x${qty}${mod>0?' + Mod '+c+mod.toLocaleString():''}</span></td><td style="padding:4px 6px;font-size:12px;text-align:right;border-bottom:1px dashed #ccc;white-space:nowrap"><strong>${c}${lt.toLocaleString()}</strong></td></tr>`;
+  }).join('');
+
+  const fullHTML = `<div class="inv-preview" id="invPrint" style="display:block">
+    <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${dateStr}</p><p>Time: ${timeStr}</p></div></div>
+    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sd.CustomerName)}</p><p>Phone: ${esc(sd.CustomerPhone||'-')}</p>${sd.DeliveryType&&sd.DeliveryType!=='None'?`<p>Delivery: ${sd.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sd.PaymentMethod}</p><p style="font-size:16px;font-weight:700;color:${due>0?'#ef4444':'#10b981'}">${due>0?'DUE: '+c+due.toLocaleString():'PAID IN FULL'}</p>${sd.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sd.AffiliateCode)}</p>`:''}</div></div>
     <table class="inv-table"><thead><tr><th>#</th><th>Product</th><th>Price</th><th>Qty</th><th>Mods</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
     <div class="inv-totals"><table>
       <tr><td>Subtotal</td><td style="text-align:right">${c}${total.toLocaleString()}</td></tr>
@@ -533,19 +612,74 @@ function showInvoice(invoiceNo,sd,items){
     ${notes?`<div class="inv-notes"><strong>Notes:</strong> ${esc(notes)}</div>`:''}
     <div class="inv-footer"><p>Thank you for shopping with ${esc(s.businessName||'Fan Field')}!</p><p>${esc(s.motto||'')}</p></div>
   </div>`;
-  let m=document.getElementById('invoiceModal');if(m)m.remove();
-  document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px"><div class="modal-hdr"><h3>Invoice</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div></div><div class="modal-body" id="invModalBody">${fullHTML}</div></div></div>`);
-  window._invFullHTML=fullHTML;openModal('invoiceModal');
+
+  const compactHTML = buildCompactInvoice(invoiceNo, {
+    customerName: sd.CustomerName, customerPhone: sd.CustomerPhone,
+    payMethod: sd.PaymentMethod, deliveryType: sd.DeliveryType, affCode: sd.AffiliateCode,
+    total, disc, affDisc, vchDisc, delCharge, grand, paid, due, notes,
+    itemsHtml: compactItemsHtml, dateStr, timeStr
+  });
+
+  let m = document.getElementById('invoiceModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px">
+    <div class="modal-hdr"><h3>Invoice</h3>
+      <div class="btn-group">
+        <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
+        <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
+        <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
+        <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body" id="invModalBody">${compactHTML}</div>
+  </div></div>`);
+
+  window._invCompactHTML = compactHTML;
+  window._invFullHTML = fullHTML;
+  window._invCurrentMode = 'compact';
+  openModal('invoiceModal');
 }
-async function viewInvoice(invoiceNo){
-  if(!S.sales.length)S.sales=await apiGet('getSales');const sale=S.sales.find(s=>String(s.InvoiceNo)===String(invoiceNo));if(!sale){toast('Not found','error');return}
-  const rawItems=await apiGet('getSalesItems',{invoiceNo});if(!S.settings.businessName)S.settings=await apiGet('getSettings');const s=S.settings;const c=C();
-  const totalAmt=Number(sale.TotalAmount)||0;const disc=Number(sale.Discount)||0;const affDisc=Number(sale.AffiliateDiscount)||0;const vchDisc=Number(sale.VoucherDiscount)||0;const delCharge=Number(sale.DeliveryCharge)||0;const finalAmt=Number(sale.FinalAmount)||0;const paidAmt=Number(sale.PaidAmount)||0;const dueAmt=Number(sale.DueAmount)||0;const notes=sale.Notes||'';
-  let itemsHtml='';
-  if(rawItems.length){rawItems.forEach((item,idx)=>{const qty=Number(item.Quantity)||0;const up=Number(item.UnitPrice)||0;const pP=(item.Patch==='Yes')?(Number(item.PatchPrice)||0):0;const nP=item.NamePrint?(Number(item.NamePrintPrice)||0):0;const mod=(pP+nP)*qty;const lt=Number(item.LineTotal)||(up*qty+mod);let mods=[];if(item.Patch==='Yes')mods.push('Patch');if(item.NamePrint)mods.push('Name: '+item.NamePrint);itemsHtml+=`<tr><td>${idx+1}</td><td>${esc(item.ProductName||'')}${mods.length?'<br><small style="color:#8b5cf6">'+mods.join(', ')+'</small>':''}</td><td>${c}${up.toLocaleString()}</td><td>${qty}</td><td>${mod>0?c+mod.toLocaleString():'-'}</td><td style="text-align:right">${c}${lt.toLocaleString()}</td></tr>`})}else{itemsHtml=`<tr><td>1</td><td>${esc(sale.Items||'Items')}</td><td>-</td><td>-</td><td>-</td><td style="text-align:right">${c}${totalAmt.toLocaleString()}</td></tr>`}
-  const fullHTML=`<div class="inv-preview" id="invPrint" style="display:block">
-    <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${fmtD(sale.Date)}</p></div></div>
-    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sale.CustomerName||'Customer')}</p><p>Phone: ${esc(sale.CustomerPhone||'-')}</p>${sale.DeliveryType&&sale.DeliveryType!=='None'?`<p>Delivery: ${sale.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sale.PaymentMethod||'-'}</p><p style="font-size:16px;font-weight:700;color:${dueAmt>0?'#ef4444':'#10b981'}">${dueAmt>0?'DUE: '+c+dueAmt.toLocaleString():'PAID IN FULL'}</p></div></div>
+
+async function viewInvoice(invoiceNo) {
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  const sale = S.sales.find(s => String(s.InvoiceNo) === String(invoiceNo));
+  if (!sale) { toast('Not found', 'error'); return; }
+  const rawItems = await apiGet('getSalesItems', {invoiceNo});
+  if (!S.settings.businessName) S.settings = await apiGet('getSettings');
+  const s = S.settings; const c = C();
+  const totalAmt = Number(sale.TotalAmount) || 0;
+  const disc = Number(sale.Discount) || 0;
+  const affDisc = Number(sale.AffiliateDiscount) || 0;
+  const vchDisc = Number(sale.VoucherDiscount) || 0;
+  const delCharge = Number(sale.DeliveryCharge) || 0;
+  const finalAmt = Number(sale.FinalAmount) || 0;
+  const paidAmt = Number(sale.PaidAmount) || 0;
+  const dueAmt = Number(sale.DueAmount) || 0;
+  const notes = sale.Notes || '';
+  const saleDate = new Date(sale.Date);
+  const dateStr = isNaN(saleDate) ? String(sale.Date).substring(0,10) : saleDate.toLocaleDateString();
+  const timeStr = isNaN(saleDate) ? '' : saleDate.toLocaleTimeString();
+
+  let itemsHtml = '', compactItemsHtml = '';
+  if (rawItems.length) {
+    rawItems.forEach((item, idx) => {
+      const qty = Number(item.Quantity) || 0;
+      const up = Number(item.UnitPrice) || 0;
+      const pP = (item.Patch === 'Yes') ? (Number(item.PatchPrice) || 0) : 0;
+      const nP = item.NamePrint ? (Number(item.NamePrintPrice) || 0) : 0;
+      const mod = (pP + nP) * qty;
+      const lt = Number(item.LineTotal) || (up * qty + mod);
+      let mods = []; if (item.Patch === 'Yes') mods.push('Patch'); if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
+      itemsHtml += `<tr><td>${idx+1}</td><td>${esc(item.ProductName||'')}${mods.length?'<br><small style="color:#8b5cf6">'+mods.join(', ')+'</small>':''}</td><td>${c}${up.toLocaleString()}</td><td>${qty}</td><td>${mod>0?c+mod.toLocaleString():'-'}</td><td style="text-align:right">${c}${lt.toLocaleString()}</td></tr>`;
+      compactItemsHtml += `<tr><td style="padding:4px 6px;font-size:12px;border-bottom:1px dashed #ccc">${idx+1}. ${esc(item.ProductName||'')}${mods.length?' <span style="font-size:10px;color:#555">('+mods.join(', ')+')</span>':''}<br><span style="font-size:10px;color:#555">@${c}${up.toLocaleString()} x${qty}${mod>0?' + Mod '+c+mod.toLocaleString():''}</span></td><td style="padding:4px 6px;font-size:12px;text-align:right;border-bottom:1px dashed #ccc;white-space:nowrap"><strong>${c}${lt.toLocaleString()}</strong></td></tr>`;
+    });
+  } else {
+    itemsHtml = `<tr><td>1</td><td>${esc(sale.Items||'Items')}</td><td>-</td><td>-</td><td>-</td><td style="text-align:right">${c}${totalAmt.toLocaleString()}</td></tr>`;
+    compactItemsHtml = `<tr><td style="padding:4px 6px;font-size:12px;border-bottom:1px dashed #ccc">${esc(sale.Items||'Items')}</td><td style="padding:4px 6px;font-size:12px;text-align:right;border-bottom:1px dashed #ccc"><strong>${c}${totalAmt.toLocaleString()}</strong></td></tr>`;
+  }
+
+  const fullHTML = `<div class="inv-preview" id="invPrint" style="display:block">
+    <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${dateStr}</p>${timeStr?`<p>Time: ${timeStr}</p>`:''}</div></div>
+    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sale.CustomerName||'Customer')}</p><p>Phone: ${esc(sale.CustomerPhone||'-')}</p>${sale.DeliveryType&&sale.DeliveryType!=='None'?`<p>Delivery: ${sale.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sale.PaymentMethod||'-'}</p><p style="font-size:16px;font-weight:700;color:${dueAmt>0?'#ef4444':'#10b981'}">${dueAmt>0?'DUE: '+c+dueAmt.toLocaleString():'PAID IN FULL'}</p>${sale.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sale.AffiliateCode)}</p>`:''}</div></div>
     <table class="inv-table"><thead><tr><th>#</th><th>Product</th><th>Price</th><th>Qty</th><th>Mods</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
     <div class="inv-totals"><table>
       <tr><td>Subtotal</td><td style="text-align:right">${c}${totalAmt.toLocaleString()}</td></tr>
@@ -560,12 +694,64 @@ async function viewInvoice(invoiceNo){
     ${notes?`<div class="inv-notes"><strong>Notes:</strong> ${esc(notes)}</div>`:''}
     <div class="inv-footer"><p>Thank you for shopping with ${esc(s.businessName||'Fan Field')}!</p></div>
   </div>`;
-  let m=document.getElementById('invoiceModal');if(m)m.remove();
-  document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px"><div class="modal-hdr"><h3>Invoice: ${invoiceNo}</h3><div class="btn-group"><button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div></div><div class="modal-body">${fullHTML}</div></div></div>`);
+
+  const compactHTML = buildCompactInvoice(invoiceNo, {
+    customerName: sale.CustomerName || 'Customer', customerPhone: sale.CustomerPhone,
+    payMethod: sale.PaymentMethod, deliveryType: sale.DeliveryType, affCode: sale.AffiliateCode,
+    total: totalAmt, disc, affDisc, vchDisc, delCharge, grand: finalAmt,
+    paid: paidAmt, due: dueAmt, notes,
+    itemsHtml: compactItemsHtml, dateStr, timeStr
+  });
+
+  let m = document.getElementById('invoiceModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `<div class="modal-overlay" id="invoiceModal"><div class="modal" style="max-width:800px">
+    <div class="modal-hdr"><h3>Invoice: ${invoiceNo}</h3>
+      <div class="btn-group">
+        <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
+        <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
+        <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
+        <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
+      </div>
+    </div>
+    <div class="modal-body" id="invModalBody">${compactHTML}</div>
+  </div></div>`);
+
+  window._invCompactHTML = compactHTML;
+  window._invFullHTML = fullHTML;
+  window._invCurrentMode = 'compact';
   openModal('invoiceModal');
 }
-function printInvoice(){const c=document.getElementById('invPrint');if(!c)return;const w=window.open('','_blank');w.document.write(`<html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif;padding:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:12px}th{background:#2563eb;color:#fff}.inv-hdr-row{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #2563eb}.inv-brand{display:flex;align-items:center;gap:14px}.inv-brand h2{font-size:24px;color:#2563eb;margin:0}.motto{font-size:11px;font-style:italic;color:#475569}.inv-meta{text-align:right}.inv-meta h3{font-size:18px}.inv-parties{display:flex;justify-content:space-between;margin-bottom:20px}.inv-parties h4{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:4px}.name{font-weight:700;font-size:14px}.inv-totals{display:flex;justify-content:flex-end;margin-top:14px}.inv-totals table{width:260px}.inv-totals tr:last-child td{font-weight:700;font-size:14px;border-top:2px solid #0f172a}.inv-footer{margin-top:28px;text-align:center;font-size:10px;color:#94a3b8;padding-top:14px;border-top:1px solid #e2e8f0}.inv-notes{margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;font-size:11px;border:1px solid #e2e8f0}p{margin:1px 0;font-size:11px}small{font-size:10px}img{max-width:64px;height:auto;border-radius:10px}</style></head><body>${c.outerHTML}</body></html>`);w.document.close();setTimeout(()=>w.print(),500)}
 
+function switchInvoiceView(mode) {
+  const body = document.getElementById('invModalBody');
+  if (!body) return;
+  const btnC = document.getElementById('btnCompact');
+  const btnF = document.getElementById('btnFull');
+  if (mode === 'compact') {
+    body.innerHTML = window._invCompactHTML || '';
+    if (btnC) { btnC.style.borderColor = 'var(--primary)'; btnC.style.color = 'var(--primary)'; }
+    if (btnF) { btnF.style.borderColor = ''; btnF.style.color = ''; }
+  } else {
+    body.innerHTML = window._invFullHTML || '';
+    if (btnF) { btnF.style.borderColor = 'var(--primary)'; btnF.style.color = 'var(--primary)'; }
+    if (btnC) { btnC.style.borderColor = ''; btnC.style.color = ''; }
+  }
+  window._invCurrentMode = mode;
+}
+
+function printInvoice() {
+  const content = document.getElementById('invPrint');
+  if (!content) { toast('Nothing to print', 'error'); return; }
+  const isCompact = (window._invCurrentMode === 'compact');
+  const w = window.open('', '_blank');
+  if (isCompact) {
+    w.document.write(`<html><head><title>Invoice</title><style>body{margin:0;padding:20px;background:#fff;display:flex;justify-content:center}*{box-sizing:border-box}table{border-collapse:collapse;width:100%}img{max-width:54px;height:auto;border-radius:8px}</style></head><body>${content.outerHTML}</body></html>`);
+  } else {
+    w.document.write(`<html><head><title>Invoice</title><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet"><style>body{font-family:'Inter',sans-serif;padding:20px;color:#0f172a}table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:12px}th{background:#2563eb;color:#fff}.inv-hdr-row{display:flex;justify-content:space-between;margin-bottom:20px;padding-bottom:14px;border-bottom:3px solid #2563eb}.inv-brand{display:flex;align-items:center;gap:14px}.inv-brand h2{font-size:24px;color:#2563eb;margin:0}.motto{font-size:11px;font-style:italic;color:#475569}.inv-meta{text-align:right}.inv-meta h3{font-size:18px}.inv-parties{display:flex;justify-content:space-between;margin-bottom:20px}.inv-parties h4{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:#94a3b8;margin-bottom:4px}.name{font-weight:700;font-size:14px}.inv-totals{display:flex;justify-content:flex-end;margin-top:14px}.inv-totals table{width:260px}.inv-totals tr:last-child td{font-weight:700;font-size:14px;border-top:2px solid #0f172a}.inv-footer{margin-top:28px;text-align:center;font-size:10px;color:#94a3b8;padding-top:14px;border-top:1px solid #e2e8f0}.inv-notes{margin-top:12px;padding:10px 14px;background:#f8fafc;border-radius:6px;font-size:11px;border:1px solid #e2e8f0}p{margin:1px 0;font-size:11px}small{font-size:10px}img{max-width:64px;height:auto;border-radius:10px}</style></head><body>${content.outerHTML}</body></html>`);
+  }
+  w.document.close();
+  setTimeout(() => w.print(), 500);
+}
 // ============================================================
 // SALES LEDGER (with reverse, summary, delivery status, payment method column)
 // ============================================================
