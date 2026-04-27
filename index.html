@@ -374,6 +374,7 @@ async function renderInventory(area){
     <select class="fc" style="width:auto;min-width:80px" id="invType" onchange="filterInv()"><option value="">All Types</option>${types.map(t=>`<option>${t}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:70px" id="invSize" onchange="filterInv()"><option value="">Size</option>${sizes.map(s=>`<option>${s}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:80px" id="invStock" onchange="filterInv()"><option value="">Stock</option><option value="low">Low</option><option value="out">Out</option><option value="ok">OK</option></select>
+    <button class="btn btn-outline btn-sm" onclick="setInvSort('smart')" title="Smart Group Sort"><i class="fas fa-layer-group"></i><span class="hide-mobile"> Group</span></button>
     <button class="btn btn-success btn-sm" onclick="openAddBatchModal()"><i class="fas fa-layer-group"></i><span class="hide-mobile"> Batch</span></button>
     <button class="btn btn-primary btn-sm" onclick="openProductModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button>
   </div></div><div class="card-body np"><div class="tbl-wrap" id="invTbl"></div></div></div>`;
@@ -392,10 +393,22 @@ function filterInv(){
     let mst=true;if(stk==='low')mst=Number(i.Stock)>0&&Number(i.Stock)<=Number(i.MinStock||5);else if(stk==='out')mst=Number(i.Stock)===0;else if(stk==='ok')mst=Number(i.Stock)>Number(i.MinStock||5);
     return ms&&mc&&me&&mt&&mz&&mst;
   });
-  data=invSortCol==='default'?smartSort(data):colSort(data,invSortCol,invSortDir);
+  // Default = alphabetical by Product Name; user can click headers for other sorts
+if (invSortCol === 'default') {
+  data = [...data].sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
+} else if (invSortCol === 'smart') {
+  data = smartSort(data);
+} else {
+  data = colSort(data, invSortCol, invSortDir);
+}
   renderInvTable(data);
 }
 function colSort(data,col,dir){return[...data].sort((a,b)=>{let vA,vB;switch(col){case'Edition':vA=EDITION_ORDER[a.Edition]||99;vB=EDITION_ORDER[b.Edition]||99;return dir==='asc'?vA-vB:vB-vA;case'Type':vA=TYPE_ORDER[a.Type]||99;vB=TYPE_ORDER[b.Type]||99;return dir==='asc'?vA-vB:vB-vA;case'Size':vA=SIZE_ORDER[a.Size]||99;vB=SIZE_ORDER[b.Size]||99;return dir==='asc'?vA-vB:vB-vA;case'CostPrice':case'SellPrice':case'Stock':vA=Number(a[col])||0;vB=Number(b[col])||0;return dir==='asc'?vA-vB:vB-vA;default:vA=String(a[col]||'').toLowerCase();vB=String(b[col]||'').toLowerCase();return dir==='asc'?vA.localeCompare(vB):-vA.localeCompare(vB)}})}
+function setInvSort(mode) {
+  invSortCol = mode;
+  invSortDir = 'asc';
+  filterInv();
+}
 function toggleInvSort(col){if(invSortCol===col){invSortDir=invSortDir==='asc'?'desc':'asc';if(invSortDir==='asc'&&invSortCol===col){invSortCol='default'}}else{invSortCol=col;invSortDir='asc'}filterInv()}
 function si(col){if(invSortCol!==col)return'<i class="fas fa-sort" style="opacity:.3;margin-left:3px"></i>';return invSortDir==='asc'?'<i class="fas fa-sort-up" style="color:var(--primary);margin-left:3px"></i>':'<i class="fas fa-sort-down" style="color:var(--primary);margin-left:3px"></i>'}
 function renderInvTable(data){
@@ -431,8 +444,118 @@ async function saveProduct(id){const supSel=document.getElementById('pSup');cons
 async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
 function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
 async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:document.getElementById('stkMode').value,Stock:document.getElementById('stkQty').value});if(r.success){toast(`Stock: ${r.newStock}`);closeModal('stockModal');renderPage('inventory')}}
-function openAddBatchModal(){let m=document.getElementById('batchModal');if(m)m.remove();const prods=S.inventory.filter(i=>!String(i.ID).match(/^PRD-\d+[A-Z]$/));document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="batchModal"><div class="modal"><div class="modal-hdr"><h3>Add Batch</h3><button class="modal-close" onclick="closeModal('batchModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px;font-size:12px;color:var(--text-sec)">Adds same product from different supplier. Creates new entry with suffix ID.</p><div class="fg"><div class="form-group"><label>Product *</label><select class="fc" id="bProd">${prods.map(p=>`<option value="${p.ID}" data-name="${esc(p.ProductName)}">${esc(p.ProductName)} [${p.ID}]</option>`).join('')}</select></div><div class="form-group"><label>Supplier</label><select class="fc" id="bSup"><option value="">None</option>${S.suppliers.map(s=>`<option value="${s.ID}" data-name="${esc(s.Name)}">${esc(s.Name)}</option>`).join('')}</select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="bQty" value="0"></div><div class="form-group"><label>Cost Price</label><input type="number" class="fc" id="bCost" value="0"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('batchModal')">Cancel</button><button class="btn btn-success" onclick="saveBatch()"><i class="fas fa-save"></i>Add</button></div></div></div>`);openModal('batchModal')}
-async function saveBatch(){const ps=document.getElementById('bProd');const ss=document.getElementById('bSup');const r=await apiPost('addBatch',{ProductID:ps.value,ProductName:ps.selectedOptions[0]?.dataset.name||'',SupplierID:ss.value,SupplierName:ss.selectedOptions[0]?.dataset.name||'',Quantity:document.getElementById('bQty').value,CostPrice:document.getElementById('bCost').value});if(r.success){toast(`Batch added: ${r.batchProductId||'OK'}`);closeModal('batchModal');renderPage('inventory')}}
+function openAddBatchModal() {
+  let m = document.getElementById('batchModal'); if (m) m.remove();
+  // Allow ALL products (including existing variants) to be selected
+  // Sort alphabetically by ProductName
+  const prods = [...S.inventory].sort((a, b) => 
+    String(a.ProductName || '').localeCompare(String(b.ProductName || ''))
+  );
+  
+  document.body.insertAdjacentHTML('beforeend', `
+  <div class="modal-overlay" id="batchModal"><div class="modal">
+    <div class="modal-hdr"><h3>Add New Price Batch</h3>
+      <button class="modal-close" onclick="closeModal('batchModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom:12px;font-size:12px;color:var(--text-sec);background:rgba(59,130,246,.08);padding:10px;border-radius:6px;border-left:3px solid var(--primary)">
+        <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+        Use this when the <strong>same product</strong> is purchased at a <strong>different cost price</strong>
+        (from same or different supplier). Creates a variant with suffix ID (e.g., PRD-0006 → PRD-0006A).
+      </p>
+      <div class="fg">
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Base Product *</label>
+          <select class="fc" id="bProd" onchange="onBatchProdChange()">
+            <option value="">Select product</option>
+            ${prods.map(p => `<option value="${p.ID}" data-name="${esc(p.ProductName)}" data-cost="${p.CostPrice}" data-sell="${p.SellPrice}" data-supid="${p.SupplierID||''}" data-supname="${esc(p.SupplierName||'')}">${esc(p.ProductName)} [${p.ID}] — Current: ${C()}${Number(p.CostPrice).toLocaleString()}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Supplier</label>
+          <select class="fc" id="bSup">
+            <option value="">None</option>
+            ${[...S.suppliers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(s => `<option value="${s.ID}" data-name="${esc(s.Name)}">${esc(s.Name)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantity *</label>
+          <input type="number" class="fc" id="bQty" value="0">
+        </div>
+        <div class="form-group">
+          <label>New Cost Price *</label>
+          <input type="number" class="fc" id="bCost" value="0" placeholder="Different from original">
+        </div>
+        <div class="form-group">
+          <label>Sell Price (optional)</label>
+          <input type="number" class="fc" id="bSell" placeholder="Leave blank to inherit">
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label>Notes</label>
+          <input class="fc" id="bNotes" placeholder="e.g., Bulk discount, new shipment">
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeModal('batchModal')">Cancel</button>
+      <button class="btn btn-success" onclick="saveBatch()"><i class="fas fa-save"></i>Create Batch</button>
+    </div>
+  </div></div>`);
+  openModal('batchModal');
+}
+
+// Auto-fill supplier and prices when a product is selected
+function onBatchProdChange() {
+  const sel = document.getElementById('bProd');
+  const opt = sel.selectedOptions[0];
+  if (!opt || !opt.value) return;
+  
+  const supId = opt.dataset.supid;
+  const supName = opt.dataset.supname;
+  const supSel = document.getElementById('bSup');
+  
+  // Pre-select the original supplier (user can change if needed)
+  if (supId) {
+    for (let i = 0; i < supSel.options.length; i++) {
+      if (supSel.options[i].value === supId) {
+        supSel.selectedIndex = i;
+        break;
+      }
+    }
+  }
+  
+  // Pre-fill sell price for reference
+  document.getElementById('bSell').placeholder = `Inherit ${C()}${Number(opt.dataset.sell).toLocaleString()}`;
+}
+
+async function saveBatch() {
+  const ps = document.getElementById('bProd');
+  if (!ps.value) { toast('Select a product', 'error'); return; }
+  
+  const ss_ = document.getElementById('bSup');
+  const qty = Number(document.getElementById('bQty').value) || 0;
+  const cost = Number(document.getElementById('bCost').value) || 0;
+  
+  if (qty <= 0) { toast('Enter quantity', 'error'); return; }
+  if (cost <= 0) { toast('Enter cost price', 'error'); return; }
+  
+  const r = await apiPost('addBatch', {
+    ProductID: ps.value,
+    ProductName: ps.selectedOptions[0]?.dataset.name || '',
+    SupplierID: ss_.value,
+    SupplierName: ss_.selectedOptions[0]?.dataset.name || '',
+    Quantity: qty,
+    CostPrice: cost,
+    SellPrice: document.getElementById('bSell').value,
+    Notes: document.getElementById('bNotes').value
+  });
+  if (r.success) {
+    toast(`Variant created: ${r.batchProductId}`);
+    closeModal('batchModal');
+    renderPage('inventory');
+  }
+}
+  async function saveBatch(){const ps=document.getElementById('bProd');const ss=document.getElementById('bSup');const r=await apiPost('addBatch',{ProductID:ps.value,ProductName:ps.selectedOptions[0]?.dataset.name||'',SupplierID:ss.value,SupplierName:ss.selectedOptions[0]?.dataset.name||'',Quantity:document.getElementById('bQty').value,CostPrice:document.getElementById('bCost').value});if(r.success){toast(`Batch added: ${r.batchProductId||'OK'}`);closeModal('batchModal');renderPage('inventory')}}
 
 // ============================================================
 // POS - NEW SALE (with delivery, voucher, notes on receipt)
@@ -442,7 +565,7 @@ async function renderPOS(area){
   const dInDhaka=S.settings.deliveryInsideDhaka||80;const dOutDhaka=S.settings.deliveryOutsideDhaka||150;const dCampus=S.settings.deliveryOnCampus||0;
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-cash-register" style="color:var(--primary);margin-right:6px"></i>Create New Sale</h3></div><div class="card-body">
     <div class="fg">
-      <div class="form-group"><label>Customer</label><select class="fc" id="posCust"><option value="">Walk-in Customer</option>${S.customers.map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)} (${c.Phone||''})</option>`).join('')}</select></div>
+      <div class="form-group"><label>Customer</label><select class="fc" id="posCust"><option value="">Walk-in Customer</option>${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)} (${c.Phone||''})</option>`).join('')}</select></div>
       <div class="form-group"><label>Phone</label><input class="fc" id="posCustPhone" placeholder="Phone"></div>
       <div class="form-group"><label>Payment Method</label><select class="fc" id="posPayM">${makeOptions(PAY_METHODS)}</select></div>
       <div class="form-group"><label>Delivery</label><select class="fc" id="posDel" onchange="calcPOSTotal()"><option value="None">No Delivery</option><option value="Inside Dhaka">Inside Dhaka (${C()}${dInDhaka})</option><option value="Outside Dhaka">Outside Dhaka (${C()}${dOutDhaka})</option><option value="On Campus">On Campus (${dCampus>0?C()+dCampus:'Free'})</option></select></div>
@@ -474,8 +597,34 @@ async function renderPOS(area){
   document.getElementById('posCust').addEventListener('change',function(){document.getElementById('posCustPhone').value=this.selectedOptions[0]?.dataset.phone||''});
   document.getElementById('posDel').addEventListener('change',function(){document.getElementById('posDelAddrWrap').style.display=this.value!=='None'?'block':'none'});
 }
-function addPOSRow(){const tbody=document.getElementById('posItems');const tr=document.createElement('tr');const pD=S.settings.patchDefaultPrice||50;const nD=S.settings.namePrintDefaultPrice||100;tr.innerHTML=`<td><select class="pos-prod" onchange="onPOSProdChange(this)"><option value="">Select</option>${S.inventory.filter(i=>Number(i.Stock)>0).map(p=>`<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}</select></td><td><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td><td><input class="pos-nameprint" placeholder="Name" oninput="calcPOSTotal()"></td><td><input type="number" class="pos-patchprice" value="${pD}" onchange="calcPOSTotal()"></td><td><input type="number" class="pos-nameprice" value="${nD}" onchange="calcPOSTotal()"></td><td><input type="number" class="pos-price" value="0" onchange="calcPOSTotal()"></td><td><input type="number" class="pos-cost" value="0" onchange="calcPOSTotal()"></td><td><input type="number" class="pos-qty" value="1" min="1" onchange="calcPOSTotal()" style="width:50px"></td><td><input class="pos-linetotal" value="0" readonly style="width:70px"></td><td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();calcPOSTotal()"><i class="fas fa-times"></i></button></td>`;tbody.appendChild(tr)}
-function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0}calcPOSTotal()}
+function addPOSRow() {
+  const tbody = document.getElementById('posItems');
+  const tr = document.createElement('tr');
+  const pD = S.settings.patchDefaultPrice || 50;
+  const nD = S.settings.namePrintDefaultPrice || 100;
+  
+  // Filter for in-stock items AND sort alphabetically by product name
+  const sortedProducts = S.inventory
+    .filter(i => Number(i.Stock) > 0)
+    .sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
+  
+  tr.innerHTML = `
+    <td><select class="pos-prod" onchange="onPOSProdChange(this)">
+      <option value="">Select</option>
+      ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
+    </select></td>
+    <td><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
+    <td><input class="pos-nameprint" placeholder="Name" oninput="calcPOSTotal()"></td>
+    <td><input type="number" class="pos-patchprice" value="${pD}" onchange="calcPOSTotal()"></td>
+    <td><input type="number" class="pos-nameprice" value="${nD}" onchange="calcPOSTotal()"></td>
+    <td><input type="number" class="pos-price" value="0" onchange="calcPOSTotal()"></td>
+    <td><input type="number" class="pos-cost" value="0" onchange="calcPOSTotal()"></td>
+    <td><input type="number" class="pos-qty" value="1" min="1" onchange="calcPOSTotal()" style="width:50px"></td>
+    <td><input class="pos-linetotal" value="0" readonly style="width:70px"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();calcPOSTotal()"><i class="fas fa-times"></i></button></td>`;
+  tbody.appendChild(tr);
+}
+  function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0}calcPOSTotal()}
 function calcPOSTotal(){
   let subtotal=0;
   document.querySelectorAll('#posItems tr').forEach(tr=>{const price=Number(tr.querySelector('.pos-price').value)||0;const qty=Number(tr.querySelector('.pos-qty').value)||0;const hasPatch=tr.querySelector('.pos-patch').checked;const hasName=tr.querySelector('.pos-nameprint').value.trim()!=='';const patchP=hasPatch?(Number(tr.querySelector('.pos-patchprice').value)||0):0;const nameP=hasName?(Number(tr.querySelector('.pos-nameprice').value)||0):0;const lineTotal=(price*qty)+((patchP+nameP)*qty);tr.querySelector('.pos-linetotal').value=lineTotal;subtotal+=lineTotal});
