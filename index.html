@@ -1659,6 +1659,54 @@ async function delCust(id) {
   const r = await apiPost('deleteCustomer', {ID: id});
   if (r.success) { toast('Deleted'); renderPage('customers'); }
 }
+  // ============================================================
+// CREATE SALE DIRECTLY FROM CUSTOMER PAGE
+// ============================================================
+async function createSaleForCustomer(customerId, customerName, customerPhone) {
+  // Navigate to POS page first
+  await nav('pos');
+  
+  // Wait for POS to fully render, then pre-select the customer
+  setTimeout(() => {
+    const custSelect = document.getElementById('posCust');
+    const phoneInput = document.getElementById('posCustPhone');
+    
+    if (!custSelect) {
+      toast('POS page not loaded yet, please try again', 'error');
+      return;
+    }
+    
+    // Find and select the customer in the dropdown
+    let found = false;
+    for (let i = 0; i < custSelect.options.length; i++) {
+      if (custSelect.options[i].value === customerId) {
+        custSelect.selectedIndex = i;
+        found = true;
+        break;
+      }
+    }
+    
+    if (found) {
+      // Auto-fill the phone field
+      if (phoneInput) phoneInput.value = customerPhone || '';
+      toast(`Creating sale for ${customerName}`, 'info');
+      
+      // Smooth scroll to top of POS
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      
+      // Highlight the customer field briefly for visual feedback
+      custSelect.style.transition = 'all 0.3s';
+      custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+      custSelect.style.borderColor = 'var(--secondary)';
+      setTimeout(() => {
+        custSelect.style.boxShadow = '';
+        custSelect.style.borderColor = '';
+      }, 1500);
+    } else {
+      toast(`Customer ${customerName} not found in POS dropdown`, 'warning');
+    }
+  }, 400); // Give POS time to render and load data
+}
 async function renderPayments(area){if(!S.sales.length)S.sales=await apiGet('getSales');S.payments=await apiGet('getPayments');const c=C();const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${esc(s.CustomerName||'Walk-in')}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td><td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td>${fmtD(p.Date)}</td><td>${p.InvoiceNo}</td><td style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`}
 function openPayModal(inv,custId,custName,due){let m=document.getElementById('payModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="payModal"><div class="modal" style="max-width:500px"><div class="modal-hdr"><h3>Receive Payment</h3><button class="modal-close" onclick="closeModal('payModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Invoice</label><input class="fc" value="${inv}" readonly></div><div class="form-group"><label>Due</label><input class="fc" value="${due}" readonly></div><input type="hidden" id="pyInv" value="${inv}"><input type="hidden" id="pyCustId" value="${custId}"><input type="hidden" id="pyCustN" value="${custName}"><div class="form-group"><label>Amount</label><input type="number" class="fc" id="pyAmt" value="${due}"></div><div class="form-group"><label>Method</label><select class="fc" id="pyMethod">${makeOptions(PAY_METHODS)}</select></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('payModal')">Cancel</button><button class="btn btn-success" onclick="submitPayment()"><i class="fas fa-check"></i>Receive</button></div></div></div>`);openModal('payModal')}
 async function submitPayment(){const data={InvoiceNo:document.getElementById('pyInv').value,CustomerID:document.getElementById('pyCustId').value,CustomerName:document.getElementById('pyCustN').value,Amount:document.getElementById('pyAmt').value,PaymentMethod:document.getElementById('pyMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid amount','error');return}const r=await apiPost('addPayment',data);if(r.success){toast('Received!');closeModal('payModal');S.sales=await apiGet('getSales');renderPage('payments')}}
