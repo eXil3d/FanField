@@ -1561,10 +1561,11 @@ function filterCust() {
         <td>${c}${spent.toLocaleString()}</td>
         <td style="color:${pending > 0 ? 'var(--danger)' : 'inherit'};font-weight:${pending > 0 ? '700' : '400'}">${c}${pending.toLocaleString()}</td>
         <td><div class="btn-group">
-          <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="View History"><i class="fas fa-history"></i></button>
-          <button class="btn btn-outline btn-sm" onclick="editCust('${cu.ID}')" title="Edit"><i class="fas fa-pen"></i></button>
-          <button class="btn btn-danger btn-sm" onclick="delCust('${cu.ID}')" title="Delete"><i class="fas fa-trash"></i></button>
-        </div></td>
+  <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="Create New Sale"><i class="fas fa-cash-register"></i></button>
+  <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="View History"><i class="fas fa-history"></i></button>
+  <button class="btn btn-outline btn-sm" onclick="editCust('${cu.ID}')" title="Edit"><i class="fas fa-pen"></i></button>
+  <button class="btn btn-danger btn-sm" onclick="delCust('${cu.ID}')" title="Delete"><i class="fas fa-trash"></i></button>
+</div></td>
       </tr>`;
     }).join('')}</tbody></table>` 
     : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No customers found</div>';
