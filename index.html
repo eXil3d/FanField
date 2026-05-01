@@ -930,7 +930,9 @@ function filterSL(){
       <button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="Invoice"><i class="fas fa-file-invoice"></i></button>
       <button class="btn btn-outline btn-sm" onclick="showSaleSummary('${s.ID}')" title="Summary"><i class="fas fa-share-alt"></i></button>
       ${!isCancelled&&Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i></button>`:''}
-      ${!isCancelled?`<button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Partial Return/Exchange"><i class="fas fa-exchange-alt"></i></button> <button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel/Reverse Full Order"><i class="fas fa-undo"></i></button>`:''}
+      ${!isCancelled?`<button class="btn btn-success btn-sm" onclick="openExchangeReplaceModal('${s.ID}','${s.InvoiceNo}')" title="Exchange & Replace"><i class="fas fa-right-left"></i></button>
+<button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Partial Return/Refund"><i class="fas fa-rotate-left"></i></button>
+<button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel Full Order"><i class="fas fa-undo"></i></button>`:''}
     </div></td></tr>`}).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales</div>';
 }
 function showSaleSummary(id){
