@@ -902,7 +902,7 @@ function printInvoice() {
   setTimeout(() => w.print(), 500);
 }
 // ============================================================
-// SALES LEDGER (with reverse, summary, delivery status, payment method column)
+// SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column)
 // ============================================================
 async function renderSales(area){
   S.sales=await apiGet('getSales');if(!S.customers.length)S.customers=await apiGet('getCustomers');
@@ -930,7 +930,7 @@ function filterSL(){
       <button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="Invoice"><i class="fas fa-file-invoice"></i></button>
       <button class="btn btn-outline btn-sm" onclick="showSaleSummary('${s.ID}')" title="Summary"><i class="fas fa-share-alt"></i></button>
       ${!isCancelled&&Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i></button>`:''}
-      ${!isCancelled?`<button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel/Reverse"><i class="fas fa-undo"></i></button>`:''}
+      ${!isCancelled?`<button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Partial Return/Exchange"><i class="fas fa-exchange-alt"></i></button> <button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel/Reverse Full Order"><i class="fas fa-undo"></i></button>`:''}
     </div></td></tr>`}).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales</div>';
 }
 function showSaleSummary(id){
@@ -941,6 +941,190 @@ function showSaleSummary(id){
   openModal('summaryModal');
 }
 async function reverseSale(id,inv){if(!confirm(`⚠️ Cancel sale ${inv}? This will:\n• Restore stock\n• Update customer\n• Reverse commissions\n\nContinue?`))return;const r=await apiPost('reverseSale',{ID:id});if(r.success){toast(r.message||'Sale reversed!');S.sales=await apiGet('getSales');filterSL()}}
+
+// ============================================================
+// PARTIAL RETURN / EXCHANGE (Reverse individual items from a sale)
+// ============================================================
+async function openPartialReturnModal(saleId, invoiceNo) {
+  const items = await apiGet('getSalesItems', { invoiceNo });
+  if (!items.length) { toast('No items found for this invoice', 'error'); return; }
+  
+  const sale = S.sales.find(s => s.ID === saleId);
+  if (!sale) { toast('Sale not found', 'error'); return; }
+  
+  const c = C();
+  let m = document.getElementById('partialReturnModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="partialReturnModal"><div class="modal" style="max-width:900px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-exchange-alt" style="color:var(--warning);margin-right:6px"></i>Partial Return / Exchange — ${invoiceNo}</h3>
+        <button class="modal-close" onclick="closeModal('partialReturnModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--warning)"></i>
+          Select items to return. Stock will be restored, customer totals adjusted, and commissions reversed proportionally.
+          For exchanges (e.g., size change), return the item here, then create a new sale for the replacement.
+        </div>
+        
+        <div class="tbl-wrap"><table class="si-tbl">
+          <thead><tr>
+            <th style="width:40px"><input type="checkbox" id="prSelectAll" onchange="toggleAllReturnItems(this)"></th>
+            <th>Product</th><th>Size</th><th>Qty Sold</th><th>Return Qty</th>
+            <th>Unit Price</th><th>Mods</th><th>Line Total</th><th>Refund</th>
+          </tr></thead>
+          <tbody id="prItemsBody">
+            ${items.map((item, idx) => {
+              const qty = Number(item.Quantity) || 0;
+              const up = Number(item.UnitPrice) || 0;
+              const pP = (item.Patch === 'Yes') ? (Number(item.PatchPrice) || 0) : 0;
+              const nP = item.NamePrint ? (Number(item.NamePrintPrice) || 0) : 0;
+              const modPerUnit = pP + nP;
+              const lt = Number(item.LineTotal) || 0;
+              let mods = [];
+              if (item.Patch === 'Yes') mods.push('Patch');
+              if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
+              return `<tr data-idx="${idx}" data-itemid="${item.ID}" data-productid="${item.ProductID || ''}" data-productname="${esc(item.ProductName || '')}" data-edition="${esc(item.Edition || '')}" data-unitprice="${up}" data-costprice="${item.CostPrice || 0}" data-modperunit="${modPerUnit}" data-qtysold="${qty}">
+                <td><input type="checkbox" class="cb pr-chk" onchange="onReturnRowToggle(this)"></td>
+                <td><strong>${esc(item.ProductName || '-')}</strong><br><small style="color:var(--text-muted)">${esc(item.ProductID || '')}</small></td>
+                <td>${item.Size || '-'}</td>
+                <td>${qty}</td>
+                <td><input type="number" class="pr-qty" min="1" max="${qty}" value="1" disabled onchange="recalcReturnRow(this)" style="width:60px"></td>
+                <td>${c}${up.toLocaleString()}</td>
+                <td style="font-size:10px;color:var(--purple)">${mods.join('<br>') || '-'}</td>
+                <td>${c}${lt.toLocaleString()}</td>
+                <td class="pr-refund" style="font-weight:600;color:var(--secondary)">${c}0</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+        
+        <hr style="margin:18px 0;border:none;border-top:1px solid var(--border)">
+        
+        <div class="fg" style="max-width:500px;margin-left:auto">
+          <div class="form-group"><label>Total Refund Amount</label><input class="fc" id="prTotalRefund" value="${c}0" readonly style="font-weight:700;font-size:16px;color:var(--secondary)"></div>
+          <div class="form-group"><label>Refund Method</label><select class="fc" id="prRefundMethod">
+            <option value="Cash">Cash Refund</option>
+            <option value="bKash">bKash</option>
+            <option value="Nagad">Nagad</option>
+            <option value="Bank Transfer">Bank Transfer</option>
+            <option value="Adjusted in New Order">Adjusted in New Order (Exchange)</option>
+            <option value="Store Credit">Store Credit</option>
+          </select></div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Reason / Notes</label>
+            <textarea class="fc" id="prNotes" placeholder="e.g., Size XL needed instead of L, Wrong color delivered, Customer changed mind..."></textarea>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="checkbox" id="prIsExchange" class="cb">
+              <span>Mark as <strong>Exchange</strong> (no refund — replacement sale will be created separately)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('partialReturnModal')">Cancel</button>
+        <button class="btn btn-warning" onclick="submitPartialReturn('${saleId}','${invoiceNo}')"><i class="fas fa-check"></i>Process Return</button>
+      </div>
+    </div></div>`);
+  
+  openModal('partialReturnModal');
+}
+
+function toggleAllReturnItems(masterChk) {
+  document.querySelectorAll('#prItemsBody .pr-chk').forEach(chk => {
+    chk.checked = masterChk.checked;
+    onReturnRowToggle(chk);
+  });
+}
+
+function onReturnRowToggle(chk) {
+  const tr = chk.closest('tr');
+  const qtyInput = tr.querySelector('.pr-qty');
+  qtyInput.disabled = !chk.checked;
+  if (!chk.checked) qtyInput.value = 1;
+  recalcReturnRow(qtyInput);
+}
+
+function recalcReturnRow(qtyInput) {
+  const tr = qtyInput.closest('tr');
+  const chk = tr.querySelector('.pr-chk');
+  const qtySold = Number(tr.dataset.qtysold) || 0;
+  let retQty = Number(qtyInput.value) || 0;
+  
+  if (retQty > qtySold) { retQty = qtySold; qtyInput.value = qtySold; }
+  if (retQty < 1) { retQty = 1; qtyInput.value = 1; }
+  
+  const up = Number(tr.dataset.unitprice) || 0;
+  const modPerUnit = Number(tr.dataset.modperunit) || 0;
+  const refund = chk.checked ? (up + modPerUnit) * retQty : 0;
+  
+  tr.querySelector('.pr-refund').textContent = C() + refund.toLocaleString();
+  recalcReturnTotal();
+}
+
+function recalcReturnTotal() {
+  let total = 0;
+  document.querySelectorAll('#prItemsBody tr').forEach(tr => {
+    const chk = tr.querySelector('.pr-chk');
+    if (!chk.checked) return;
+    const retQty = Number(tr.querySelector('.pr-qty').value) || 0;
+    const up = Number(tr.dataset.unitprice) || 0;
+    const modPerUnit = Number(tr.dataset.modperunit) || 0;
+    total += (up + modPerUnit) * retQty;
+  });
+  document.getElementById('prTotalRefund').value = C() + total.toLocaleString();
+}
+
+async function submitPartialReturn(saleId, invoiceNo) {
+  const returnItems = [];
+  document.querySelectorAll('#prItemsBody tr').forEach(tr => {
+    const chk = tr.querySelector('.pr-chk');
+    if (!chk.checked) return;
+    const retQty = Number(tr.querySelector('.pr-qty').value) || 0;
+    if (retQty <= 0) return;
+    returnItems.push({
+      SalesItemID: tr.dataset.itemid,
+      ProductID: tr.dataset.productid,
+      ProductName: tr.dataset.productname,
+      Edition: tr.dataset.edition,
+      ReturnQty: retQty,
+      UnitPrice: Number(tr.dataset.unitprice) || 0,
+      CostPrice: Number(tr.dataset.costprice) || 0,
+      ModPerUnit: Number(tr.dataset.modperunit) || 0
+    });
+  });
+  
+  if (!returnItems.length) { toast('Select at least one item to return', 'error'); return; }
+  
+  const isExchange = document.getElementById('prIsExchange').checked;
+  const notes = document.getElementById('prNotes').value;
+  const refundMethod = document.getElementById('prRefundMethod').value;
+  
+  const totalQty = returnItems.reduce((s, i) => s + i.ReturnQty, 0);
+  if (!confirm(`Confirm partial return of ${totalQty} item(s) from ${invoiceNo}?\n\n${isExchange ? '⚠️ Marked as EXCHANGE — no refund will be issued.\n' : ''}This will:\n• Restore stock\n• Adjust customer totals\n• Reverse proportional commissions\n• Update sale records\n\nContinue?`)) return;
+  
+  const r = await apiPost('partialReverseSale', {
+    SaleID: saleId,
+    InvoiceNo: invoiceNo,
+    Items: returnItems,
+    IsExchange: isExchange,
+    RefundMethod: refundMethod,
+    Notes: notes
+  });
+  
+  if (r.success) {
+    toast(`Partial return processed! ${r.itemsReturned} item(s) returned. Refund: ${C()}${(r.refundAmount || 0).toLocaleString()}`);
+    closeModal('partialReturnModal');
+    S.sales = await apiGet('getSales');
+    S.inventory = await apiGet('getInventory');
+    filterSL();
+  }
+}
+  
 function openManualSaleModal(){let m=document.getElementById('manualSaleModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="manualSaleModal"><div class="modal"><div class="modal-hdr"><h3>Manual Sale</h3><button class="modal-close" onclick="closeModal('manualSaleModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Customer</label><select class="fc" id="msCust"><option value="">Walk-in</option>${S.customers.map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)}</option>`).join('')}</select></div><div class="form-group"><label>Items</label><input class="fc" id="msItems"></div><div class="form-group"><label>Amount</label><input type="number" class="fc" id="msFinal" value="0"></div><div class="form-group"><label>Cost</label><input type="number" class="fc" id="msCost" value="0"></div><div class="form-group"><label>Paid</label><input type="number" class="fc" id="msPaid" value="0"></div><div class="form-group"><label>Method</label><select class="fc" id="msPayM">${makeOptions(PAY_METHODS)}</select></div><div class="form-group" style="grid-column:1/-1"><label>Notes</label><input class="fc" id="msNotes"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('manualSaleModal')">Cancel</button><button class="btn btn-primary" onclick="submitManualSale()"><i class="fas fa-save"></i>Add</button></div></div></div>`);openModal('manualSaleModal')}
 async function submitManualSale(){const sel=document.getElementById('msCust');const opt=sel.selectedOptions[0];const r=await apiPost('addManualSale',{CustomerID:sel.value,CustomerName:opt?.dataset.name||'Walk-in',CustomerPhone:opt?.dataset.phone||'',Items:document.getElementById('msItems').value,FinalAmount:document.getElementById('msFinal').value,CostTotal:document.getElementById('msCost').value,PaidAmount:document.getElementById('msPaid').value,PaymentMethod:document.getElementById('msPayM').value,Notes:document.getElementById('msNotes').value});if(r.success){toast('Added!');closeModal('manualSaleModal');renderPage('sales')}}
 
