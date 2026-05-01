@@ -565,7 +565,7 @@ async function renderPOS(area){
   const dInDhaka=S.settings.deliveryInsideDhaka||80;const dOutDhaka=S.settings.deliveryOutsideDhaka||150;const dCampus=S.settings.deliveryOnCampus||0;
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-cash-register" style="color:var(--primary);margin-right:6px"></i>Create New Sale</h3></div><div class="card-body">
     <div class="fg">
-      <div class="form-group"><label>Customer</label><select class="fc" id="posCust"><option value="">Walk-in Customer</option>${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)} (${c.Phone||''})</option>`).join('')}</select></div>
+      <div class="form-group">   <label style="display:flex;justify-content:space-between;align-items:center">     <span>Customer</span>     <button type="button" onclick="openQuickAddCustomerModal()" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:11px;font-weight:600;padding:0;display:flex;align-items:center;gap:4px" title="Add new customer">       <i class="fas fa-user-plus"></i> Add New     </button>   </label>   <select class="fc" id="posCust">     <option value="">Walk-in Customer</option>     ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)} (${c.Phone||''})</option>`).join('')}   </select> </div>
       <div class="form-group"><label>Phone</label><input class="fc" id="posCustPhone" placeholder="Phone"></div>
       <div class="form-group"><label>Payment Method</label><select class="fc" id="posPayM">${makeOptions(PAY_METHODS)}</select></div>
       <div class="form-group"><label>Delivery</label><select class="fc" id="posDel" onchange="calcPOSTotal()"><option value="None">No Delivery</option><option value="Inside Dhaka">Inside Dhaka (${C()}${dInDhaka})</option><option value="Outside Dhaka">Outside Dhaka (${C()}${dOutDhaka})</option><option value="On Campus">On Campus (${dCampus>0?C()+dCampus:'Free'})</option></select></div>
@@ -596,6 +596,174 @@ async function renderPOS(area){
   addPOSRow();
   document.getElementById('posCust').addEventListener('change',function(){document.getElementById('posCustPhone').value=this.selectedOptions[0]?.dataset.phone||''});
   document.getElementById('posDel').addEventListener('change',function(){document.getElementById('posDelAddrWrap').style.display=this.value!=='None'?'block':'none'});
+}
+// ============================================================
+// QUICK ADD CUSTOMER FROM POS PAGE
+// ============================================================
+function openQuickAddCustomerModal() {
+  let m = document.getElementById('quickCustModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="quickCustModal"><div class="modal" style="max-width:550px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-user-plus" style="color:var(--primary);margin-right:6px"></i>Quick Add Customer</h3>
+        <button class="modal-close" onclick="closeModal('quickCustModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(59,130,246,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--primary);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+          New customer will be auto-selected in the POS after saving.
+        </div>
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Name *</label>
+            <input class="fc" id="qcName" placeholder="Customer full name" autofocus>
+          </div>
+          <div class="form-group" style="position:relative">
+  <label>Phone <span id="qcPhoneStatus" style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:6px"></span></label>
+  <input class="fc" id="qcPhone" placeholder="Phone number" autocomplete="off" oninput="onQuickAddPhoneInput(this)">
+  <div id="qcPhoneWarning" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(245,158,11,.1);border-left:3px solid var(--warning);border-radius:6px;font-size:11px;color:var(--warning)"></div>
+</div>
+          <div class="form-group">
+            <label>Email</label>
+            <input class="fc" id="qcEmail" placeholder="Email (optional)">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Address</label>
+            <input class="fc" id="qcAddr" placeholder="Address (optional)">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Notes</label>
+            <input class="fc" id="qcNotes" placeholder="Optional notes">
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('quickCustModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveQuickCustomer()"><i class="fas fa-save"></i>Save & Select</button>
+      </div>
+    </div></div>`);
+  
+  openModal('quickCustModal');
+  
+  // Auto-focus on name field after modal opens
+  setTimeout(() => {
+    const nameInput = document.getElementById('qcName');
+    if (nameInput) nameInput.focus();
+  }, 100);
+  
+  // Allow Enter key to submit from any field
+  ['qcName', 'qcPhone', 'qcEmail', 'qcAddr', 'qcNotes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          saveQuickCustomer();
+        }
+      });
+    }
+  });
+}
+
+async function saveQuickCustomer() {
+  const name = document.getElementById('qcName').value.trim();
+  if (!name) {
+    toast('Customer name is required', 'error');
+    document.getElementById('qcName').focus();
+    return;
+  }
+  
+  const phone = document.getElementById('qcPhone').value.trim();
+  
+  // 🛡 Final duplicate check before saving
+  if (phone) {
+    const existing = findExactCustomerByPhone(phone);
+    if (existing) {
+      const confirmAdd = confirm(
+        `⚠️ Phone number ${phone} is already registered to:\n\n` +
+        `${existing.Name}${existing.Email ? '\n' + existing.Email : ''}\n\n` +
+        `Click OK to use this existing customer instead.\n` +
+        `Click Cancel to go back and edit the phone number.`
+      );
+      if (confirmAdd) {
+        useExistingCustomerFromQuickAdd(existing.ID, existing.Name, existing.Phone || '');
+        return;
+      } else {
+        document.getElementById('qcPhone').focus();
+        document.getElementById('qcPhone').select();
+        return;
+      }
+    }
+  }
+  
+  const data = {
+    Name: name,
+    Phone: phone,
+    Email: document.getElementById('qcEmail').value.trim(),
+    Address: document.getElementById('qcAddr').value.trim(),
+    Notes: document.getElementById('qcNotes').value.trim()
+  };
+  
+  // Disable the save button to prevent double-submission
+  const saveBtn = document.querySelector('#quickCustModal .btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
+  }
+  
+  const r = await apiPost('addCustomer', data);
+  
+  if (r.success) {
+    toast(`${name} added successfully!`);
+    closeModal('quickCustModal');
+    
+    // Refresh customers list
+    S.customers = await apiGet('getCustomers');
+    
+    // Rebuild the POS customer dropdown with new customer included
+    const custSelect = document.getElementById('posCust');
+    if (custSelect) {
+      const sortedCustomers = [...S.customers].sort((a, b) => 
+        String(a.Name || '').localeCompare(String(b.Name || ''))
+      );
+      
+      custSelect.innerHTML = `<option value="">Walk-in Customer</option>` +
+        sortedCustomers.map(c => 
+          `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone || ''}">${esc(c.Name)} (${c.Phone || ''})</option>`
+        ).join('');
+      
+      // Auto-select the newly added customer
+      for (let i = 0; i < custSelect.options.length; i++) {
+        if (custSelect.options[i].value === r.id) {
+          custSelect.selectedIndex = i;
+          break;
+        }
+      }
+      
+      // Auto-fill the phone field
+      const phoneInput = document.getElementById('posCustPhone');
+      if (phoneInput && data.Phone) {
+        phoneInput.value = data.Phone;
+      }
+      
+      // Visual highlight for confirmation
+      custSelect.style.transition = 'all 0.3s';
+      custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+      custSelect.style.borderColor = 'var(--secondary)';
+      setTimeout(() => {
+        custSelect.style.boxShadow = '';
+        custSelect.style.borderColor = '';
+      }, 1500);
+    }
+  } else {
+    // Re-enable button on error
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i>Save & Select';
+    }
+  }
 }
 function addPOSRow() {
   const tbody = document.getElementById('posItems');
@@ -659,7 +827,289 @@ async function submitSale(){
 }
 
 
+// ============================================================
+// SMART PHONE LOOKUP — Real-time duplicate detection & auto-fill
+// ============================================================
 
+// Normalize phone numbers for comparison (strip spaces, dashes, +88, etc.)
+function normalizePhone(phone) {
+  if (!phone) return '';
+  let p = String(phone).replace(/[\s\-\(\)\+]/g, '');
+  // Strip Bangladesh country code if present
+  if (p.startsWith('880')) p = p.substring(3);
+  if (p.startsWith('00880')) p = p.substring(5);
+  return p;
+}
+
+// Find matching customers by phone (partial or exact)
+function findCustomersByPhone(phoneInput, exactOnly = false) {
+  const normalized = normalizePhone(phoneInput);
+  if (!normalized || normalized.length < 3) return [];
+  
+  return S.customers.filter(c => {
+    const custPhone = normalizePhone(c.Phone);
+    if (!custPhone) return false;
+    if (exactOnly) return custPhone === normalized;
+    return custPhone.includes(normalized) || normalized.includes(custPhone);
+  });
+}
+
+// Check exact match
+function findExactCustomerByPhone(phone) {
+  const matches = findCustomersByPhone(phone, true);
+  return matches.length > 0 ? matches[0] : null;
+}
+
+// ============================================================
+// POS PHONE INPUT HANDLER
+// ============================================================
+let posPhoneSearchTimer = null;
+
+function onPOSPhoneInput(input) {
+  const value = input.value.trim();
+  const statusEl = document.getElementById('posPhoneStatus');
+  const suggestionsBox = document.getElementById('posPhoneSuggestions');
+  
+  // Clear any pending search
+  if (posPhoneSearchTimer) clearTimeout(posPhoneSearchTimer);
+  
+  // Reset visual state
+  input.style.borderColor = '';
+  statusEl.textContent = '';
+  statusEl.style.color = 'var(--text-muted)';
+  
+  if (!value || value.length < 3) {
+    suggestionsBox.style.display = 'none';
+    return;
+  }
+  
+  // Debounce the search to avoid excessive lookups
+  posPhoneSearchTimer = setTimeout(() => {
+    const matches = findCustomersByPhone(value);
+    const exact = findExactCustomerByPhone(value);
+    
+    if (exact) {
+      // ✅ Exact match found
+      statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--secondary)"></i> Existing customer found`;
+      statusEl.style.color = 'var(--secondary)';
+      input.style.borderColor = 'var(--secondary)';
+      
+      // Auto-select in dropdown
+      const custSelect = document.getElementById('posCust');
+      if (custSelect) {
+        for (let i = 0; i < custSelect.options.length; i++) {
+          if (custSelect.options[i].value === exact.ID) {
+            custSelect.selectedIndex = i;
+            break;
+          }
+        }
+        // Visual flash
+        custSelect.style.transition = 'all 0.3s';
+        custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+        custSelect.style.borderColor = 'var(--secondary)';
+        setTimeout(() => {
+          custSelect.style.boxShadow = '';
+          custSelect.style.borderColor = '';
+        }, 1500);
+      }
+      
+      toast(`Found: ${exact.Name}`, 'success');
+      suggestionsBox.style.display = 'none';
+    } else if (matches.length > 0) {
+      // 🔍 Partial matches — show suggestions
+      statusEl.innerHTML = `<i class="fas fa-search" style="color:var(--primary)"></i> ${matches.length} similar customer${matches.length > 1 ? 's' : ''} found`;
+      statusEl.style.color = 'var(--primary)';
+      
+      suggestionsBox.innerHTML = matches.slice(0, 8).map(c => `
+        <div onclick="selectPOSCustomerFromLookup('${c.ID}','${esc(c.Name)}','${c.Phone || ''}')" 
+             style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;display:flex;justify-content:space-between;align-items:center"
+             onmouseover="this.style.background='var(--surface-hover)'"
+             onmouseout="this.style.background=''">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(c.Name)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${esc(c.Phone || '')} ${c.Email ? '• ' + esc(c.Email) : ''}</div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted)">
+            ${Number(c.TotalPurchases) || 0} order${Number(c.TotalPurchases) === 1 ? '' : 's'}
+          </div>
+        </div>
+      `).join('');
+      
+      // Add "Use as new" option at bottom
+      suggestionsBox.innerHTML += `
+        <div onclick="dismissPOSPhoneSuggestions()" 
+             style="padding:9px 12px;cursor:pointer;font-size:11.5px;color:var(--text-muted);text-align:center;background:var(--bg);border-top:1px solid var(--border)">
+          <i class="fas fa-user-plus"></i> Use as new walk-in customer
+        </div>
+      `;
+      
+      suggestionsBox.style.display = 'block';
+    } else {
+      // 🆕 No match — new number
+      statusEl.innerHTML = `<i class="fas fa-circle-plus" style="color:var(--purple)"></i> New phone number`;
+      statusEl.style.color = 'var(--purple)';
+      suggestionsBox.style.display = 'none';
+    }
+  }, 250);
+}
+
+function selectPOSCustomerFromLookup(id, name, phone) {
+  const custSelect = document.getElementById('posCust');
+  const phoneInput = document.getElementById('posCustPhone');
+  const suggestionsBox = document.getElementById('posPhoneSuggestions');
+  const statusEl = document.getElementById('posPhoneStatus');
+  
+  if (custSelect) {
+    for (let i = 0; i < custSelect.options.length; i++) {
+      if (custSelect.options[i].value === id) {
+        custSelect.selectedIndex = i;
+        break;
+      }
+    }
+    custSelect.style.transition = 'all 0.3s';
+    custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+    custSelect.style.borderColor = 'var(--secondary)';
+    setTimeout(() => {
+      custSelect.style.boxShadow = '';
+      custSelect.style.borderColor = '';
+    }, 1500);
+  }
+  
+  if (phoneInput) {
+    phoneInput.value = phone;
+    phoneInput.style.borderColor = 'var(--secondary)';
+  }
+  
+  if (statusEl) {
+    statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--secondary)"></i> Customer selected`;
+    statusEl.style.color = 'var(--secondary)';
+  }
+  
+  if (suggestionsBox) suggestionsBox.style.display = 'none';
+  toast(`Selected: ${name}`, 'success');
+}
+
+function dismissPOSPhoneSuggestions() {
+  const suggestionsBox = document.getElementById('posPhoneSuggestions');
+  const statusEl = document.getElementById('posPhoneStatus');
+  if (suggestionsBox) suggestionsBox.style.display = 'none';
+  if (statusEl) {
+    statusEl.innerHTML = `<i class="fas fa-circle-plus" style="color:var(--purple)"></i> Used as walk-in`;
+    statusEl.style.color = 'var(--purple)';
+  }
+  // Reset customer dropdown to walk-in
+  const custSelect = document.getElementById('posCust');
+  if (custSelect) custSelect.selectedIndex = 0;
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', (e) => {
+  const suggestionsBox = document.getElementById('posPhoneSuggestions');
+  const phoneInput = document.getElementById('posCustPhone');
+  if (suggestionsBox && phoneInput && 
+      !suggestionsBox.contains(e.target) && 
+      e.target !== phoneInput) {
+    suggestionsBox.style.display = 'none';
+  }
+});
+
+// ============================================================
+// QUICK ADD CUSTOMER PHONE INPUT HANDLER
+// ============================================================
+let quickAddPhoneTimer = null;
+
+function onQuickAddPhoneInput(input) {
+  const value = input.value.trim();
+  const statusEl = document.getElementById('qcPhoneStatus');
+  const warningEl = document.getElementById('qcPhoneWarning');
+  
+  if (quickAddPhoneTimer) clearTimeout(quickAddPhoneTimer);
+  
+  // Reset state
+  input.style.borderColor = '';
+  if (statusEl) {
+    statusEl.textContent = '';
+    statusEl.style.color = 'var(--text-muted)';
+  }
+  if (warningEl) warningEl.style.display = 'none';
+  
+  if (!value || value.length < 3) return;
+  
+  quickAddPhoneTimer = setTimeout(() => {
+    const exact = findExactCustomerByPhone(value);
+    const partial = findCustomersByPhone(value);
+    
+    if (exact) {
+      // ⚠️ Duplicate detected
+      input.style.borderColor = 'var(--warning)';
+      statusEl.innerHTML = `<i class="fas fa-triangle-exclamation" style="color:var(--warning)"></i> Already exists`;
+      statusEl.style.color = 'var(--warning)';
+      
+      warningEl.style.display = 'block';
+      warningEl.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <strong>⚠️ Duplicate phone!</strong><br>
+            <span style="color:var(--text)"><strong>${esc(exact.Name)}</strong></span> already uses this number
+            ${exact.Email ? '<br><span style="font-size:10px">' + esc(exact.Email) + '</span>' : ''}
+          </div>
+          <button type="button" class="btn btn-warning btn-sm" onclick="useExistingCustomerFromQuickAdd('${exact.ID}','${esc(exact.Name)}','${exact.Phone || ''}')" style="white-space:nowrap">
+            <i class="fas fa-check"></i> Use This
+          </button>
+        </div>
+      `;
+    } else if (partial.length > 0) {
+      // 🔍 Similar numbers exist
+      input.style.borderColor = 'var(--primary)';
+      statusEl.innerHTML = `<i class="fas fa-info-circle" style="color:var(--primary)"></i> ${partial.length} similar number${partial.length > 1 ? 's' : ''} exist`;
+      statusEl.style.color = 'var(--primary)';
+      
+      warningEl.style.display = 'block';
+      warningEl.style.background = 'rgba(59,130,246,.1)';
+      warningEl.style.borderLeftColor = 'var(--primary)';
+      warningEl.style.color = 'var(--primary)';
+      warningEl.innerHTML = `
+        <strong>Similar customers:</strong><br>
+        ${partial.slice(0, 3).map(c => `<span style="color:var(--text)">• ${esc(c.Name)} — ${esc(c.Phone)}</span>`).join('<br>')}
+        ${partial.length > 3 ? `<br><em>...and ${partial.length - 3} more</em>` : ''}
+      `;
+    } else {
+      // ✅ Unique number
+      input.style.borderColor = 'var(--secondary)';
+      statusEl.innerHTML = `<i class="fas fa-check-circle" style="color:var(--secondary)"></i> Unique number`;
+      statusEl.style.color = 'var(--secondary)';
+    }
+  }, 250);
+}
+
+function useExistingCustomerFromQuickAdd(id, name, phone) {
+  // Close the quick add modal
+  closeModal('quickCustModal');
+  
+  // Select the existing customer in POS
+  const custSelect = document.getElementById('posCust');
+  const phoneInput = document.getElementById('posCustPhone');
+  
+  if (custSelect) {
+    for (let i = 0; i < custSelect.options.length; i++) {
+      if (custSelect.options[i].value === id) {
+        custSelect.selectedIndex = i;
+        break;
+      }
+    }
+    custSelect.style.transition = 'all 0.3s';
+    custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+    custSelect.style.borderColor = 'var(--secondary)';
+    setTimeout(() => {
+      custSelect.style.boxShadow = '';
+      custSelect.style.borderColor = '';
+    }, 1500);
+  }
+  
+  if (phoneInput) phoneInput.value = phone;
+  
+  toast(`Existing customer selected: ${name}`, 'success');
+}
 
 
 // ============================================================
