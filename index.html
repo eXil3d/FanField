@@ -301,6 +301,90 @@ async function renderPage(page){
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
 
+// ============================================================
+// PHONE NUMBER FORMATTER (Bangladesh format: 017-1234-5678)
+// ============================================================
+
+// Format phone number as: 017-1234-5678
+// Handles input variations: +880 1712345678, 8801712345678, 01712345678, 1712345678
+function formatPhoneBD(phone) {
+  if (!phone) return '';
+  
+  // Strip all non-numeric characters
+  let digits = String(phone).replace(/\D/g, '');
+  
+  // Handle country code variations
+  if (digits.startsWith('880')) digits = digits.substring(3);
+  if (digits.startsWith('00880')) digits = digits.substring(5);
+  
+  // Add leading 0 if missing (e.g., 1712345678 → 01712345678)
+  if (digits.length === 10 && !digits.startsWith('0')) {
+    digits = '0' + digits;
+  }
+  
+  // Limit to 11 digits (BD mobile format)
+  digits = digits.substring(0, 11);
+  
+  // Format based on length
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 7) return digits.substring(0, 3) + '-' + digits.substring(3);
+  return digits.substring(0, 3) + '-' + digits.substring(3, 7) + '-' + digits.substring(7);
+}
+
+// Get only digits (for storage/comparison)
+function unformatPhone(phone) {
+  if (!phone) return '';
+  let digits = String(phone).replace(/\D/g, '');
+  if (digits.startsWith('880')) digits = digits.substring(3);
+  if (digits.startsWith('00880')) digits = digits.substring(5);
+  if (digits.length === 10 && !digits.startsWith('0')) digits = '0' + digits;
+  return digits;
+}
+
+// Apply formatting to an input field as user types (preserves cursor position)
+function applyPhoneFormatting(input) {
+  if (!input) return;
+  
+  const oldValue = input.value;
+  const oldCursor = input.selectionStart;
+  
+  // Count digits before cursor in old value
+  const digitsBeforeCursor = oldValue.substring(0, oldCursor).replace(/\D/g, '').length;
+  
+  // Format the value
+  const newValue = formatPhoneBD(oldValue);
+  input.value = newValue;
+  
+  // Calculate new cursor position based on digit count
+  let newCursor = 0;
+  let digitCount = 0;
+  for (let i = 0; i < newValue.length; i++) {
+    if (digitCount >= digitsBeforeCursor) break;
+    if (/\d/.test(newValue[i])) digitCount++;
+    newCursor = i + 1;
+  }
+  
+  // Restore cursor position
+  setTimeout(() => {
+    input.setSelectionRange(newCursor, newCursor);
+  }, 0);
+}
+
+// Bind formatter to any input by ID
+function bindPhoneFormatter(inputId) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  
+  input.addEventListener('input', function() {
+    applyPhoneFormatting(this);
+  });
+  
+  // Format initial value if present
+  if (input.value) {
+    input.value = formatPhoneBD(input.value);
+  }
+}
+  
 // HELPERS
 function fmtD(d){if(!d)return'-';try{const dt=new Date(d);return isNaN(dt)?String(d).substring(0,10):dt.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}catch(e){return String(d).substring(0,10)}}
 function statusBadge(s){return s==='Paid'?'<span class="badge badge-s">Paid</span>':s==='Partial'?'<span class="badge badge-w">Partial</span>':s==='Unpaid'?'<span class="badge badge-d">Unpaid</span>':s==='Cancelled'?'<span class="badge badge-cancelled">Cancelled</span>':`<span class="badge badge-i">${s||'-'}</span>`}
@@ -833,12 +917,7 @@ async function submitSale(){
 
 // Normalize phone numbers for comparison (strip spaces, dashes, +88, etc.)
 function normalizePhone(phone) {
-  if (!phone) return '';
-  let p = String(phone).replace(/[\s\-\(\)\+]/g, '');
-  // Strip Bangladesh country code if present
-  if (p.startsWith('880')) p = p.substring(3);
-  if (p.startsWith('00880')) p = p.substring(5);
-  return p;
+  return unformatPhone(phone);
 }
 
 // Find matching customers by phone (partial or exact)
@@ -866,6 +945,9 @@ function findExactCustomerByPhone(phone) {
 let posPhoneSearchTimer = null;
 
 function onPOSPhoneInput(input) {
+  // Apply formatting first
+  applyPhoneFormatting(input);
+  
   const value = input.value.trim();
   const statusEl = document.getElementById('posPhoneStatus');
   const suggestionsBox = document.getElementById('posPhoneSuggestions');
@@ -1019,6 +1101,9 @@ document.addEventListener('click', (e) => {
 let quickAddPhoneTimer = null;
 
 function onQuickAddPhoneInput(input) {
+  // Apply formatting first
+  applyPhoneFormatting(input);
+  
   const value = input.value.trim();
   const statusEl = document.getElementById('qcPhoneStatus');
   const warningEl = document.getElementById('qcPhoneWarning');
@@ -2005,7 +2090,7 @@ function filterCust() {
       const pending = Number(cu.PendingAmount) || 0;
       return `<tr>
         <td><strong>${esc(cu.Name || '-')}</strong></td>
-        <td>${esc(cu.Phone || '-')}</td>
+        <td>${cu.Phone ? esc(formatPhoneBD(cu.Phone)) : '-'}</td>
         <td>${esc(cu.Email || '-')}</td>
         <td><span class="badge badge-i">${purchases}</span></td>
         <td>${c}${spent.toLocaleString()}</td>
@@ -2077,12 +2162,14 @@ function openCustModal(cust = null) {
   let m = document.getElementById('custModal'); if (m) m.remove();
   document.body.insertAdjacentHTML('beforeend', `<div class="modal-overlay" id="custModal"><div class="modal"><div class="modal-hdr"><h3>${cust?'Edit':'Add'} Customer</h3><button class="modal-close" onclick="closeModal('custModal')">&times;</button></div><div class="modal-body"><div class="fg">
     <div class="form-group"><label>Name *</label><input class="fc" id="cuName" value="${esc(cust?.Name || '')}"></div>
-    <div class="form-group"><label>Phone</label><input class="fc" id="cuPhone" value="${esc(cust?.Phone || '')}"></div>
+    <div class="form-group"><label>Phone</label><input class="fc" id="cuPhone" value="${esc(formatPhoneBD(cust?.Phone || ''))}" placeholder="017-1234-5678"></div>
     <div class="form-group"><label>Email</label><input class="fc" id="cuEmail" value="${esc(cust?.Email || '')}"></div>
     <div class="form-group"><label>Address</label><input class="fc" id="cuAddr" value="${esc(cust?.Address || '')}"></div>
     <div class="form-group" style="grid-column:1/-1"><label>Notes</label><textarea class="fc" id="cuNotes">${esc(cust?.Notes || '')}</textarea></div>
   </div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('custModal')">Cancel</button><button class="btn btn-primary" onclick="saveCust('${cust?.ID || ''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);
   openModal('custModal');
+  // Bind phone formatter
+setTimeout(() => bindPhoneFormatter('cuPhone'), 50);
 }
 
 function editCust(id) {
@@ -2165,8 +2252,8 @@ async function submitPayment(){const data={InvoiceNo:document.getElementById('py
 // SUPPLIERS & LEDGER
 // ============================================================
 async function renderSuppliers(area){S.suppliers=await apiGet('getSuppliers');const c=C();area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="sSrch" placeholder="Search..." oninput="filterSup()"></div><button class="btn btn-primary" onclick="openSupModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="sTbl"></div></div></div>`;filterSup()}
-function filterSup(){const srch=(document.getElementById('sSrch')?.value||'').toLowerCase();const data=S.suppliers.filter(s=>!srch||(s.Name||'').toLowerCase().includes(srch));const c=C();document.getElementById('sTbl').innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Total</th><th>Pending</th><th>Actions</th></tr></thead><tbody>${data.map(s=>`<tr><td><strong>${esc(s.Name)}</strong></td><td>${s.Phone||'-'}</td><td>${s.TotalOrders||0}</td><td>${c}${Number(s.TotalAmount||0).toLocaleString()}</td><td style="color:${Number(s.PendingAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.PendingAmount||0).toLocaleString()}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="editSup('${s.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delSup('${s.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No suppliers</div>'}
-function openSupModal(sup=null){let m=document.getElementById('supModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="supModal"><div class="modal"><div class="modal-hdr"><h3>${sup?'Edit':'Add'} Supplier</h3><button class="modal-close" onclick="closeModal('supModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Name *</label><input class="fc" id="suName" value="${sup?.Name||''}"></div><div class="form-group"><label>Phone</label><input class="fc" id="suPhone" value="${sup?.Phone||''}"></div><div class="form-group"><label>Email</label><input class="fc" id="suEmail" value="${sup?.Email||''}"></div><div class="form-group"><label>Address</label><input class="fc" id="suAddr" value="${sup?.Address||''}"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('supModal')">Cancel</button><button class="btn btn-primary" onclick="saveSup('${sup?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('supModal')}
+function filterSup(){const srch=(document.getElementById('sSrch')?.value||'').toLowerCase();const data=S.suppliers.filter(s=>!srch||(s.Name||'').toLowerCase().includes(srch));const c=C();document.getElementById('sTbl').innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Total</th><th>Pending</th><th>Actions</th></tr></thead><tbody>${data.map(s=>`<tr><td><strong>${esc(s.Name)}</strong></td><td>${s.Phone ? esc(formatPhoneBD(s.Phone)) : '-'}</td><td>${s.TotalOrders||0}</td><td>${c}${Number(s.TotalAmount||0).toLocaleString()}</td><td style="color:${Number(s.PendingAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.PendingAmount||0).toLocaleString()}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="editSup('${s.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delSup('${s.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No suppliers</div>'}
+function openSupModal(sup=null){let m=document.getElementById('supModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="supModal"><div class="modal"><div class="modal-hdr"><h3>${sup?'Edit':'Add'} Supplier</h3><button class="modal-close" onclick="closeModal('supModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Name *</label><input class="fc" id="suName" value="${sup?.Name||''}"></div><div class="form-group"><label>Phone</label><input class="fc" id="suPhone" value="${formatPhoneBD(sup?.Phone || '')}" placeholder="017-1234-5678"></div><div class="form-group"><label>Email</label><input class="fc" id="suEmail" value="${sup?.Email||''}"></div><div class="form-group"><label>Address</label><input class="fc" id="suAddr" value="${sup?.Address||''}"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('supModal')">Cancel</button><button class="btn btn-primary" onclick="saveSup('${sup?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('supModal');setTimeout(() => bindPhoneFormatter('suPhone'), 50);}
 function editSup(id){const s=S.suppliers.find(x=>x.ID===id);if(s)openSupModal(s)}
 async function saveSup(id){const data={ID:id,Name:document.getElementById('suName').value,Phone:document.getElementById('suPhone').value,Email:document.getElementById('suEmail').value,Address:document.getElementById('suAddr').value};if(!data.Name){toast('Name required','error');return}const r=await apiPost(id?'updateSupplier':'addSupplier',data);if(r.success){toast('Saved!');closeModal('supModal');renderPage('suppliers')}}
 async function delSup(id){if(!confirm('Delete?'))return;const r=await apiPost('deleteSupplier',{ID:id});if(r.success){toast('Deleted');renderPage('suppliers')}}
@@ -2267,10 +2354,47 @@ async function renderSettings(area){
     <div class="form-group"><label>Inside Dhaka (${C()})</label><input type="number" class="fc" id="stDelIn" value="${s.deliveryInsideDhaka||80}"></div>
     <div class="form-group"><label>Outside Dhaka (${C()})</label><input type="number" class="fc" id="stDelOut" value="${s.deliveryOutsideDhaka||150}"></div>
     <div class="form-group"><label>On Campus (${C()})</label><input type="number" class="fc" id="stDelCampus" value="${s.deliveryOnCampus||0}"></div>
-  </div><button class="btn btn-primary" onclick="saveSets()" style="margin-top:14px"><i class="fas fa-save"></i>Save Settings</button></div></div>`;
+  </div>   <button class="btn btn-primary" onclick="saveSets()" style="margin-top:14px"><i class="fas fa-save"></i>Save Settings</button>      <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">      <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--warning)">     <i class="fas fa-wand-magic-sparkles" style="margin-right:6px"></i>Data Maintenance   </h4>   <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">     <strong>Format All Phone Numbers</strong><br>     Converts all existing phone numbers in <strong>Customers</strong>, <strong>Suppliers</strong>, and <strong>Sales</strong> records to the standard format: <code style="background:var(--bg);padding:2px 6px;border-radius:4px">017-1234-5678</code><br>     <span style="color:var(--text-muted);font-size:11px">⚠️ This is a one-time migration. Safe to run multiple times — already-formatted numbers won't change.</span>   </div>   <button class="btn btn-warning" onclick="formatAllPhoneNumbers()">     <i class="fas fa-arrows-rotate"></i> Format All Phone Numbers   </button> </div></div>`;
 }
 async function saveSets(){const settings={businessName:document.getElementById('stBiz').value,motto:document.getElementById('stMotto').value,currency:document.getElementById('stCur').value,invoicePrefix:document.getElementById('stPfx').value,nextInvoiceNum:document.getElementById('stNum').value,phone:document.getElementById('stPhone').value,address:document.getElementById('stAddr').value,patchDefaultPrice:document.getElementById('stPatch').value,patchDefaultCost:document.getElementById('stPatchCost').value,namePrintDefaultPrice:document.getElementById('stName').value,namePrintDefaultCost:document.getElementById('stNameCost').value,deliveryInsideDhaka:document.getElementById('stDelIn').value,deliveryOutsideDhaka:document.getElementById('stDelOut').value,deliveryOnCampus:document.getElementById('stDelCampus').value};const r=await apiPost('updateSettings',{settings});if(r.success){toast('Saved!');S.currency=settings.currency;S.settings=settings}}
-
+// ============================================================
+// MIGRATION: Format all existing phone numbers
+// ============================================================
+async function formatAllPhoneNumbers() {
+  if (!confirm(
+    '⚠️ Format All Phone Numbers\n\n' +
+    'This will scan and reformat all phone numbers in:\n' +
+    '• Customers\n' +
+    '• Suppliers\n' +
+    '• Sales records\n\n' +
+    'New format: 017-1234-5678\n\n' +
+    'This operation may take a few moments. Continue?'
+  )) return;
+  
+  setSS('Migrating phone formats...');
+  toast('Formatting phone numbers, please wait...', 'info');
+  
+  const r = await apiPost('migratePhoneFormats', {});
+  
+  if (r.success) {
+    toast(
+      `✅ Migration complete!\n` +
+      `Customers updated: ${r.customersUpdated || 0}\n` +
+      `Suppliers updated: ${r.suppliersUpdated || 0}\n` +
+      `Sales updated: ${r.salesUpdated || 0}`,
+      'success'
+    );
+    setSS('Synced ✓');
+    
+    // Refresh data
+    S.customers = [];
+    S.suppliers = [];
+    S.sales = [];
+  } else {
+    toast('Migration failed: ' + (r.error || 'Unknown error'), 'error');
+  }
+}
+  
 // INIT
 document.addEventListener('DOMContentLoaded',()=>renderPage('dashboard'));
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
