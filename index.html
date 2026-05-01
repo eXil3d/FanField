@@ -1126,6 +1126,361 @@ async function submitPartialReturn(saleId, invoiceNo) {
     filterSL();
   }
 }
+
+// ============================================================
+// EXCHANGE & REPLACE — Return items + create replacement sale in ONE step
+// ============================================================
+async function openExchangeReplaceModal(saleId, invoiceNo) {
+  const items = await apiGet('getSalesItems', { invoiceNo });
+  if (!items.length) { toast('No items found', 'error'); return; }
+  
+  const sale = S.sales.find(s => s.ID === saleId);
+  if (!sale) { toast('Sale not found', 'error'); return; }
+  
+  // Make sure inventory is loaded
+  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  if (!S.settings.businessName) S.settings = await apiGet('getSettings');
+  
+  const c = C();
+  let m = document.getElementById('exchangeModal');
+  if (m) m.remove();
+  
+  // Save context globally for the modal
+  window._exchangeContext = {
+    saleId, invoiceNo,
+    customerID: sale.CustomerID || '',
+    customerName: sale.CustomerName || 'Walk-in Customer',
+    customerPhone: sale.CustomerPhone || '',
+    paymentMethod: sale.PaymentMethod || 'Cash',
+    originalItems: items
+  };
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="exchangeModal"><div class="modal" style="max-width:1100px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-right-left" style="color:var(--secondary);margin-right:6px"></i>Exchange & Replace — ${invoiceNo}</h3>
+        <button class="modal-close" onclick="closeModal('exchangeModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--secondary)"></i>
+          <strong>Customer:</strong> ${esc(sale.CustomerName || 'Walk-in')} ${sale.CustomerPhone ? '— ' + esc(sale.CustomerPhone) : ''}<br>
+          Step 1: Select items being <strong>returned</strong>. Step 2: Select <strong>replacement</strong> items. Stock auto-adjusts both ways.
+        </div>
+        
+        <!-- STEP 1: RETURN -->
+        <h4 style="font-size:14px;font-weight:700;margin:0 0 10px;color:var(--warning)">
+          <i class="fas fa-arrow-rotate-left"></i> Step 1 — Items to Return
+        </h4>
+        <div class="tbl-wrap" style="margin-bottom:18px"><table class="si-tbl">
+          <thead><tr>
+            <th style="width:40px"><input type="checkbox" id="exSelectAll" onchange="toggleAllExchangeReturn(this)"></th>
+            <th>Product</th><th>Size</th><th>Sold</th><th>Return</th>
+            <th>Price</th><th>Mods</th><th>Credit</th>
+          </tr></thead>
+          <tbody id="exReturnBody">
+            ${items.map((item, idx) => {
+              const qty = Number(item.Quantity) || 0;
+              if (qty <= 0) return '';
+              const up = Number(item.UnitPrice) || 0;
+              const pP = (item.Patch === 'Yes') ? (Number(item.PatchPrice) || 0) : 0;
+              const nP = item.NamePrint ? (Number(item.NamePrintPrice) || 0) : 0;
+              const modPerUnit = pP + nP;
+              let mods = [];
+              if (item.Patch === 'Yes') mods.push('Patch');
+              if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
+              return `<tr data-idx="${idx}" data-itemid="${item.ID}" data-productid="${item.ProductID || ''}" data-productname="${esc(item.ProductName || '')}" data-edition="${esc(item.Edition || '')}" data-unitprice="${up}" data-costprice="${item.CostPrice || 0}" data-modperunit="${modPerUnit}" data-qtysold="${qty}">
+                <td><input type="checkbox" class="cb ex-chk" onchange="onExchangeReturnToggle(this)"></td>
+                <td><strong>${esc(item.ProductName || '-')}</strong></td>
+                <td>${item.Size || '-'}</td>
+                <td>${qty}</td>
+                <td><input type="number" class="ex-qty" min="1" max="${qty}" value="1" disabled onchange="recalcExchange()" style="width:55px"></td>
+                <td>${c}${up.toLocaleString()}</td>
+                <td style="font-size:10px;color:var(--purple)">${mods.join(', ') || '-'}</td>
+                <td class="ex-credit" style="font-weight:600;color:var(--secondary)">${c}0</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+        
+        <!-- STEP 2: REPLACEMENT -->
+        <h4 style="font-size:14px;font-weight:700;margin:18px 0 10px;color:var(--primary)">
+          <i class="fas fa-arrow-rotate-right"></i> Step 2 — Replacement Items
+        </h4>
+        <div class="tbl-wrap"><table class="si-tbl">
+          <thead><tr>
+            <th>Product</th><th>Patch</th><th>Name Print</th>
+            <th>Patch ৳</th><th>Print ৳</th>
+            <th>Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th>
+          </tr></thead>
+          <tbody id="exReplaceBody"></tbody>
+        </table></div>
+        <button class="btn btn-outline btn-sm" onclick="addExchangeReplaceRow()" style="margin-top:10px"><i class="fas fa-plus"></i>Add Replacement Item</button>
+        
+        <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
+        
+        <!-- SUMMARY -->
+        <div class="fg" style="max-width:550px;margin-left:auto">
+          <div class="form-group"><label>Return Credit</label><input class="fc" id="exReturnCredit" value="${c}0" readonly style="color:var(--secondary);font-weight:600"></div>
+          <div class="form-group"><label>Replacement Total</label><input class="fc" id="exReplaceTotal" value="${c}0" readonly style="color:var(--primary);font-weight:600"></div>
+          <div class="form-group"><label>Extra Discount</label><input type="number" class="fc" id="exExtraDisc" value="0" oninput="recalcExchange()"></div>
+          <div class="form-group"><label>Difference</label><input class="fc" id="exDifference" value="${c}0" readonly style="font-weight:700;font-size:16px"></div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label id="exSettlementLabel">Settlement</label>
+            <div id="exSettlementBox" style="padding:12px;background:var(--bg);border-radius:8px;border:1px solid var(--border);font-size:13px">
+              <span id="exSettlementText">Select items to see settlement</span>
+            </div>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Settlement Method</label>
+            <select class="fc" id="exSettleMethod">
+              <option value="Cash">Cash</option>
+              <option value="bKash">bKash</option>
+              <option value="Nagad">Nagad</option>
+              <option value="Card">Card</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+              <option value="No Settlement">No Settlement (Even Exchange)</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Reason / Notes</label>
+            <textarea class="fc" id="exNotes" placeholder="e.g., Size XL needed instead of L, Wrong color delivered..."></textarea>
+          </div>
+        </div>
+        
+        <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-outline" onclick="closeModal('exchangeModal')"><i class="fas fa-times"></i>Cancel</button>
+          <button class="btn btn-success btn-lg" onclick="submitExchangeReplace()"><i class="fas fa-check-circle"></i>Process Exchange</button>
+        </div>
+      </div>
+    </div></div>`);
+  
+  openModal('exchangeModal');
+  addExchangeReplaceRow(); // start with one empty row
+}
+
+function toggleAllExchangeReturn(masterChk) {
+  document.querySelectorAll('#exReturnBody .ex-chk').forEach(chk => {
+    chk.checked = masterChk.checked;
+    onExchangeReturnToggle(chk);
+  });
+}
+
+function onExchangeReturnToggle(chk) {
+  const tr = chk.closest('tr');
+  const qtyInput = tr.querySelector('.ex-qty');
+  qtyInput.disabled = !chk.checked;
+  if (!chk.checked) qtyInput.value = 1;
+  recalcExchange();
+}
+
+function addExchangeReplaceRow() {
+  const tbody = document.getElementById('exReplaceBody');
+  if (!tbody) return;
+  const tr = document.createElement('tr');
+  const pD = S.settings.patchDefaultPrice || 50;
+  const nD = S.settings.namePrintDefaultPrice || 100;
+  
+  const sortedProducts = S.inventory
+    .filter(i => Number(i.Stock) > 0)
+    .sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
+  
+  tr.innerHTML = `
+    <td><select class="ex-prod" onchange="onExchangeProdChange(this)">
+      <option value="">Select</option>
+      ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
+    </select></td>
+    <td><input type="checkbox" class="ex-patch cb" onchange="recalcExchange()"></td>
+    <td><input class="ex-nameprint" placeholder="Name" oninput="recalcExchange()"></td>
+    <td><input type="number" class="ex-patchprice" value="${pD}" onchange="recalcExchange()"></td>
+    <td><input type="number" class="ex-nameprice" value="${nD}" onchange="recalcExchange()"></td>
+    <td><input type="number" class="ex-price" value="0" onchange="recalcExchange()"></td>
+    <td><input type="number" class="ex-cost" value="0" onchange="recalcExchange()"></td>
+    <td><input type="number" class="ex-qty-new" value="1" min="1" onchange="recalcExchange()" style="width:50px"></td>
+    <td><input class="ex-linetotal" value="0" readonly style="width:70px"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();recalcExchange()"><i class="fas fa-times"></i></button></td>`;
+  tbody.appendChild(tr);
+}
+
+function onExchangeProdChange(sel) {
+  const tr = sel.closest('tr');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.value) {
+    tr.querySelector('.ex-price').value = opt.dataset.price || 0;
+    tr.querySelector('.ex-cost').value = opt.dataset.cost || 0;
+  }
+  recalcExchange();
+}
+
+function recalcExchange() {
+  const c = C();
+  
+  // Calculate return credit
+  let returnCredit = 0;
+  document.querySelectorAll('#exReturnBody tr').forEach(tr => {
+    const chk = tr.querySelector('.ex-chk');
+    if (!chk || !chk.checked) {
+      if (tr.querySelector('.ex-credit')) tr.querySelector('.ex-credit').textContent = c + '0';
+      return;
+    }
+    const qtyInput = tr.querySelector('.ex-qty');
+    let retQty = Number(qtyInput.value) || 0;
+    const qtySold = Number(tr.dataset.qtysold) || 0;
+    if (retQty > qtySold) { retQty = qtySold; qtyInput.value = qtySold; }
+    if (retQty < 1) { retQty = 1; qtyInput.value = 1; }
+    
+    const up = Number(tr.dataset.unitprice) || 0;
+    const modPerUnit = Number(tr.dataset.modperunit) || 0;
+    const credit = (up + modPerUnit) * retQty;
+    tr.querySelector('.ex-credit').textContent = c + credit.toLocaleString();
+    returnCredit += credit;
+  });
+  
+  // Calculate replacement total
+  let replaceTotal = 0;
+  document.querySelectorAll('#exReplaceBody tr').forEach(tr => {
+    const price = Number(tr.querySelector('.ex-price').value) || 0;
+    const qty = Number(tr.querySelector('.ex-qty-new').value) || 0;
+    const hasPatch = tr.querySelector('.ex-patch').checked;
+    const hasName = tr.querySelector('.ex-nameprint').value.trim() !== '';
+    const patchP = hasPatch ? (Number(tr.querySelector('.ex-patchprice').value) || 0) : 0;
+    const nameP = hasName ? (Number(tr.querySelector('.ex-nameprice').value) || 0) : 0;
+    const lineTotal = (price * qty) + ((patchP + nameP) * qty);
+    tr.querySelector('.ex-linetotal').value = lineTotal;
+    replaceTotal += lineTotal;
+  });
+  
+  const extraDisc = Number(document.getElementById('exExtraDisc').value) || 0;
+  const adjustedReplace = Math.max(0, replaceTotal - extraDisc);
+  const difference = adjustedReplace - returnCredit;
+  
+  document.getElementById('exReturnCredit').value = c + returnCredit.toLocaleString();
+  document.getElementById('exReplaceTotal').value = c + replaceTotal.toLocaleString();
+  document.getElementById('exDifference').value = c + Math.abs(difference).toLocaleString();
+  
+  // Settlement message
+  const box = document.getElementById('exSettlementBox');
+  const text = document.getElementById('exSettlementText');
+  if (returnCredit === 0 && replaceTotal === 0) {
+    text.textContent = 'Select items to see settlement';
+    box.style.borderLeft = '3px solid var(--border)';
+    box.style.background = 'var(--bg)';
+  } else if (difference > 0) {
+    text.innerHTML = `<i class="fas fa-arrow-down" style="color:var(--warning)"></i> <strong>Customer pays extra:</strong> <span style="color:var(--warning);font-weight:700;font-size:15px">${c}${difference.toLocaleString()}</span>`;
+    box.style.borderLeft = '3px solid var(--warning)';
+    box.style.background = 'rgba(245,158,11,.08)';
+  } else if (difference < 0) {
+    text.innerHTML = `<i class="fas fa-arrow-up" style="color:var(--secondary)"></i> <strong>Refund customer:</strong> <span style="color:var(--secondary);font-weight:700;font-size:15px">${c}${Math.abs(difference).toLocaleString()}</span>`;
+    box.style.borderLeft = '3px solid var(--secondary)';
+    box.style.background = 'rgba(16,185,129,.08)';
+  } else {
+    text.innerHTML = `<i class="fas fa-equals" style="color:var(--primary)"></i> <strong>Even exchange — no money changes hands</strong>`;
+    box.style.borderLeft = '3px solid var(--primary)';
+    box.style.background = 'rgba(59,130,246,.08)';
+  }
+}
+
+async function submitExchangeReplace() {
+  const ctx = window._exchangeContext;
+  if (!ctx) { toast('Session expired, reopen the modal', 'error'); return; }
+  
+  // Collect returned items
+  const returnItems = [];
+  document.querySelectorAll('#exReturnBody tr').forEach(tr => {
+    const chk = tr.querySelector('.ex-chk');
+    if (!chk || !chk.checked) return;
+    const retQty = Number(tr.querySelector('.ex-qty').value) || 0;
+    if (retQty <= 0) return;
+    returnItems.push({
+      SalesItemID: tr.dataset.itemid,
+      ProductID: tr.dataset.productid,
+      ProductName: tr.dataset.productname,
+      Edition: tr.dataset.edition,
+      ReturnQty: retQty,
+      UnitPrice: Number(tr.dataset.unitprice) || 0,
+      CostPrice: Number(tr.dataset.costprice) || 0,
+      ModPerUnit: Number(tr.dataset.modperunit) || 0
+    });
+  });
+  
+  // Collect replacement items
+  const replaceItems = [];
+  document.querySelectorAll('#exReplaceBody tr').forEach(tr => {
+    const sel = tr.querySelector('.ex-prod');
+    if (!sel.value) return;
+    const opt = sel.selectedOptions[0];
+    replaceItems.push({
+      ProductID: sel.value,
+      Club_Country: opt.dataset.club,
+      Edition: opt.dataset.ed,
+      Type: opt.dataset.type,
+      Size: opt.dataset.size,
+      Quantity: tr.querySelector('.ex-qty-new').value,
+      UnitPrice: tr.querySelector('.ex-price').value,
+      CostPrice: tr.querySelector('.ex-cost').value,
+      Patch: tr.querySelector('.ex-patch').checked,
+      PatchPrice: tr.querySelector('.ex-patchprice').value,
+      NamePrint: tr.querySelector('.ex-nameprint').value,
+      NamePrintPrice: tr.querySelector('.ex-nameprice').value
+    });
+  });
+  
+  if (!returnItems.length) { toast('Select at least one item to return', 'error'); return; }
+  if (!replaceItems.length) { toast('Add at least one replacement item', 'error'); return; }
+  
+  const c = C();
+  const returnCredit = returnItems.reduce((s, i) => s + ((i.UnitPrice + i.ModPerUnit) * i.ReturnQty), 0);
+  const replaceTotal = Array.from(document.querySelectorAll('#exReplaceBody .ex-linetotal'))
+    .reduce((s, el) => s + (Number(el.value) || 0), 0);
+  const extraDisc = Number(document.getElementById('exExtraDisc').value) || 0;
+  const difference = (replaceTotal - extraDisc) - returnCredit;
+  
+  let confirmMsg = `Confirm Exchange & Replace?\n\n`;
+  confirmMsg += `📤 Returning: ${returnItems.length} item type(s) (${returnItems.reduce((s,i)=>s+i.ReturnQty,0)} units)\n`;
+  confirmMsg += `📥 Replacement: ${replaceItems.length} item type(s)\n`;
+  confirmMsg += `💰 Return Credit: ${c}${returnCredit.toLocaleString()}\n`;
+  confirmMsg += `🛒 Replacement: ${c}${replaceTotal.toLocaleString()}\n`;
+  if (extraDisc > 0) confirmMsg += `🎟 Extra Discount: ${c}${extraDisc.toLocaleString()}\n`;
+  
+  if (difference > 0) confirmMsg += `\n⬇️ Customer pays: ${c}${difference.toLocaleString()}`;
+  else if (difference < 0) confirmMsg += `\n⬆️ Refund customer: ${c}${Math.abs(difference).toLocaleString()}`;
+  else confirmMsg += `\n⚖️ Even exchange — no money changes hands`;
+  
+  if (!confirm(confirmMsg)) return;
+  
+  const r = await apiPost('exchangeAndReplace', {
+    SaleID: ctx.saleId,
+    InvoiceNo: ctx.invoiceNo,
+    CustomerID: ctx.customerID,
+    CustomerName: ctx.customerName,
+    CustomerPhone: ctx.customerPhone,
+    PaymentMethod: ctx.paymentMethod,
+    ReturnItems: returnItems,
+    ReplaceItems: replaceItems,
+    ExtraDiscount: extraDisc,
+    SettleMethod: document.getElementById('exSettleMethod').value,
+    Notes: document.getElementById('exNotes').value
+  });
+  
+  if (r.success) {
+    let msg = `Exchange complete! `;
+    if (r.newInvoiceNo) msg += `New invoice: ${r.newInvoiceNo}. `;
+    if (r.settlement > 0) msg += `Customer paid: ${c}${r.settlement.toLocaleString()}`;
+    else if (r.settlement < 0) msg += `Refund: ${c}${Math.abs(r.settlement).toLocaleString()}`;
+    else msg += `Even exchange`;
+    toast(msg);
+    closeModal('exchangeModal');
+    
+    // Optionally show the new invoice
+    if (r.newInvoiceNo && confirm('Show replacement invoice?')) {
+      viewInvoice(r.newInvoiceNo);
+    }
+    
+    S.sales = await apiGet('getSales');
+    S.inventory = await apiGet('getInventory');
+    filterSL();
+  }
+}
   
 function openManualSaleModal(){let m=document.getElementById('manualSaleModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="manualSaleModal"><div class="modal"><div class="modal-hdr"><h3>Manual Sale</h3><button class="modal-close" onclick="closeModal('manualSaleModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Customer</label><select class="fc" id="msCust"><option value="">Walk-in</option>${S.customers.map(c=>`<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)}</option>`).join('')}</select></div><div class="form-group"><label>Items</label><input class="fc" id="msItems"></div><div class="form-group"><label>Amount</label><input type="number" class="fc" id="msFinal" value="0"></div><div class="form-group"><label>Cost</label><input type="number" class="fc" id="msCost" value="0"></div><div class="form-group"><label>Paid</label><input type="number" class="fc" id="msPaid" value="0"></div><div class="form-group"><label>Method</label><select class="fc" id="msPayM">${makeOptions(PAY_METHODS)}</select></div><div class="form-group" style="grid-column:1/-1"><label>Notes</label><input class="fc" id="msNotes"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('manualSaleModal')">Cancel</button><button class="btn btn-primary" onclick="submitManualSale()"><i class="fas fa-save"></i>Add</button></div></div></div>`);openModal('manualSaleModal')}
 async function submitManualSale(){const sel=document.getElementById('msCust');const opt=sel.selectedOptions[0];const r=await apiPost('addManualSale',{CustomerID:sel.value,CustomerName:opt?.dataset.name||'Walk-in',CustomerPhone:opt?.dataset.phone||'',Items:document.getElementById('msItems').value,FinalAmount:document.getElementById('msFinal').value,CostTotal:document.getElementById('msCost').value,PaidAmount:document.getElementById('msPaid').value,PaymentMethod:document.getElementById('msPayM').value,Notes:document.getElementById('msNotes').value});if(r.success){toast('Added!');closeModal('manualSaleModal');renderPage('sales')}}
