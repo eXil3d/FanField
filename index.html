@@ -670,7 +670,7 @@ async function renderPOS(area){
       <div class="form-group"><label>Paid</label><input type="number" class="fc" id="posPaid" value="0" oninput="calcPOSTotal()"></div>
       <div class="form-group"><label>Due</label><input class="fc" id="posDue" value="0" readonly style="color:var(--danger);font-weight:600"></div>
       <div class="form-group" style="grid-column:1/-1"><label>Notes (appears on receipt)</label><input class="fc" id="posNotes" placeholder="Optional notes"></div>
-      <div class="form-group" style="grid-column:1/-1" id="posDelAddrWrap" style="display:none"><label>Delivery Address</label><input class="fc" id="posDelAddr" placeholder="Delivery address"></div>
+      <div class="form-group" id="posDelAddrWrap" style="grid-column:1/-1;display:none"><label>Delivery Address</label><textarea class="fc" id="posDelAddr" placeholder="Full delivery address with area/landmark" rows="2"></textarea></div>
     </div>
     <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-outline" onclick="clearPOS()"><i class="fas fa-eraser"></i>Clear</button>
@@ -1202,7 +1202,7 @@ function useExistingCustomerFromQuickAdd(id, name, phone) {
 // ============================================================
 function buildCompactInvoice(invoiceNo, data) {
   const c = C(); const s = S.settings;
-  const {customerName, customerPhone, payMethod, deliveryType, affCode,
+  const {customerName, customerPhone, payMethod, deliveryType, deliveryAddress, affCode,
          total, disc, affDisc, vchDisc, delCharge, grand, paid, due, notes,
          itemsHtml, dateStr, timeStr} = data;
   return `<div id="invPrint" style="display:block;background:#fff;color:#000;font-family:monospace;padding:14px 16px;max-width:320px;margin:0 auto;border:1px solid #ddd;border-radius:8px">
@@ -1219,7 +1219,8 @@ function buildCompactInvoice(invoiceNo, data) {
       <div><strong>Phone:</strong> ${esc(customerPhone||'-')}</div>
       <div><strong>Payment:</strong> ${payMethod}</div>
       ${deliveryType&&deliveryType!=='None'?`<div><strong>Delivery:</strong> ${deliveryType}</div>`:''}
-      ${affCode?`<div><strong>Affiliate:</strong> ${esc(affCode)}</div>`:''}
+      ${deliveryAddress?`<div style="margin-top:4px;padding:6px 8px;background:#f0f9ff;border-left:2px solid #2563eb;border-radius:3px;font-size:10.5px"><strong>📍 Address:</strong><br>${esc(deliveryAddress)}</div>`:''}
+      ${affCode?`<div style="margin-top:4px"><strong>Affiliate:</strong> ${esc(affCode)}</div>`:''}
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:8px"><tbody>${itemsHtml}</tbody></table>
     <div style="border-top:1px dashed #ccc;padding-top:8px;font-size:12px">
@@ -1281,7 +1282,7 @@ function showInvoice(invoiceNo, sd, items) {
 
   const fullHTML = `<div class="inv-preview" id="invPrint" style="display:block">
     <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'Home of Authentic & Quality Jerseys')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${dateStr}</p><p>Time: ${timeStr}</p></div></div>
-    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sd.CustomerName)}</p><p>Phone: ${esc(sd.CustomerPhone||'-')}</p>${sd.DeliveryType&&sd.DeliveryType!=='None'?`<p>Delivery: ${sd.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sd.PaymentMethod}</p><p style="font-size:16px;font-weight:700;color:${due>0?'#ef4444':'#10b981'}">${due>0?'DUE: '+c+due.toLocaleString():'PAID IN FULL'}</p>${sd.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sd.AffiliateCode)}</p>`:''}</div></div>
+    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sd.CustomerName)}</p><p>Phone: ${esc(sd.CustomerPhone||'-')}</p>${sd.DeliveryType&&sd.DeliveryType!=='None'?`<p>Delivery: ${sd.DeliveryType}</p>`:''}${sd.DeliveryAddress?`<div style="margin-top:8px;padding:8px 10px;background:#f0f9ff;border-left:3px solid #2563eb;border-radius:4px"><h4 style="margin-bottom:3px;color:#2563eb">📍 Delivery Address</h4><p style="font-size:11.5px;line-height:1.5">${esc(sd.DeliveryAddress)}</p></div>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sd.PaymentMethod}</p><p style="font-size:16px;font-weight:700;color:${due>0?'#ef4444':'#10b981'}">${due>0?'DUE: '+c+due.toLocaleString():'PAID IN FULL'}</p>${sd.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sd.AffiliateCode)}</p>`:''}</div></div>
     <table class="inv-table"><thead><tr><th>#</th><th>Product</th><th>Price</th><th>Qty</th><th>Mods</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
     <div class="inv-totals"><table>
       <tr><td>Subtotal</td><td style="text-align:right">${c}${total.toLocaleString()}</td></tr>
@@ -1299,7 +1300,9 @@ function showInvoice(invoiceNo, sd, items) {
 
   const compactHTML = buildCompactInvoice(invoiceNo, {
     customerName: sd.CustomerName, customerPhone: sd.CustomerPhone,
-    payMethod: sd.PaymentMethod, deliveryType: sd.DeliveryType, affCode: sd.AffiliateCode,
+    payMethod: sd.PaymentMethod, deliveryType: sd.DeliveryType, 
+    deliveryAddress: sd.DeliveryAddress,
+    affCode: sd.AffiliateCode,
     total, disc, affDisc, vchDisc, delCharge, grand, paid, due, notes,
     itemsHtml: compactItemsHtml, dateStr, timeStr
   });
@@ -1363,7 +1366,7 @@ async function viewInvoice(invoiceNo) {
 
   const fullHTML = `<div class="inv-preview" id="invPrint" style="display:block">
     <div class="inv-hdr-row"><div class="inv-brand"><img src="${LOGO_URL}" alt="Logo" style="width:64px;height:64px;border-radius:10px;object-fit:cover;flex-shrink:0"><div><h2>${esc(s.businessName||'Fan Field')}</h2><div class="motto">${esc(s.motto||'')}</div><p>${esc(s.address||'')}</p><p>Phone: ${esc(s.phone||'')}</p></div></div><div class="inv-meta"><h3>INVOICE</h3><p><strong>${invoiceNo}</strong></p><p>Date: ${dateStr}</p>${timeStr?`<p>Time: ${timeStr}</p>`:''}</div></div>
-    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sale.CustomerName||'Customer')}</p><p>Phone: ${esc(sale.CustomerPhone||'-')}</p>${sale.DeliveryType&&sale.DeliveryType!=='None'?`<p>Delivery: ${sale.DeliveryType}</p>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sale.PaymentMethod||'-'}</p><p style="font-size:16px;font-weight:700;color:${dueAmt>0?'#ef4444':'#10b981'}">${dueAmt>0?'DUE: '+c+dueAmt.toLocaleString():'PAID IN FULL'}</p>${sale.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sale.AffiliateCode)}</p>`:''}</div></div>
+    <div class="inv-parties"><div><h4>Bill To</h4><p class="name">${esc(sale.CustomerName||'Customer')}</p><p>Phone: ${esc(sale.CustomerPhone||'-')}</p>${sale.DeliveryType&&sale.DeliveryType!=='None'?`<p>Delivery: ${sale.DeliveryType}</p>`:''}${sale.DeliveryAddress?`<div style="margin-top:8px;padding:8px 10px;background:#f0f9ff;border-left:3px solid #2563eb;border-radius:4px"><h4 style="margin-bottom:3px;color:#2563eb">📍 Delivery Address</h4><p style="font-size:11.5px;line-height:1.5">${esc(sale.DeliveryAddress)}</p></div>`:''}</div><div style="text-align:right"><h4>Payment</h4><p>Method: ${sale.PaymentMethod||'-'}</p><p style="font-size:16px;font-weight:700;color:${dueAmt>0?'#ef4444':'#10b981'}">${dueAmt>0?'DUE: '+c+dueAmt.toLocaleString():'PAID IN FULL'}</p>${sale.AffiliateCode?`<p style="color:#8b5cf6">Affiliate: ${esc(sale.AffiliateCode)}</p>`:''}</div></div>
     <table class="inv-table"><thead><tr><th>#</th><th>Product</th><th>Price</th><th>Qty</th><th>Mods</th><th style="text-align:right">Total</th></tr></thead><tbody>${itemsHtml}</tbody></table>
     <div class="inv-totals"><table>
       <tr><td>Subtotal</td><td style="text-align:right">${c}${totalAmt.toLocaleString()}</td></tr>
@@ -1381,7 +1384,9 @@ async function viewInvoice(invoiceNo) {
 
   const compactHTML = buildCompactInvoice(invoiceNo, {
     customerName: sale.CustomerName || 'Customer', customerPhone: sale.CustomerPhone,
-    payMethod: sale.PaymentMethod, deliveryType: sale.DeliveryType, affCode: sale.AffiliateCode,
+    payMethod: sale.PaymentMethod, deliveryType: sale.DeliveryType,
+    deliveryAddress: sale.DeliveryAddress,
+    affCode: sale.AffiliateCode,
     total: totalAmt, disc, affDisc, vchDisc, delCharge, grand: finalAmt,
     paid: paidAmt, due: dueAmt, notes,
     itemsHtml: compactItemsHtml, dateStr, timeStr
