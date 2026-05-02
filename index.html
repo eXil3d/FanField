@@ -4,7 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Fan Field — Inventory Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <style>
 :root{
@@ -21,6 +24,10 @@
 --transition:all .2s ease;
 }
 *{margin:0;padding:0;box-sizing:border-box}
+
+img{max-width:100%;height:auto}
+.page{content-visibility:auto;contain-intrinsic-size:800px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
 body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;overflow-x:hidden}
 .app{display:flex;min-height:100vh}
 .sidebar{width:260px;background:var(--sidebar-bg);color:var(--sidebar-text);position:fixed;top:0;left:0;bottom:0;z-index:1000;transition:transform .3s;overflow-y:auto;display:flex;flex-direction:column}
@@ -204,7 +211,7 @@ select.fc{cursor:pointer}textarea.fc{resize:vertical;min-height:70px}
 <aside class="sidebar" id="sidebar">
   <div class="sb-header">
     <div class="sb-logo">
-      <img src="https://github.com/eXil3d/FanField/blob/main/logo.jpg?raw=true" alt="Fan Field" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
+      <img src="logo.jpg" alt="Fan Field" loading="eager" decoding="async" fetchpriority="high" style="width:42px;height:42px;border-radius:10px;object-fit:cover">
       <div><h1>Fan Field</h1><p>Home of Authentic & Quality Jerseys</p></div>
     </div>
   </div>
@@ -254,7 +261,7 @@ select.fc{cursor:pointer}textarea.fc{resize:vertical;min-height:70px}
 
 <script>
 const API_URL='https://script.google.com/macros/s/AKfycbwJXo9VOqP6x-PVoJA5h7kZm-12Dy7wWP_NHl4GrcUy62Ea-NyOwmuC2-U7yEcstU_l/exec';
-const LOGO_URL='https://github.com/eXil3d/FanField/blob/main/logo.jpg?raw=true';
+const LOGO_URL='logo.jpg';
 const CLUBS_COUNTRIES=['Algeria','Argentina','Australia','Austria','Bangladesh','Belgium','Bolivia','Bosnia','Brazil','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','Ecuador','Egypt','England','Finland','France','Germany','Ghana','Greece','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kenya','Malaysia','Mexico','Morocco','Nepal','Netherlands','New Zealand','Nigeria','North Korea','Norway','Pakistan','Palestine','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sri Lanka','Sweden','Switzerland','Thailand','Tunisia','Turkey','UAE','Ukraine','Uruguay','USA','Venezuela','Vietnam','Wales','Arsenal','Aston Villa','AFC Bournemouth','Brentford','Brighton','Burnley','Chelsea','Crystal Palace','Everton','Fulham','Ipswich Town','Leicester City','Liverpool','Luton Town','Manchester City','Manchester United','Newcastle','Nottingham Forest','Sheffield United','Tottenham','West Ham','Wolverhampton','Atletico Madrid','Athletic Bilbao','Barcelona','Real Betis','Celta Vigo','Getafe','Girona','Granada','Las Palmas','Mallorca','Osasuna','Rayo Vallecano','Real Madrid','Real Sociedad','Sevilla','Valencia','Villarreal','AC Milan','AS Roma','Atalanta','Bologna','Cagliari','Empoli','Fiorentina','Frosinone','Genoa','Hellas Verona','Inter Milan','Juventus','Lazio','Lecce','Monza','Napoli','Salernitana','Sassuolo','Torino','Udinese','Augsburg','Bayer Leverkusen','Bayern Munich','Borussia Dortmund','Borussia Monchengladbach','Darmstadt','Eintracht Frankfurt','Freiburg','Heidenheim','Hoffenheim','Koln','Leipzig','Mainz','Stuttgart','Union Berlin','Werder Bremen','Wolfsburg','Brest','Clermont','Le Havre','Lens','Lille','Lorient','Lyon','Marseille','Metz','Monaco','Montpellier','Nantes','Nice','Paris Saint-Germain','Reims','Rennes','Strasbourg','Toulouse','Benfica','Braga','Porto','Sporting CP','Ajax','AZ Alkmaar','Feyenoord','PSV Eindhoven','Besiktas','Fenerbahce','Galatasaray','Trabzonspor','Al Ahli','Al Ettifaq','Al Hilal','Al Ittihad','Al Nassr','Boca Juniors','Corinthians','Flamengo','Palmeiras','River Plate','Santos','Sao Paulo','Atlanta United','Inter Miami','LA Galaxy','LAFC','Celtic','Rangers','Anderlecht','Club Brugge','Red Star Belgrade','Olympiacos','Panathinaikos','Dinamo Zagreb','Shakhtar Donetsk','Zenit','Other'];
 const EDITIONS=['Fan Edition','Player Edition','Special Edition','BD Premium'];
 const TYPES=['Home','Away','Third','Retro','GK','Training','Terrance'];
