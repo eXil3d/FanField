@@ -664,7 +664,7 @@ async function renderPOS(area){
       <div class="form-group"><label>Voucher Code</label><input class="fc" id="posVchCode" placeholder="Voucher code" oninput="calcPOSTotal()"></div>
     </div>
     <h4 style="margin:18px 0 10px;font-size:13px;font-weight:600"><i class="fas fa-list" style="color:var(--primary);margin-right:5px"></i>Items</h4>
-    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product</th><th>Patch</th><th>Name Print</th><th>Patch ৳</th><th>Print ৳</th><th>Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
+    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product / Service</th><th>Patch</th><th>Name/No. Print</th><th>Patch ৳</th><th>Print ৳</th><th>Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
     <button class="btn btn-outline btn-sm" onclick="addPOSRow()" style="margin-top:10px"><i class="fas fa-plus"></i>Add Item</button>
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
     <div class="fg" style="max-width:500px;margin-left:auto">
@@ -870,10 +870,11 @@ function addPOSRow() {
   tr.innerHTML = `
     <td><select class="pos-prod" onchange="onPOSProdChange(this)">
       <option value="">Select</option>
+      <option value="__CUSTOMIZATION__" data-price="0" data-cost="0" data-name="Bring-your-own jersey customization" data-club="" data-ed="" data-type="Service" data-size="" data-stock="">Bring-your-own jersey customization (Service)</option>
       ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
     </select></td>
     <td><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
-    <td><input class="pos-nameprint" placeholder="Name" oninput="calcPOSTotal()"></td>
+    <td><input class="pos-nameprint" placeholder="Name/number or service details" oninput="calcPOSTotal()"></td>
     <td><input type="number" class="pos-patchprice" value="${pD}" onchange="calcPOSTotal()"></td>
     <td><input type="number" class="pos-nameprice" value="${nD}" onchange="calcPOSTotal()"></td>
     <td><input type="number" class="pos-price" value="0" onchange="calcPOSTotal()"></td>
@@ -883,7 +884,7 @@ function addPOSRow() {
     <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();calcPOSTotal()"><i class="fas fa-times"></i></button></td>`;
   tbody.appendChild(tr);
 }
-  function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0}calcPOSTotal()}
+  function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0;const isService=opt.value==='__CUSTOMIZATION__';const np=tr.querySelector('.pos-nameprint');if(np&&!np.value.trim()&&isService)np.value='Customization service'}calcPOSTotal()}
 function calcPOSTotal(){
   let subtotal=0;
   document.querySelectorAll('#posItems tr').forEach(tr=>{const price=Number(tr.querySelector('.pos-price').value)||0;const qty=Number(tr.querySelector('.pos-qty').value)||0;const hasPatch=tr.querySelector('.pos-patch').checked;const hasName=tr.querySelector('.pos-nameprint').value.trim()!=='';const patchP=hasPatch?(Number(tr.querySelector('.pos-patchprice').value)||0):0;const nameP=hasName?(Number(tr.querySelector('.pos-nameprice').value)||0):0;const lineTotal=(price*qty)+((patchP+nameP)*qty);tr.querySelector('.pos-linetotal').value=lineTotal;subtotal+=lineTotal});
@@ -908,7 +909,7 @@ function calcPOSTotal(){
 }
 function clearPOS(){document.getElementById('posCust').value='';document.getElementById('posCustPhone').value='';document.getElementById('posDisc').value=0;document.getElementById('posPaid').value=0;document.getElementById('posNotes').value='';document.getElementById('posAffCode').value='';document.getElementById('posVchCode').value='';document.getElementById('posDel').value='None';document.getElementById('posItems').innerHTML='';addPOSRow();calcPOSTotal()}
 async function submitSale(){
-  const items=[];document.querySelectorAll('#posItems tr').forEach(tr=>{const sel=tr.querySelector('.pos-prod');if(!sel.value)return;const opt=sel.selectedOptions[0];items.push({ProductID:sel.value,Club_Country:opt.dataset.club,Edition:opt.dataset.ed,Type:opt.dataset.type,Size:opt.dataset.size,Quantity:tr.querySelector('.pos-qty').value,UnitPrice:tr.querySelector('.pos-price').value,CostPrice:tr.querySelector('.pos-cost').value,Patch:tr.querySelector('.pos-patch').checked,PatchPrice:tr.querySelector('.pos-patchprice').value,NamePrint:tr.querySelector('.pos-nameprint').value,NamePrintPrice:tr.querySelector('.pos-nameprice').value})});
+  const items=[];document.querySelectorAll('#posItems tr').forEach(tr=>{const sel=tr.querySelector('.pos-prod');if(!sel.value)return;const opt=sel.selectedOptions[0];const isCustomization=sel.value==='__CUSTOMIZATION__';items.push({ProductID:isCustomization?'':sel.value,Club_Country:opt.dataset.club,Edition:opt.dataset.ed,Type:isCustomization?'Service':opt.dataset.type,Size:opt.dataset.size,Quantity:tr.querySelector('.pos-qty').value,UnitPrice:tr.querySelector('.pos-price').value,CostPrice:tr.querySelector('.pos-cost').value,Patch:tr.querySelector('.pos-patch').checked,PatchPrice:tr.querySelector('.pos-patchprice').value,NamePrint:tr.querySelector('.pos-nameprint').value,NamePrintPrice:tr.querySelector('.pos-nameprice').value,IsCustomizationService:isCustomization,ServiceName:isCustomization?'Bring-your-own jersey customization':''})});
   if(!items.length){toast('Add items','error');return}
   const custSel=document.getElementById('posCust');const custOpt=custSel.selectedOptions[0];
   const payload={CustomerID:custSel.value,CustomerName:custOpt?(custOpt.dataset.name||custOpt.textContent):'Walk-in Customer',CustomerPhone:document.getElementById('posCustPhone').value,Items:items,TotalAmount:document.getElementById('posSub').value,Discount:document.getElementById('posDisc').value,AffiliateCode:document.getElementById('posAffCode').value,AffiliateDiscount:document.getElementById('posAffDisc').value,VoucherCode:document.getElementById('posVchCode').value,VoucherDiscount:document.getElementById('posVchDisc').value,DeliveryType:document.getElementById('posDel').value,DeliveryCharge:document.getElementById('posDelCharge').value,DeliveryAddress:document.getElementById('posDelAddr')?.value||'',PaidAmount:document.getElementById('posPaid').value,PaymentMethod:document.getElementById('posPayM').value,Notes:document.getElementById('posNotes').value};
