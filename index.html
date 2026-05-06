@@ -523,6 +523,7 @@ function openProductModal(prod=null){let m=document.getElementById('productModal
   <div class="form-group"><label>Edition</label><select class="fc" id="pEd">${makeOptions(EDITIONS,prod?.Edition)}</select></div>
   <div class="form-group"><label>Type</label><select class="fc" id="pType">${makeOptions(TYPES,prod?.Type)}</select></div>
   <div class="form-group"><label>Size</label><select class="fc" id="pSize">${makeOptions(SIZES,prod?.Size)}</select></div>
+  ${!isEdit?`<div class="form-group" style="grid-column:1/-1"><label>Add Multiple Sizes (optional)</label><input class="fc" id="pSizesBulk" placeholder="Example: S,M,L,XL"><small style="display:block;margin-top:5px;color:var(--text-muted);font-size:11px">If provided, one product will be created per size. Comma separated.</small></div>`:''}
   <div class="form-group"><label>Color</label><input class="fc" id="pColor" value="${prod?.Color||''}"></div>
   <div class="form-group"><label>Cost Price</label><input type="number" class="fc" id="pCost" value="${prod?.CostPrice||''}"></div>
   <div class="form-group"><label>Sell Price</label><input type="number" class="fc" id="pSell" value="${prod?.SellPrice||''}"></div>
@@ -531,7 +532,36 @@ function openProductModal(prod=null){let m=document.getElementById('productModal
   <div class="form-group"><label>Supplier</label><select class="fc" id="pSup"><option value="">None</option>${S.suppliers.map(s=>`<option value="${s.ID}" data-name="${esc(s.Name)}" ${s.ID===prod?.SupplierID?'selected':''}>${esc(s.Name)}</option>`).join('')}</select></div>
 </div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button><button class="btn btn-primary" onclick="saveProduct('${prod?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('productModal')}
 function editProduct(id){const p=S.inventory.find(x=>x.ID===id);if(p)openProductModal(p)}
-async function saveProduct(id){const supSel=document.getElementById('pSup');const data={ID:id,Club_Country:document.getElementById('pClub').value,Edition:document.getElementById('pEd').value,Type:document.getElementById('pType').value,Size:document.getElementById('pSize').value,Color:document.getElementById('pColor').value,CostPrice:document.getElementById('pCost').value,SellPrice:document.getElementById('pSell').value,Stock:document.getElementById('pStock').value,MinStock:document.getElementById('pMin').value,SupplierID:supSel.value,SupplierName:supSel.selectedOptions[0]?.dataset?.name||''};if(!data.Club_Country){toast('Club required','error');return}const r=await apiPost(id?'updateProduct':'addProduct',data);if(r.success){toast(id?'Updated!':'Added!');closeModal('productModal');renderPage('inventory')}}
+async function saveProduct(id){
+  const supSel=document.getElementById('pSup');
+  const base={ID:id,Club_Country:document.getElementById('pClub').value,Edition:document.getElementById('pEd').value,Type:document.getElementById('pType').value,Size:document.getElementById('pSize').value,Color:document.getElementById('pColor').value,CostPrice:document.getElementById('pCost').value,SellPrice:document.getElementById('pSell').value,Stock:document.getElementById('pStock').value,MinStock:document.getElementById('pMin').value,SupplierID:supSel.value,SupplierName:supSel.selectedOptions[0]?.dataset?.name||''};
+  if(!base.Club_Country){toast('Club required','error');return}
+
+  if(id){
+    const r=await apiPost('updateProduct',base);
+    if(r.success){toast('Updated!');closeModal('productModal');renderPage('inventory')}
+    return;
+  }
+
+  const bulkRaw=(document.getElementById('pSizesBulk')?.value||'').trim();
+  const sizes=bulkRaw?Array.from(new Set(bulkRaw.split(',').map(s=>s.trim()).filter(Boolean))):[];
+
+  if(!sizes.length){
+    const r=await apiPost('addProduct',base);
+    if(r.success){toast('Added!');closeModal('productModal');renderPage('inventory')}
+    return;
+  }
+
+  const invalid=sizes.filter(s=>!SIZES.includes(s));
+  if(invalid.length){toast(`Invalid size(s): ${invalid.join(', ')}`,'error');return}
+
+  let ok=0;
+  for(const sz of sizes){
+    const r=await apiPost('addProduct',{...base,Size:sz});
+    if(r.success)ok++;
+  }
+  if(ok){toast(`Added ${ok} size variant${ok>1?'s':''}`);closeModal('productModal');renderPage('inventory')}
+}
 async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
 function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
 async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:document.getElementById('stkMode').value,Stock:document.getElementById('stkQty').value});if(r.success){toast(`Stock: ${r.newStock}`);closeModal('stockModal');renderPage('inventory')}}
