@@ -157,6 +157,9 @@ select.fc{cursor:pointer}textarea.fc{resize:vertical;min-height:70px}
 .si-tbl input,.si-tbl select{padding:6px 8px;border:1px solid var(--border);border-radius:5px;font-size:11.5px;font-family:inherit;width:100%;background:#0d1321;color:var(--text)}
 .si-tbl input:focus,.si-tbl select:focus{outline:none;border-color:var(--primary)}
 .si-tbl .cb{width:auto;margin:0}
+.variant-builder{grid-column:1/-1;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px;background:#0b1220}
+.variant-row{display:grid;grid-template-columns:minmax(120px,1fr) repeat(3,minmax(90px,1fr)) auto;gap:8px;align-items:end;margin-top:8px}
+.variant-row .btn{padding:8px 10px}
 ::selection{background:rgba(59,130,246,.3);color:#fff}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -523,14 +526,35 @@ function openProductModal(prod=null){let m=document.getElementById('productModal
   <div class="form-group"><label>Edition</label><select class="fc" id="pEd">${makeOptions(EDITIONS,prod?.Edition)}</select></div>
   <div class="form-group"><label>Type</label><select class="fc" id="pType">${makeOptions(TYPES,prod?.Type)}</select></div>
   <div class="form-group"><label>Size</label><select class="fc" id="pSize">${makeOptions(SIZES,prod?.Size)}</select></div>
-  ${!isEdit?`<div class="form-group" style="grid-column:1/-1"><label>Add Multiple Sizes (optional)</label><input class="fc" id="pSizesBulk" placeholder="Example: S,M,L,XL"><small style="display:block;margin-top:5px;color:var(--text-muted);font-size:11px">If provided, one product will be created per size. Comma separated.</small></div>`:''}
+  ${!isEdit?`<div class="form-group variant-builder"><label style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>Add Size Variants (optional)</span><button type="button" class="btn btn-outline btn-sm" onclick="addVariantRow()"><i class="fas fa-plus"></i> Add Size</button></label><div id="variantRows"></div><small style="display:block;margin-top:8px;color:var(--text-muted);font-size:11px">Each row adds a product variant with its own size, quantity, cost price, and sell price.</small></div>`:''}
   <div class="form-group"><label>Color</label><input class="fc" id="pColor" value="${prod?.Color||''}"></div>
   <div class="form-group"><label>Cost Price</label><input type="number" class="fc" id="pCost" value="${prod?.CostPrice||''}"></div>
   <div class="form-group"><label>Sell Price</label><input type="number" class="fc" id="pSell" value="${prod?.SellPrice||''}"></div>
   <div class="form-group"><label>Stock</label><input type="number" class="fc" id="pStock" value="${prod?.Stock||0}"></div>
   <div class="form-group"><label>Min Stock</label><input type="number" class="fc" id="pMin" value="${prod?.MinStock||5}"></div>
   <div class="form-group"><label>Supplier</label><select class="fc" id="pSup"><option value="">None</option>${S.suppliers.map(s=>`<option value="${s.ID}" data-name="${esc(s.Name)}" ${s.ID===prod?.SupplierID?'selected':''}>${esc(s.Name)}</option>`).join('')}</select></div>
-</div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button><button class="btn btn-primary" onclick="saveProduct('${prod?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('productModal')}
+</div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button><button class="btn btn-primary" onclick="saveProduct('${prod?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('productModal');if(!isEdit)addVariantRow()}
+function variantRowTemplate(){
+  return `<div class="variant-row">
+    <div class="form-group" style="margin:0"><label>Size</label><select class="fc v-size"><option value="">Select</option>${SIZES.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
+    <div class="form-group" style="margin:0"><label>Qty</label><input type="number" min="0" class="fc v-qty" placeholder="0"></div>
+    <div class="form-group" style="margin:0"><label>Cost Price</label><input type="number" min="0" class="fc v-cost" placeholder="0"></div>
+    <div class="form-group" style="margin:0"><label>Sell Price</label><input type="number" min="0" class="fc v-sell" placeholder="0"></div>
+    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.variant-row').remove()"><i class="fas fa-trash"></i></button>
+  </div>`;
+}
+function addVariantRow(){
+  const c=document.getElementById('variantRows');if(!c)return;
+  c.insertAdjacentHTML('beforeend',variantRowTemplate());
+}
+function readVariantRows(){
+  return [...document.querySelectorAll('#variantRows .variant-row')].map(r=>({
+    Size:r.querySelector('.v-size')?.value||'',
+    Stock:Number(r.querySelector('.v-qty')?.value)||0,
+    CostPrice:Number(r.querySelector('.v-cost')?.value)||0,
+    SellPrice:Number(r.querySelector('.v-sell')?.value)||0
+  })).filter(v=>v.Size||v.Stock||v.CostPrice||v.SellPrice);
+}
 function editProduct(id){const p=S.inventory.find(x=>x.ID===id);if(p)openProductModal(p)}
 async function saveProduct(id){
   const supSel=document.getElementById('pSup');
@@ -543,21 +567,22 @@ async function saveProduct(id){
     return;
   }
 
-  const bulkRaw=(document.getElementById('pSizesBulk')?.value||'').trim();
-  const sizes=bulkRaw?Array.from(new Set(bulkRaw.split(',').map(s=>s.trim()).filter(Boolean))):[];
-
-  if(!sizes.length){
+  const variants=readVariantRows();
+  if(!variants.length){
     const r=await apiPost('addProduct',base);
     if(r.success){toast('Added!');closeModal('productModal');renderPage('inventory')}
     return;
   }
 
-  const invalid=sizes.filter(s=>!SIZES.includes(s));
-  if(invalid.length){toast(`Invalid size(s): ${invalid.join(', ')}`,'error');return}
+  const invalid=variants.filter(v=>!SIZES.includes(v.Size));
+  if(invalid.length){toast('Please select a valid size in each variant row.','error');return}
+
+  const dup=variants.map(v=>v.Size).filter((s,i,a)=>a.indexOf(s)!==i);
+  if(dup.length){toast(`Duplicate size(s): ${[...new Set(dup)].join(', ')}`,'error');return}
 
   let ok=0;
-  for(const sz of sizes){
-    const r=await apiPost('addProduct',{...base,Size:sz});
+  for(const v of variants){
+    const r=await apiPost('addProduct',{...base,Size:v.Size,Stock:v.Stock,CostPrice:v.CostPrice,SellPrice:v.SellPrice});
     if(r.success)ok++;
   }
   if(ok){toast(`Added ${ok} size variant${ok>1?'s':''}`);closeModal('productModal');renderPage('inventory')}
