@@ -158,8 +158,15 @@ select.fc{cursor:pointer}textarea.fc{resize:vertical;min-height:70px}
 .si-tbl input:focus,.si-tbl select:focus{outline:none;border-color:var(--primary)}
 .si-tbl .cb{width:auto;margin:0}
 .variant-builder{grid-column:1/-1;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:12px;background:#0b1220}
-.variant-row{display:grid;grid-template-columns:minmax(120px,1fr) repeat(3,minmax(90px,1fr)) auto;gap:8px;align-items:end;margin-top:8px}
-.variant-row .btn{padding:8px 10px}
+.variant-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);transition:all .2s;flex-wrap:wrap}
+.variant-row:hover{border-color:rgba(59,130,246,.4)}
+.variant-row .btn{padding:7px 9px;height:32px}
+.variant-row input,.variant-row select{padding:6px 8px;font-size:12px}
+@media(max-width:600px){
+  .variant-row{flex-direction:column;align-items:stretch}
+  .variant-row .form-group{width:100%}
+  .variant-row > div:first-child{align-self:flex-start}
+}
 ::selection{background:rgba(59,130,246,.3);color:#fff}
 ::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:var(--bg)}
@@ -521,71 +528,469 @@ function renderInvTable(data){
   </tr></thead><tbody>${data.map(i=>{const stk=Number(i.Stock)||0;const mn=Number(i.MinStock)||5;const pct=Math.min(100,(stk/Math.max(mn*3,1))*100);const col=stk===0?'#dc2626':stk<=mn?'#d97706':'#059669';const isBatch=String(i.ID).match(/^PRD-\d+[A-Z]$/);
     return`<tr><td><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td>${i.Edition||'-'}</td><td>${i.Type||'-'}</td><td>${i.Size||'-'}</td><td>${c}${Number(i.CostPrice).toLocaleString()}</td><td><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td><td><strong>${stk}</strong></td><td><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${stk===0?'<span class="badge badge-d">Out</span>':stk<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td>${esc(i.SupplierName||'-')}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${stk})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
 }
-function openProductModal(prod=null){let m=document.getElementById('productModal');if(m)m.remove();const isEdit=!!prod;document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="productModal"><div class="modal"><div class="modal-hdr"><h3>${isEdit?'Edit':'Add'} Product</h3><button class="modal-close" onclick="closeModal('productModal')">&times;</button></div><div class="modal-body"><div class="fg">
-  <div class="form-group"><label>Club/Country *</label><select class="fc" id="pClub"><option value="">Select</option>${makeOptions(CLUBS_COUNTRIES,prod?.Club_Country)}</select></div>
-  <div class="form-group"><label>Edition</label><select class="fc" id="pEd">${makeOptions(EDITIONS,prod?.Edition)}</select></div>
-  <div class="form-group"><label>Type</label><select class="fc" id="pType">${makeOptions(TYPES,prod?.Type)}</select></div>
-  <div class="form-group"><label>Size</label><select class="fc" id="pSize">${makeOptions(SIZES,prod?.Size)}</select></div>
-  ${!isEdit?`<div class="form-group variant-builder"><label style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span>Add Size Variants (optional)</span><button type="button" class="btn btn-outline btn-sm" onclick="addVariantRow()"><i class="fas fa-plus"></i> Add Size</button></label><div id="variantRows"></div><small style="display:block;margin-top:8px;color:var(--text-muted);font-size:11px">Each row adds a product variant with its own size, quantity, cost price, and sell price.</small></div>`:''}
-  <div class="form-group"><label>Color</label><input class="fc" id="pColor" value="${prod?.Color||''}"></div>
-  <div class="form-group"><label>Cost Price</label><input type="number" class="fc" id="pCost" value="${prod?.CostPrice||''}"></div>
-  <div class="form-group"><label>Sell Price</label><input type="number" class="fc" id="pSell" value="${prod?.SellPrice||''}"></div>
-  <div class="form-group"><label>Stock</label><input type="number" class="fc" id="pStock" value="${prod?.Stock||0}"></div>
-  <div class="form-group"><label>Min Stock</label><input type="number" class="fc" id="pMin" value="${prod?.MinStock||5}"></div>
-  <div class="form-group"><label>Supplier</label><select class="fc" id="pSup"><option value="">None</option>${S.suppliers.map(s=>`<option value="${s.ID}" data-name="${esc(s.Name)}" ${s.ID===prod?.SupplierID?'selected':''}>${esc(s.Name)}</option>`).join('')}</select></div>
-</div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button><button class="btn btn-primary" onclick="saveProduct('${prod?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('productModal');if(!isEdit)addVariantRow()}
-function variantRowTemplate(){
-  return `<div class="variant-row">
-    <div class="form-group" style="margin:0"><label>Size</label><select class="fc v-size"><option value="">Select</option>${SIZES.map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
-    <div class="form-group" style="margin:0"><label>Qty</label><input type="number" min="0" class="fc v-qty" placeholder="0"></div>
-    <div class="form-group" style="margin:0"><label>Cost Price</label><input type="number" min="0" class="fc v-cost" placeholder="0"></div>
-    <div class="form-group" style="margin:0"><label>Sell Price</label><input type="number" min="0" class="fc v-sell" placeholder="0"></div>
-    <button type="button" class="btn btn-danger btn-sm" onclick="this.closest('.variant-row').remove()"><i class="fas fa-trash"></i></button>
-  </div>`;
+function openProductModal(prod = null) {
+  let m = document.getElementById('productModal');
+  if (m) m.remove();
+  const isEdit = !!prod;
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="productModal"><div class="modal" style="max-width:780px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-${isEdit ? 'pen' : 'plus'}" style="color:var(--primary);margin-right:6px"></i>${isEdit ? 'Edit' : 'Add'} Product</h3>
+        <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Section: Core product details -->
+        <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+          <i class="fas fa-tshirt" style="color:var(--primary);margin-right:5px"></i>Product Details
+        </h4>
+        <div class="fg">
+          <div class="form-group">
+            <label>Club / Country *</label>
+            <select class="fc" id="pClub">
+              <option value="">Select</option>
+              ${makeOptions(CLUBS_COUNTRIES, prod?.Club_Country)}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Edition</label>
+            <select class="fc" id="pEd">${makeOptions(EDITIONS, prod?.Edition)}</select>
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <select class="fc" id="pType">${makeOptions(TYPES, prod?.Type)}</select>
+          </div>
+          <div class="form-group">
+            <label>Color</label>
+            <input class="fc" id="pColor" value="${esc(prod?.Color || '')}" placeholder="e.g., Red & White">
+          </div>
+          <div class="form-group">
+            <label>Supplier</label>
+            <select class="fc" id="pSup">
+              <option value="">None</option>
+              ${[...S.suppliers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(s => `<option value="${s.ID}" data-name="${esc(s.Name)}" ${s.ID === prod?.SupplierID ? 'selected' : ''}>${esc(s.Name)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Min Stock Threshold</label>
+            <input type="number" class="fc" id="pMin" value="${prod?.MinStock || 5}" min="0">
+          </div>
+        </div>
+        
+        ${isEdit ? `
+          <!-- EDIT MODE: Single size, price, stock -->
+          <hr style="margin:18px 0;border:none;border-top:1px solid var(--border)">
+          <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+            <i class="fas fa-tag" style="color:var(--primary);margin-right:5px"></i>Size & Pricing
+          </h4>
+          <div class="fg">
+            <div class="form-group">
+              <label>Size</label>
+              <select class="fc" id="pSize">${makeOptions(SIZES, prod?.Size)}</select>
+            </div>
+            <div class="form-group">
+              <label>Cost Price (${C()})</label>
+              <input type="number" class="fc" id="pCost" value="${prod?.CostPrice || 0}" min="0">
+            </div>
+            <div class="form-group">
+              <label>Sell Price (${C()})</label>
+              <input type="number" class="fc" id="pSell" value="${prod?.SellPrice || 0}" min="0">
+            </div>
+            <div class="form-group">
+              <label>Stock</label>
+              <input type="number" class="fc" id="pStock" value="${prod?.Stock || 0}" min="0">
+            </div>
+          </div>
+        ` : `
+          <!-- ADD MODE: Size variant builder -->
+          <hr style="margin:18px 0;border:none;border-top:1px solid var(--border)">
+          
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <div>
+              <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:2px">
+                <i class="fas fa-layer-group" style="color:var(--primary);margin-right:5px"></i>Size Variants
+              </h4>
+              <small style="font-size:10.5px;color:var(--text-muted)">Add one row per size. Each variant becomes a separate inventory item.</small>
+            </div>
+            <button type="button" class="btn btn-success btn-sm" onclick="addVariantRow()">
+              <i class="fas fa-plus"></i> Add Size Row
+            </button>
+          </div>
+          
+          <div id="variantRows" style="display:flex;flex-direction:column;gap:8px"></div>
+          
+          <div id="variantSummary" style="margin-top:12px;padding:10px 14px;background:var(--bg);border-radius:8px;border:1px dashed var(--border);display:none">
+            <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px;font-size:12px">
+              <span><strong>Variants:</strong> <span id="vsCount" style="color:var(--primary)">0</span></span>
+              <span><strong>Total Stock:</strong> <span id="vsStock" style="color:var(--secondary)">0</span> units</span>
+              <span><strong>Total Investment:</strong> <span id="vsInvest" style="color:var(--warning)">${C()}0</span></span>
+              <span><strong>Potential Revenue:</strong> <span id="vsRevenue" style="color:var(--secondary)">${C()}0</span></span>
+            </div>
+          </div>
+          
+          <div style="margin-top:12px;padding:10px 12px;background:rgba(59,130,246,.06);border-left:3px solid var(--primary);border-radius:6px;font-size:11.5px;color:var(--text-sec)">
+            <i class="fas fa-lightbulb" style="color:var(--primary)"></i>
+            <strong>Tip:</strong> Leave variants empty to add a single product. Use <strong>Apply to All</strong> below if all sizes share the same prices.
+          </div>
+          
+          <div class="fg" style="margin-top:14px;padding:12px;background:var(--bg);border-radius:8px;border:1px dashed var(--border)">
+            <div class="form-group" style="margin:0">
+              <label style="font-size:10.5px">Bulk Cost Price</label>
+              <input type="number" class="fc" id="bulkCost" placeholder="e.g., 800" min="0">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="font-size:10.5px">Bulk Sell Price</label>
+              <input type="number" class="fc" id="bulkSell" placeholder="e.g., 1200" min="0">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label style="font-size:10.5px">Bulk Quantity</label>
+              <input type="number" class="fc" id="bulkQty" placeholder="e.g., 10" min="0">
+            </div>
+            <div class="form-group" style="margin:0;display:flex;align-items:flex-end">
+              <button type="button" class="btn btn-outline btn-sm" onclick="applyBulkToVariants()" style="width:100%">
+                <i class="fas fa-magic-wand-sparkles"></i> Apply to All
+              </button>
+            </div>
+          </div>
+        `}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('productModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveProduct('${prod?.ID || ''}')"><i class="fas fa-save"></i>Save</button>
+      </div>
+    </div></div>`);
+  
+  openModal('productModal');
+  
+  // Auto-add first variant row in ADD mode
+  if (!isEdit) {
+    addVariantRow();
+  }
 }
-function addVariantRow(){
-  const c=document.getElementById('variantRows');if(!c)return;
-  c.insertAdjacentHTML('beforeend',variantRowTemplate());
+function variantRowTemplate(index) {
+  const c = C();
+  return `
+    <div class="variant-row" data-vidx="${index}">
+      <div style="display:flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--primary-light);color:var(--primary);border-radius:6px;font-size:11px;font-weight:700;flex-shrink:0">
+        ${index + 1}
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:75px">
+        <label style="font-size:10px">Size</label>
+        <select class="fc v-size" onchange="updateVariantSummary()">
+          <option value="">—</option>
+          ${SIZES.map(s => `<option value="${s}">${s}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:70px">
+        <label style="font-size:10px">Qty</label>
+        <input type="number" min="0" class="fc v-qty" placeholder="0" oninput="updateVariantSummary()">
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:90px">
+        <label style="font-size:10px">Cost ${c}</label>
+        <input type="number" min="0" class="fc v-cost" placeholder="0" oninput="updateVariantSummary()">
+      </div>
+      <div class="form-group" style="margin:0;flex:1;min-width:90px">
+        <label style="font-size:10px">Sell ${c}</label>
+        <input type="number" min="0" class="fc v-sell" placeholder="0" oninput="updateVariantSummary()">
+      </div>
+      <button type="button" class="btn btn-danger btn-sm" onclick="removeVariantRow(this)" title="Remove" style="align-self:flex-end">
+        <i class="fas fa-trash"></i>
+      </button>
+    </div>
+  `;
 }
-function readVariantRows(){
-  return [...document.querySelectorAll('#variantRows .variant-row')].map(r=>({
-    Size:r.querySelector('.v-size')?.value||'',
-    Stock:Number(r.querySelector('.v-qty')?.value)||0,
-    CostPrice:Number(r.querySelector('.v-cost')?.value)||0,
-    SellPrice:Number(r.querySelector('.v-sell')?.value)||0
-  })).filter(v=>v.Size||v.Stock||v.CostPrice||v.SellPrice);
-}
-function editProduct(id){const p=S.inventory.find(x=>x.ID===id);if(p)openProductModal(p)}
-async function saveProduct(id){
-  const supSel=document.getElementById('pSup');
-  const base={ID:id,Club_Country:document.getElementById('pClub').value,Edition:document.getElementById('pEd').value,Type:document.getElementById('pType').value,Size:document.getElementById('pSize').value,Color:document.getElementById('pColor').value,CostPrice:document.getElementById('pCost').value,SellPrice:document.getElementById('pSell').value,Stock:document.getElementById('pStock').value,MinStock:document.getElementById('pMin').value,SupplierID:supSel.value,SupplierName:supSel.selectedOptions[0]?.dataset?.name||''};
-  if(!base.Club_Country){toast('Club required','error');return}
 
-  if(id){
-    const r=await apiPost('updateProduct',base);
-    if(r.success){toast('Updated!');closeModal('productModal');renderPage('inventory')}
+function addVariantRow() {
+  const c = document.getElementById('variantRows');
+  if (!c) return;
+  
+  const currentCount = c.querySelectorAll('.variant-row').length;
+  
+  // Pre-fill the new variant's size with the next unused size
+  const usedSizes = [...c.querySelectorAll('.v-size')].map(s => s.value).filter(Boolean);
+  const nextSize = SIZES.find(s => !usedSizes.includes(s)) || '';
+  
+  c.insertAdjacentHTML('beforeend', variantRowTemplate(currentCount));
+  
+  // Set the auto-suggested size
+  const newRow = c.lastElementChild;
+  if (newRow && nextSize) {
+    const sizeSel = newRow.querySelector('.v-size');
+    if (sizeSel) sizeSel.value = nextSize;
+  }
+  
+  // Inherit prices from the previous row if it has them filled
+  if (currentCount > 0) {
+    const rows = c.querySelectorAll('.variant-row');
+    const prevRow = rows[rows.length - 2];
+    const prevCost = prevRow.querySelector('.v-cost').value;
+    const prevSell = prevRow.querySelector('.v-sell').value;
+    if (prevCost) newRow.querySelector('.v-cost').value = prevCost;
+    if (prevSell) newRow.querySelector('.v-sell').value = prevSell;
+  }
+  
+  updateVariantSummary();
+  
+  // Smooth scroll the new row into view
+  setTimeout(() => newRow?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+}
+
+function removeVariantRow(btn) {
+  const row = btn.closest('.variant-row');
+  if (!row) return;
+  
+  // Don't allow removing the last row — clear it instead
+  const rows = document.querySelectorAll('#variantRows .variant-row');
+  if (rows.length <= 1) {
+    row.querySelector('.v-size').value = '';
+    row.querySelector('.v-qty').value = '';
+    row.querySelector('.v-cost').value = '';
+    row.querySelector('.v-sell').value = '';
+    updateVariantSummary();
+    toast('At least one variant row must remain. Cleared instead.', 'info');
     return;
   }
+  
+  row.style.transition = 'all 0.25s';
+  row.style.opacity = '0';
+  row.style.transform = 'translateX(-10px)';
+  setTimeout(() => {
+    row.remove();
+    renumberVariantRows();
+    updateVariantSummary();
+  }, 200);
+}
 
-  const variants=readVariantRows();
-  if(!variants.length){
-    const r=await apiPost('addProduct',base);
-    if(r.success){toast('Added!');closeModal('productModal');renderPage('inventory')}
+function renumberVariantRows() {
+  document.querySelectorAll('#variantRows .variant-row').forEach((row, idx) => {
+    const numEl = row.querySelector('div:first-child');
+    if (numEl) numEl.textContent = idx + 1;
+    row.dataset.vidx = idx;
+  });
+}
+
+function updateVariantSummary() {
+  const rows = document.querySelectorAll('#variantRows .variant-row');
+  const summary = document.getElementById('variantSummary');
+  if (!summary) return;
+  
+  let count = 0, totalStock = 0, totalInvest = 0, totalRevenue = 0;
+  const seenSizes = {};
+  
+  rows.forEach(row => {
+    const size = row.querySelector('.v-size')?.value;
+    const qty = Number(row.querySelector('.v-qty')?.value) || 0;
+    const cost = Number(row.querySelector('.v-cost')?.value) || 0;
+    const sell = Number(row.querySelector('.v-sell')?.value) || 0;
+    
+    // Highlight duplicate sizes
+    if (size) {
+      if (seenSizes[size]) {
+        row.style.background = 'rgba(239,68,68,.08)';
+        row.style.borderLeft = '3px solid var(--danger)';
+      } else {
+        row.style.background = '';
+        row.style.borderLeft = '';
+        seenSizes[size] = true;
+      }
+    } else {
+      row.style.background = '';
+      row.style.borderLeft = '';
+    }
+    
+    if (size || qty || cost || sell) {
+      count++;
+      totalStock += qty;
+      totalInvest += cost * qty;
+      totalRevenue += sell * qty;
+    }
+  });
+  
+  if (count > 0) {
+    summary.style.display = 'block';
+    document.getElementById('vsCount').textContent = count;
+    document.getElementById('vsStock').textContent = totalStock;
+    document.getElementById('vsInvest').textContent = C() + totalInvest.toLocaleString();
+    document.getElementById('vsRevenue').textContent = C() + totalRevenue.toLocaleString();
+  } else {
+    summary.style.display = 'none';
+  }
+}
+
+function applyBulkToVariants() {
+  const bulkCost = document.getElementById('bulkCost').value;
+  const bulkSell = document.getElementById('bulkSell').value;
+  const bulkQty = document.getElementById('bulkQty').value;
+  
+  if (!bulkCost && !bulkSell && !bulkQty) {
+    toast('Enter at least one bulk value to apply', 'warning');
     return;
   }
-
-  const invalid=variants.filter(v=>!SIZES.includes(v.Size));
-  if(invalid.length){toast('Please select a valid size in each variant row.','error');return}
-
-  const dup=variants.map(v=>v.Size).filter((s,i,a)=>a.indexOf(s)!==i);
-  if(dup.length){toast(`Duplicate size(s): ${[...new Set(dup)].join(', ')}`,'error');return}
-
-  let ok=0;
-  for(const v of variants){
-    const r=await apiPost('addProduct',{...base,Size:v.Size,Stock:v.Stock,CostPrice:v.CostPrice,SellPrice:v.SellPrice});
-    if(r.success)ok++;
+  
+  const rows = document.querySelectorAll('#variantRows .variant-row');
+  if (!rows.length) {
+    toast('Add at least one variant row first', 'warning');
+    return;
   }
-  if(ok){toast(`Added ${ok} size variant${ok>1?'s':''}`);closeModal('productModal');renderPage('inventory')}
+  
+  let applied = 0;
+  rows.forEach(row => {
+    if (bulkCost) row.querySelector('.v-cost').value = bulkCost;
+    if (bulkSell) row.querySelector('.v-sell').value = bulkSell;
+    if (bulkQty) row.querySelector('.v-qty').value = bulkQty;
+    applied++;
+  });
+  
+  // Visual feedback flash
+  rows.forEach(row => {
+    row.style.transition = 'background 0.4s';
+    row.style.background = 'rgba(16,185,129,.15)';
+    setTimeout(() => row.style.background = '', 600);
+  });
+  
+  // Clear bulk fields
+  document.getElementById('bulkCost').value = '';
+  document.getElementById('bulkSell').value = '';
+  document.getElementById('bulkQty').value = '';
+  
+  updateVariantSummary();
+  toast(`Applied bulk values to ${applied} variant${applied > 1 ? 's' : ''}`, 'success');
+}
+function readVariantRows() {
+  return [...document.querySelectorAll('#variantRows .variant-row')].map(r => ({
+    Size: r.querySelector('.v-size')?.value || '',
+    Stock: Number(r.querySelector('.v-qty')?.value) || 0,
+    CostPrice: Number(r.querySelector('.v-cost')?.value) || 0,
+    SellPrice: Number(r.querySelector('.v-sell')?.value) || 0
+  })).filter(v => v.Size || v.Stock || v.CostPrice || v.SellPrice);
+}
+
+function editProduct(id) {
+  const p = S.inventory.find(x => x.ID === id);
+  if (p) openProductModal(p);
+}
+
+async function saveProduct(id) {
+  const supSel = document.getElementById('pSup');
+  const isEdit = !!id;
+  
+  // Common base fields
+  const base = {
+    ID: id,
+    Club_Country: document.getElementById('pClub').value,
+    Edition: document.getElementById('pEd').value,
+    Type: document.getElementById('pType').value,
+    Color: document.getElementById('pColor').value,
+    MinStock: document.getElementById('pMin').value,
+    SupplierID: supSel.value,
+    SupplierName: supSel.selectedOptions[0]?.dataset?.name || ''
+  };
+  
+  // Validation: club is required
+  if (!base.Club_Country) {
+    toast('Please select a Club / Country', 'error');
+    document.getElementById('pClub').focus();
+    return;
+  }
+  
+  // ============================================================
+  // EDIT MODE: Single product update
+  // ============================================================
+  if (isEdit) {
+    base.Size = document.getElementById('pSize').value;
+    base.CostPrice = document.getElementById('pCost').value;
+    base.SellPrice = document.getElementById('pSell').value;
+    base.Stock = document.getElementById('pStock').value;
+    
+    const r = await apiPost('updateProduct', base);
+    if (r.success) {
+      toast('Product updated!');
+      closeModal('productModal');
+      renderPage('inventory');
+    }
+    return;
+  }
+  
+  // ============================================================
+  // ADD MODE: Variant builder
+  // ============================================================
+  const variants = readVariantRows();
+  
+  if (!variants.length) {
+    toast('Add at least one size variant row with details', 'error');
+    return;
+  }
+  
+  // Validate: every row must have a size selected
+  const invalid = variants.filter(v => !SIZES.includes(v.Size));
+  if (invalid.length) {
+    toast(`Select a valid size in all ${invalid.length} incomplete row(s)`, 'error');
+    return;
+  }
+  
+  // Validate: no duplicate sizes
+  const sizeList = variants.map(v => v.Size);
+  const dupSizes = sizeList.filter((s, i, a) => a.indexOf(s) !== i);
+  if (dupSizes.length) {
+    toast(`Duplicate size(s): ${[...new Set(dupSizes)].join(', ')} — please remove duplicates`, 'error');
+    return;
+  }
+  
+  // Validate: each variant must have at least cost and sell price
+  const incomplete = variants.filter(v => v.CostPrice <= 0 || v.SellPrice <= 0);
+  if (incomplete.length) {
+    toast(`${incomplete.length} variant(s) missing cost or sell price`, 'error');
+    return;
+  }
+  
+  // Confirmation summary before saving
+  const totalStock = variants.reduce((s, v) => s + v.Stock, 0);
+  const totalInvest = variants.reduce((s, v) => s + (v.CostPrice * v.Stock), 0);
+  const productLabel = `${base.Club_Country} ${base.Type} ${base.Edition}`.trim();
+  
+  if (!confirm(
+    `Confirm adding product?\n\n` +
+    `📦 ${productLabel}\n` +
+    `🎨 ${variants.length} size variant${variants.length > 1 ? 's' : ''}: ${sizeList.join(', ')}\n` +
+    `📊 Total Stock: ${totalStock} units\n` +
+    `💰 Total Investment: ${C()}${totalInvest.toLocaleString()}\n\n` +
+    `Each size will be saved as a separate inventory item.`
+  )) return;
+  
+  // Disable Save button to prevent double submission
+  const saveBtn = document.querySelector('#productModal .btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
+  }
+  
+  // Save each variant as a separate product
+  let ok = 0, failed = 0;
+  for (const v of variants) {
+    const r = await apiPost('addProduct', {
+      ...base,
+      Size: v.Size,
+      Stock: v.Stock,
+      CostPrice: v.CostPrice,
+      SellPrice: v.SellPrice
+    });
+    if (r.success) ok++; else failed++;
+  }
+  
+  if (ok > 0) {
+    let msg = `✅ Added ${ok} variant${ok > 1 ? 's' : ''}`;
+    if (failed > 0) msg += ` (${failed} failed)`;
+    toast(msg, failed > 0 ? 'warning' : 'success');
+    closeModal('productModal');
+    renderPage('inventory');
+  } else {
+    toast('Failed to add product variants', 'error');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i>Save';
+    }
+  }
 }
 async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
 function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
