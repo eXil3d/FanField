@@ -10,6 +10,13 @@
 <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <style>
+  .content > * {
+  animation: pageIn .35s cubic-bezier(.4,0,.2,1);
+}
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 :root{
   /* Color Palette */
   --primary:#3b82f6;--primary-dark:#2563eb;--primary-light:rgba(59,130,246,.15);
@@ -644,6 +651,11 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   </div>
   <div class="content" id="contentArea"></div>
 </main>
+
+  <button id="fabBtn" onclick="fabAction()" style="position:fixed;bottom:20px;right:20px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--purple));color:#fff;border:none;box-shadow:0 8px 24px rgba(59,130,246,.45);cursor:pointer;font-size:22px;z-index:500;display:none;align-items:center;justify-content:center;transition:all .25s">
+  <i class="fas fa-plus"></i>
+</button>
+  
 </div>
 
 <script>
@@ -676,15 +688,98 @@ async function apiPost(action,payload){
   try{const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({action,...payload}),headers:{'Content-Type':'text/plain'}});const d=await r.json();if(d.error){toast('Error: '+d.error,'error');setSS('Error');return d;}setSS('Saved ✓');return d;}
   catch(e){setSS('Offline');toast('Connection error','error');throw e;}
 }
-function setSS(t){document.getElementById('syncSt').textContent=t}
-function toast(msg,type='success'){const c=document.getElementById('toastBox');const t=document.createElement('div');t.className='toast toast-'+type;const icons={success:'check-circle',error:'exclamation-circle',warning:'exclamation-triangle',info:'info-circle'};t.innerHTML=`<i class="fas fa-${icons[type]||'info-circle'}"></i>${msg}`;c.appendChild(t);setTimeout(()=>t.remove(),4500)}
-function openModal(id){document.getElementById(id).classList.add('active')}
+function setSS(t) {
+  const el = document.getElementById('syncSt');
+  if (!el) return;
+  el.textContent = t;
+  
+  // Color coding based on status
+  el.style.color = '';
+  el.style.background = '';
+  if (t.includes('Synced') || t.includes('Saved')) {
+    el.style.color = 'var(--secondary)';
+    el.style.background = 'var(--secondary-light)';
+  } else if (t.includes('Error') || t.includes('Offline')) {
+    el.style.color = 'var(--danger)';
+    el.style.background = 'var(--danger-light)';
+  } else if (t.includes('Sync') || t.includes('Sav') || t.includes('Migrating')) {
+    el.style.color = 'var(--warning)';
+    el.style.background = 'var(--warning-light)';
+  }
+}
+function toast(msg, type = 'success') {
+  const c = document.getElementById('toastBox');
+  const t = document.createElement('div');
+  t.className = 'toast toast-' + type;
+  const icons = {
+    success: 'check-circle',
+    error: 'exclamation-circle',
+    warning: 'exclamation-triangle',
+    info: 'info-circle'
+  };
+  t.innerHTML = `<i class="fas fa-${icons[type] || 'info-circle'}"></i><span>${msg}</span>`;
+  c.appendChild(t);
+  
+  // Click to dismiss
+  t.addEventListener('click', () => {
+    t.style.animation = 'slideIn .3s reverse';
+    setTimeout(() => t.remove(), 300);
+  });
+  
+  setTimeout(() => {
+    if (t.parentNode) {
+      t.style.animation = 'slideIn .3s reverse';
+      setTimeout(() => t.remove(), 300);
+    }
+  }, 4500);
+}function openModal(id){document.getElementById(id).classList.add('active')}
 function closeModal(id){document.getElementById(id).classList.remove('active')}
 
+function fabAction() {
+  const fabActions = {
+    inventory: () => openProductModal(),
+    pos: () => addPOSRow(),
+    customers: () => openCustModal(),
+    suppliers: () => openSupModal(),
+    expenses: () => openExpModal(),
+    affiliates: () => openAffModal(),
+    vouchers: () => openVchModal(),
+    sales: () => openManualSaleModal()
+  };
+  fabActions[currentPage]?.();
+}
+
+function updateFAB() {
+  const fab = document.getElementById('fabBtn');
+  if (!fab) return;
+  const showOn = ['inventory', 'customers', 'suppliers', 'expenses', 'affiliates', 'vouchers', 'sales'];
+  fab.style.display = (showOn.includes(currentPage) && window.innerWidth <= 768) ? 'flex' : 'none';
+}
+
+// Hook into nav and resize
+window.addEventListener('resize', updateFAB);
+const _origNav = nav;
+nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
+  
 // NAV
 const pgInfo={dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],profits:['Sales Profits','Profit tracking & margins'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],supplierLedger:['Supplier Ledger','Supplier transactions'],expenses:['Expenses','Business expenses'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
-function nav(page){currentPage=page;document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');const[t,s]=pgInfo[page]||[page,''];document.getElementById('pgTitle').textContent=t;document.getElementById('pgSub').textContent=s;document.getElementById('sidebar').classList.remove('open');renderPage(page)}
-document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>nav(n.dataset.page)));
+function nav(page) {
+  currentPage = page;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
+  const [t, s] = pgInfo[page] || [page, ''];
+  document.getElementById('pgTitle').textContent = t;
+  document.getElementById('pgSub').textContent = s;
+  
+  // Close sidebar on mobile after nav
+  const sidebar = document.getElementById('sidebar');
+  sidebar.classList.remove('open');
+  
+  // Smooth scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  renderPage(page);
+}document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>nav(n.dataset.page)));
 function refreshPage(){renderPage(currentPage)}
 
 async function renderPage(page){
