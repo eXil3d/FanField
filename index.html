@@ -2410,7 +2410,8 @@ function filterSL(){
       <button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="Invoice"><i class="fas fa-file-invoice"></i></button>
       <button class="btn btn-outline btn-sm" onclick="showSaleSummary('${s.ID}')" title="Summary"><i class="fas fa-share-alt"></i></button>
       ${!isCancelled&&Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i></button>`:''}
-      ${!isCancelled?`<button class="btn btn-success btn-sm" onclick="openExchangeReplaceModal('${s.ID}','${s.InvoiceNo}')" title="Exchange & Replace"><i class="fas fa-right-left"></i></button>
+      ${!isCancelled?`<button class="btn btn-outline btn-sm" onclick="openAdjustAmountModal('${s.ID}','${s.InvoiceNo}',${Number(s.FinalAmount)||0},${Number(s.PaidAmount)||0},${Number(s.DueAmount)||0})" title="Adjust Sale Amount" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-pen-to-square"></i></button>
+<button class="btn btn-success btn-sm" onclick="openExchangeReplaceModal('${s.ID}','${s.InvoiceNo}')" title="Exchange & Replace"><i class="fas fa-right-left"></i></button>
 <button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Partial Return/Refund"><i class="fas fa-rotate-left"></i></button>
 <button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel Full Order"><i class="fas fa-undo"></i></button>`:''}
     </div></td></tr>`}).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales</div>';
@@ -2423,7 +2424,309 @@ function showSaleSummary(id){
   openModal('summaryModal');
 }
 async function reverseSale(id,inv){if(!confirm(`⚠️ Cancel sale ${inv}? This will:\n• Restore stock\n• Update customer\n• Reverse commissions\n\nContinue?`))return;const r=await apiPost('reverseSale',{ID:id});if(r.success){toast(r.message||'Sale reversed!');S.sales=await apiGet('getSales');filterSL()}}
+// ============================================================
+// ADJUST SALE AMOUNT — Edit final amount of an existing sale
+// (Customer paid less/more than invoiced, on-the-spot price change, etc.)
+// ============================================================
+function openAdjustAmountModal(saleId, invoiceNo, currentFinal, currentPaid, currentDue) {
+  const c = C();
+  const sale = S.sales.find(s => s.ID === saleId);
+  const hasAffiliate = sale && sale.AffiliateCode;
+  
+  let m = document.getElementById('adjustAmountModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="adjustAmountModal"><div class="modal" style="max-width:560px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-pen-to-square" style="color:var(--purple);margin-right:6px"></i>Adjust Sale Amount — ${invoiceNo}</h3>
+        <button class="modal-close" onclick="closeModal('adjustAmountModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <div style="background:rgba(139,92,246,.08);padding:12px;border-radius:8px;border-left:3px solid var(--purple);margin-bottom:16px;font-size:12px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--purple)"></i>
+          <strong>When to use:</strong> Customer paid less than invoiced (e.g., 950 → 900), 
+          last-minute price adjustment, or rounding off the total. The sale total is updated, 
+          but items remain unchanged.
+        </div>
+        
+        <!-- Current Snapshot -->
+        <div style="background:var(--bg);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:14px">
+          <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+            <i class="fas fa-receipt" style="color:var(--text-muted);margin-right:5px"></i>Current Status
+          </h4>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px">
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Total</div>
+              <div style="font-weight:700;font-size:16px">${c}${currentFinal.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Paid</div>
+              <div style="font-weight:700;font-size:16px;color:var(--secondary)">${c}${currentPaid.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Due</div>
+              <div style="font-weight:700;font-size:16px;color:${currentDue>0?'var(--danger)':'var(--text)'}">${c}${currentDue.toLocaleString()}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- New Amount Input -->
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>New Final Amount (${c}) *</label>
+            <input type="number" class="fc" id="adjNewAmount" min="0" value="${currentFinal}" 
+              oninput="recalcAdjustPreview(${currentFinal},${currentPaid})" 
+              style="font-size:18px;font-weight:700;padding:14px"
+              autofocus>
+            <small style="display:block;margin-top:4px;color:var(--text-muted);font-size:10.5px">
+              Enter what the customer actually paid or owes
+            </small>
+          </div>
+          
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Adjustment Type</label>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border:2px solid var(--primary);border-radius:8px;cursor:pointer;transition:all .2s" id="adjMethodReductionLabel">
+                <input type="radio" name="adjMethod" value="Price Reduction" id="adjMethodReduction" checked onchange="updateAdjustMethodUI()" style="margin:0">
+                <div>
+                  <div style="font-size:12px;font-weight:600">Price Reduction</div>
+                  <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Just lower the total</div>
+                </div>
+              </label>
+              <label style="display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--bg);border:2px solid var(--border);border-radius:8px;cursor:pointer;transition:all .2s" id="adjMethodRefundLabel">
+                <input type="radio" name="adjMethod" value="Refund" id="adjMethodRefund" onchange="updateAdjustMethodUI()" style="margin:0">
+                <div>
+                  <div style="font-size:12px;font-weight:600">Refund Customer</div>
+                  <div style="font-size:10px;color:var(--text-muted);margin-top:2px">Return the overpaid amount</div>
+                </div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="form-group" id="adjRefundMethodWrap" style="grid-column:1/-1;display:none">
+            <label>Refund Method</label>
+            <select class="fc" id="adjRefundMethod">${makeOptions(PAY_METHODS)}</select>
+          </div>
+          
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Reason / Notes *</label>
+            <textarea class="fc" id="adjReason" placeholder="e.g., Customer negotiated, rounded off, partial discount, etc." rows="2"></textarea>
+          </div>
+          
+          ${hasAffiliate ? `
+          <div class="form-group" style="grid-column:1/-1">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px;background:var(--bg);border-radius:8px;border:1px solid var(--border)">
+              <input type="checkbox" id="adjAdjustCommission" class="cb">
+              <span style="font-size:12px">
+                <strong>Adjust affiliate commission proportionally</strong><br>
+                <small style="color:var(--text-muted)">Reduces unpaid commissions by the same ratio (affiliate code: <strong style="color:var(--purple)">${esc(sale?.AffiliateCode || '')}</strong>)</small>
+              </span>
+            </label>
+          </div>
+          ` : ''}
+        </div>
+        
+        <!-- Live Preview -->
+        <div id="adjPreviewBox" style="margin-top:14px;padding:14px;background:var(--bg);border-radius:8px;border:2px dashed var(--border);font-size:12px;display:none">
+          <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+            <i class="fas fa-eye" style="margin-right:5px"></i>Preview After Adjustment
+          </h4>
+          <div id="adjPreview"></div>
+        </div>
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('adjustAmountModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitAdjustAmount('${saleId}','${invoiceNo}',${currentFinal})" id="adjSubmitBtn">
+          <i class="fas fa-check"></i>Apply Adjustment
+        </button>
+      </div>
+    </div></div>`);
+  
+  openModal('adjustAmountModal');
+  // Trigger initial preview
+  setTimeout(() => recalcAdjustPreview(currentFinal, currentPaid), 50);
+}
 
+function updateAdjustMethodUI() {
+  const isRefund = document.getElementById('adjMethodRefund').checked;
+  const refLabel = document.getElementById('adjMethodRefundLabel');
+  const redLabel = document.getElementById('adjMethodReductionLabel');
+  const refundWrap = document.getElementById('adjRefundMethodWrap');
+  
+  if (isRefund) {
+    refLabel.style.borderColor = 'var(--primary)';
+    redLabel.style.borderColor = 'var(--border)';
+    refundWrap.style.display = 'block';
+  } else {
+    refLabel.style.borderColor = 'var(--border)';
+    redLabel.style.borderColor = 'var(--primary)';
+    refundWrap.style.display = 'none';
+  }
+  
+  // Recalculate preview
+  const newAmt = Number(document.getElementById('adjNewAmount').value) || 0;
+  // We need the original values — read from data attrs or just trigger via current modal call
+  const modalEl = document.getElementById('adjustAmountModal');
+  if (modalEl) {
+    // get from existing data
+    const ctx = modalEl.dataset;
+    recalcAdjustPreview(Number(ctx.origFinal || 0), Number(ctx.origPaid || 0));
+  }
+}
+
+function recalcAdjustPreview(currentFinal, currentPaid) {
+  const c = C();
+  const newAmt = Number(document.getElementById('adjNewAmount').value) || 0;
+  const previewBox = document.getElementById('adjPreviewBox');
+  const previewEl = document.getElementById('adjPreview');
+  const submitBtn = document.getElementById('adjSubmitBtn');
+  
+  // Store for radio button switching
+  const modalEl = document.getElementById('adjustAmountModal');
+  if (modalEl) {
+    modalEl.dataset.origFinal = currentFinal;
+    modalEl.dataset.origPaid = currentPaid;
+  }
+  
+  const diff = currentFinal - newAmt;
+  
+  if (newAmt < 0) {
+    previewBox.style.display = 'block';
+    previewEl.innerHTML = `<div style="color:var(--danger);text-align:center;padding:10px"><i class="fas fa-exclamation-triangle"></i> Amount cannot be negative</div>`;
+    submitBtn.disabled = true;
+    return;
+  }
+  
+  if (Math.abs(diff) < 0.01) {
+    previewBox.style.display = 'block';
+    previewEl.innerHTML = `<div style="color:var(--text-muted);text-align:center;padding:10px"><i class="fas fa-equals"></i> No change — same as current amount</div>`;
+    submitBtn.disabled = true;
+    return;
+  }
+  
+  submitBtn.disabled = false;
+  
+  const isRefund = document.getElementById('adjMethodRefund')?.checked;
+  let newPaid = currentPaid;
+  let newDue;
+  
+  if (isRefund && diff > 0) {
+    newPaid = Math.max(0, currentPaid - diff);
+    newDue = Math.max(0, newAmt - newPaid);
+  } else {
+    if (currentPaid > newAmt) {
+      newPaid = newAmt;
+      newDue = 0;
+    } else {
+      newDue = Math.max(0, newAmt - currentPaid);
+    }
+  }
+  
+  let newStatus = 'Paid';
+  if (newDue > 0 && newPaid > 0) newStatus = 'Partial';
+  else if (newDue > 0) newStatus = 'Unpaid';
+  
+  const statusColor = newStatus === 'Paid' ? 'var(--secondary)' : newStatus === 'Partial' ? 'var(--warning)' : 'var(--danger)';
+  
+  previewBox.style.display = 'block';
+  previewEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+      <div>
+        <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">New Total</div>
+        <div style="font-weight:700;font-size:15px">${c}${newAmt.toLocaleString()}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">New Paid</div>
+        <div style="font-weight:700;font-size:15px;color:var(--secondary)">${c}${newPaid.toLocaleString()}</div>
+      </div>
+      <div>
+        <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">New Due</div>
+        <div style="font-weight:700;font-size:15px;color:${newDue>0?'var(--danger)':'var(--text)'}">${c}${newDue.toLocaleString()}</div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:${diff>0?'rgba(245,158,11,.1)':'rgba(59,130,246,.1)'};border-radius:6px;border-left:3px solid ${diff>0?'var(--warning)':'var(--primary)'};font-size:12px">
+      <span>
+        <i class="fas fa-${diff>0?'arrow-down':'arrow-up'}" style="color:${diff>0?'var(--warning)':'var(--primary)'};margin-right:5px"></i>
+        <strong>${diff>0?'Reduced':'Increased'} by ${c}${Math.abs(diff).toLocaleString()}</strong>
+      </span>
+      <span class="badge" style="background:${statusColor};color:#fff">${newStatus}</span>
+    </div>
+    ${isRefund && diff > 0 ? `
+      <div style="margin-top:10px;padding:8px 10px;background:rgba(16,185,129,.08);border-left:3px solid var(--secondary);border-radius:6px;font-size:11px;color:var(--text-sec)">
+        <i class="fas fa-money-bill-wave" style="color:var(--secondary)"></i>
+        Refund of <strong>${c}${diff.toLocaleString()}</strong> will be recorded
+      </div>
+    ` : ''}
+  `;
+}
+
+async function submitAdjustAmount(saleId, invoiceNo, currentFinal) {
+  const newAmt = Number(document.getElementById('adjNewAmount').value);
+  const reason = document.getElementById('adjReason').value.trim();
+  const method = document.querySelector('input[name="adjMethod"]:checked').value;
+  const refundMethod = document.getElementById('adjRefundMethod')?.value || 'Cash';
+  const adjustCommission = document.getElementById('adjAdjustCommission')?.checked || false;
+  
+  if (isNaN(newAmt) || newAmt < 0) {
+    toast('Enter a valid amount', 'error');
+    return;
+  }
+  
+  if (Math.abs(currentFinal - newAmt) < 0.01) {
+    toast('Amount is unchanged — nothing to adjust', 'warning');
+    return;
+  }
+  
+  if (!reason) {
+    toast('Please provide a reason for the adjustment', 'error');
+    document.getElementById('adjReason').focus();
+    return;
+  }
+  
+  const diff = currentFinal - newAmt;
+  const c = C();
+  
+  if (!confirm(
+    `Confirm Adjustment?\n\n` +
+    `Invoice: ${invoiceNo}\n` +
+    `Old Amount: ${c}${currentFinal.toLocaleString()}\n` +
+    `New Amount: ${c}${newAmt.toLocaleString()}\n` +
+    `Change: ${diff > 0 ? '−' : '+'}${c}${Math.abs(diff).toLocaleString()}\n` +
+    `Method: ${method}\n` +
+    `Reason: ${reason}\n\n` +
+    `Continue?`
+  )) return;
+  
+  const btn = document.getElementById('adjSubmitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> Applying...';
+  }
+  
+  const r = await apiPost('adjustSaleAmount', {
+    ID: saleId,
+    NewFinalAmount: newAmt,
+    Reason: reason,
+    AdjustmentMethod: method,
+    RefundMethod: refundMethod,
+    AdjustCommission: adjustCommission
+  });
+  
+  if (r.success) {
+    toast(`✅ ${r.message}`, 'success');
+    closeModal('adjustAmountModal');
+    S.sales = await apiGet('getSales');
+    filterSL();
+  } else {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i>Apply Adjustment';
+    }
+  }
+}
 // ============================================================
 // PARTIAL RETURN / EXCHANGE (Reverse individual items from a sale)
 // ============================================================
