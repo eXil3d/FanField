@@ -918,6 +918,9 @@ function statCard(icon,color,val,label){return`<div class="stat-card"><div class
 // ============================================================
 // GLOBAL SEARCH — Landing page & topbar search
 // ============================================================
+// ============================================================
+// SEARCH PAGE — Actually useful landing page
+// ============================================================
 async function renderSearchPage(area) {
   // Preload data if not loaded
   if (!S.customers.length) S.customers = await apiGet('getCustomers');
@@ -926,61 +929,310 @@ async function renderSearchPage(area) {
   
   const c = C();
   area.innerHTML = `
-    <div style="max-width:800px;margin:60px auto 0;text-align:center">
-      <img src="${LOGO_URL}" alt="Fan Field" style="width:80px;height:80px;border-radius:16px;margin-bottom:20px;box-shadow:0 8px 24px rgba(59,130,246,.3)">
-      <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:8px">Welcome back!</h1>
-      <p style="color:var(--text-muted);font-size:14px;margin-bottom:32px">Search customers, invoices, or products instantly</p>
+    <div style="max-width:900px;margin:30px auto 0">
+      <div style="text-align:center;margin-bottom:24px">
+        <img src="${LOGO_URL}" alt="Fan Field" style="width:64px;height:64px;border-radius:14px;margin-bottom:14px;box-shadow:0 8px 24px rgba(59,130,246,.3)">
+        <h1 style="font-size:26px;font-weight:900;letter-spacing:-1px;margin-bottom:6px">What are you looking for?</h1>
+        <p style="color:var(--text-muted);font-size:13px">Search by customer name, phone number, invoice, or product</p>
+      </div>
       
-      <div style="position:relative;margin-bottom:40px">
-        <i class="fas fa-search" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:16px;pointer-events:none"></i>
-        <input type="text" id="bigSearchInput" placeholder="Try: customer name, phone, FF-1024, Arsenal Home..." 
-          style="width:100%;padding:18px 20px 18px 52px;border:2px solid var(--border);border-radius:14px;font-size:15px;background:var(--bg-2);color:var(--text);transition:all .15s"
+      <div style="position:relative;margin-bottom:24px">
+        <i class="fas fa-search" style="position:absolute;left:18px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:15px;pointer-events:none"></i>
+        <input type="text" id="bigSearchInput" placeholder="Try: customer name, 017xxx, FF-1024, Arsenal Home..." 
+          style="width:100%;padding:16px 20px 16px 48px;border:2px solid var(--border);border-radius:12px;font-size:15px;background:var(--bg-2);color:var(--text);transition:all .15s"
           oninput="performBigSearch(this.value)"
           onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 4px var(--primary-light)'"
           onblur="this.style.borderColor='';this.style.boxShadow=''">
       </div>
       
-      <!-- Quick stats -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:32px">
-        <div onclick="nav('inventory')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
-          <div style="font-size:20px;font-weight:800;color:var(--primary)"><i class="fas fa-boxes-stacked"></i> ${S.inventory.length}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Products</div>
+      <!-- Quick stats / shortcuts -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:24px" id="searchShortcuts">
+        <div onclick="nav('inventory')" style="cursor:pointer;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:18px;font-weight:800;color:var(--primary)"><i class="fas fa-boxes-stacked"></i> ${S.inventory.length}</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px">Products</div>
         </div>
-        <div onclick="nav('customers')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--purple)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
-          <div style="font-size:20px;font-weight:800;color:var(--purple)"><i class="fas fa-users"></i> ${S.customers.length}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Customers</div>
+        <div onclick="nav('customers')" style="cursor:pointer;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--purple)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:18px;font-weight:800;color:var(--purple)"><i class="fas fa-users"></i> ${S.customers.length}</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px">Customers</div>
         </div>
-        <div onclick="nav('sales')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--secondary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
-          <div style="font-size:20px;font-weight:800;color:var(--secondary)"><i class="fas fa-receipt"></i> ${S.sales.length}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Sales</div>
+        <div onclick="nav('sales')" style="cursor:pointer;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;transition:all .2s" onmouseover="this.style.borderColor='var(--secondary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:18px;font-weight:800;color:var(--secondary)"><i class="fas fa-receipt"></i> ${S.sales.length}</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:3px">Sales</div>
         </div>
-        <div onclick="nav('pos')" style="cursor:pointer;padding:16px;background:linear-gradient(135deg,var(--primary),var(--purple));color:#fff;border-radius:12px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-          <div style="font-size:20px;font-weight:800"><i class="fas fa-cash-register"></i></div>
-          <div style="font-size:11px;margin-top:4px;opacity:.9">Start New Sale</div>
+        <div onclick="nav('pos')" style="cursor:pointer;padding:14px;background:linear-gradient(135deg,var(--primary),var(--purple));color:#fff;border-radius:10px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:18px;font-weight:800"><i class="fas fa-cash-register"></i></div>
+          <div style="font-size:10.5px;margin-top:3px;opacity:.9">New Sale</div>
+        </div>
+        <div onclick="openWishlistFromSearch()" style="cursor:pointer;padding:14px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:10px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:18px;font-weight:800"><i class="fas fa-clipboard-list"></i></div>
+          <div style="font-size:10.5px;margin-top:3px;opacity:.9">Add to Wishlist</div>
         </div>
       </div>
       
-      <div id="bigSearchResults" style="text-align:left"></div>
+      <div id="bigSearchResults"></div>
       
-      <div style="margin-top:40px;color:var(--text-muted);font-size:11px">
-        <i class="fas fa-keyboard"></i> Press <kbd style="padding:2px 6px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;font-family:monospace">Ctrl+K</kbd> anywhere to focus the search bar in the topbar
+      <div style="margin-top:30px;text-align:center;color:var(--text-muted);font-size:11px">
+        <i class="fas fa-keyboard"></i> Press <kbd>Ctrl+K</kbd> anywhere to focus the topbar search
       </div>
     </div>
   `;
   
-  // Auto-focus the big search
   setTimeout(() => document.getElementById('bigSearchInput')?.focus(), 100);
+}
+
+function openWishlistFromSearch() {
+  // Open the pre-order modal with empty data
+  if (!S.customers.length) {
+    apiGet('getCustomers').then(d => { S.customers = d; openPreorderModal(); });
+  } else {
+    openPreorderModal();
+  }
 }
 
 function performBigSearch(query) {
   const resultsEl = document.getElementById('bigSearchResults');
+  const shortcuts = document.getElementById('searchShortcuts');
   if (!resultsEl) return;
+  
   if (!query || query.length < 2) {
     resultsEl.innerHTML = '';
+    if (shortcuts) shortcuts.style.display = '';
     return;
   }
+  
+  // Hide shortcuts when actively searching
+  if (shortcuts) shortcuts.style.display = 'none';
+  
   const results = searchAll(query);
-  resultsEl.innerHTML = renderSearchResultsHTML(results, query, true);
+  const total = results.customers.length + results.sales.length + results.products.length;
+  
+  if (total === 0) {
+    resultsEl.innerHTML = `
+      <div style="padding:50px 20px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:12px">
+        <i class="fas fa-search" style="font-size:32px;color:var(--text-muted);opacity:.4;margin-bottom:12px"></i>
+        <div style="font-size:14px;color:var(--text);margin-bottom:8px">No results for "<strong>${esc(query)}</strong>"</div>
+        <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px">Try a different search term, or add to wishlist:</div>
+        <button class="btn btn-warning" onclick="openPreorderModalPrefilled('${esc(query)}')">
+          <i class="fas fa-clipboard-list"></i> Add "${esc(query.length > 30 ? query.slice(0,30)+'...' : query)}" to Wishlist
+        </button>
+      </div>
+    `;
+    return;
+  }
+  
+  resultsEl.innerHTML = renderBigSearchResults(results, query);
+}
+
+function renderBigSearchResults(results, query) {
+  const c = C();
+  const { customers, sales, products } = results;
+  let html = '';
+  
+  // ─── CUSTOMERS — full detail card with history ───
+  if (customers.length) {
+    html += `<h3 style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin:18px 0 10px"><i class="fas fa-users" style="color:var(--purple);margin-right:4px"></i> Customers (${customers.length})</h3>`;
+    customers.forEach(cu => {
+      // Get this customer's recent sales (last 5)
+      const custSales = (S.sales || []).filter(s => 
+        (cu.ID && s.CustomerID === cu.ID) || 
+        (cu.Phone && unformatPhone(s.CustomerPhone || '') === unformatPhone(cu.Phone))
+      ).sort((a, b) => new Date(b.Date) - new Date(a.Date));
+      const recent = custSales.slice(0, 5);
+      const totalSpent = Number(cu.TotalSpent) || 0;
+      const totalOrders = Number(cu.TotalPurchases) || custSales.length;
+      const pending = Number(cu.PendingAmount) || 0;
+      const lastSale = custSales[0];
+      
+      html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+          <div>
+            <div style="font-size:16px;font-weight:800;color:var(--text)">${highlightMatch(cu.Name, query)}</div>
+            <div style="font-size:12px;color:var(--text-muted);margin-top:4px">
+              <i class="fas fa-phone" style="font-size:10px"></i> ${highlightMatch(formatPhoneBD(cu.Phone || '-'), query)}
+              ${cu.Email ? ` &nbsp;•&nbsp; <i class="fas fa-envelope" style="font-size:10px"></i> ${esc(cu.Email)}` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-cash-register"></i> New Sale</button>
+            <button class="btn btn-warning btn-sm" onclick="addWishlistForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-clipboard-list"></i> Wishlist</button>
+            <button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="WhatsApp"><i class="fab fa-whatsapp" style="color:#25d366"></i></button>
+            <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')"><i class="fas fa-history"></i> Full History</button>
+          </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-bottom:14px">
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Orders</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px">${totalOrders}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Total Spent</div>
+            <div style="font-size:18px;font-weight:800;color:var(--secondary);margin-top:2px">${c}${totalSpent.toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Pending</div>
+            <div style="font-size:18px;font-weight:800;color:${pending > 0 ? 'var(--danger)' : 'var(--text-muted)'};margin-top:2px">${c}${pending.toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Last Visit</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:4px">${lastSale ? fmtD(lastSale.Date) : 'Never'}</div>
+          </div>
+        </div>
+        
+        ${recent.length ? `
+          <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Recent Orders</div>
+          <div class="tbl-wrap"><table style="font-size:12px">
+            <thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+            <tbody>${recent.map(s => `<tr>
+              <td>${fmtD(s.Date)}</td>
+              <td><strong>${s.InvoiceNo}</strong></td>
+              <td>${c}${Number(s.FinalAmount).toLocaleString()}</td>
+              <td>${statusBadge(s.Status)}</td>
+              <td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${s.InvoiceNo}')"><i class="fas fa-eye"></i></button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>
+        ` : '<div style="text-align:center;padding:12px;font-size:12px;color:var(--text-muted)">No orders yet</div>'}
+      </div>`;
+    });
+  }
+  
+  // ─── SALES / INVOICES ───
+  if (sales.length) {
+    html += `<h3 style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin:18px 0 10px"><i class="fas fa-receipt" style="color:var(--primary);margin-right:4px"></i> Invoices (${sales.length})</h3>`;
+    html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden">`;
+    sales.forEach((s, idx) => {
+      html += `<div onclick="viewInvoice('${s.InvoiceNo}')" style="padding:14px 16px;cursor:pointer;${idx < sales.length-1 ? 'border-bottom:1px solid var(--border);' : ''}transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--text)">${highlightMatch(s.InvoiceNo, query)}</div>
+            <div style="font-size:11.5px;color:var(--text-muted);margin-top:3px">
+              ${highlightMatch(s.CustomerName || 'Walk-in', query)} • ${fmtD(s.Date)} ${s.CustomerPhone ? ' • ' + esc(formatPhoneBD(s.CustomerPhone)) : ''}
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:15px;font-weight:800">${c}${Number(s.FinalAmount).toLocaleString()}</div>
+            <div style="margin-top:3px">${statusBadge(s.Status)}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  // ─── PRODUCTS — detailed card with stock info & sales velocity ───
+  if (products.length) {
+    html += `<h3 style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin:18px 0 10px"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</h3>`;
+    
+    products.forEach(p => {
+      // Find sales velocity for this product
+      const stk = Number(p.Stock) || 0;
+      const min = Number(p.MinStock || 5);
+      const stockStatus = stk === 0 ? { txt: 'Out of Stock', color: 'var(--danger)', badge: 'badge-d' } : 
+                          stk <= min ? { txt: 'Low Stock', color: 'var(--warning)', badge: 'badge-w' } : 
+                          { txt: 'In Stock', color: 'var(--secondary)', badge: 'badge-s' };
+      const sellPrice = Number(p.SellPrice) || 0;
+      const costPrice = Number(p.CostPrice) || 0;
+      const margin = sellPrice > 0 ? Math.round(((sellPrice - costPrice) / sellPrice) * 100) : 0;
+      const stockValue = stk * costPrice;
+      
+      html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm)">
+        <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:15px;font-weight:800;color:var(--text)">${highlightMatch(p.ProductName, query)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:4px">
+              <span style="font-family:monospace">${esc(p.ID)}</span> • ${esc(p.Club_Country || '-')} • ${esc(p.Edition || '-')} • ${esc(p.Type || '-')} • Size ${esc(p.Size || '-')}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${stk > 0 ? `<button class="btn btn-success btn-sm" onclick="quickAddToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Sell</button>` : ''}
+            <button class="btn btn-warning btn-sm" onclick="openPreorderModalForProduct('${esc(p.ProductName)}','${esc(p.Size||'')}')"><i class="fas fa-clipboard-list"></i> Wishlist</button>
+            <button class="btn btn-outline btn-sm" onclick="openStockModal('${p.ID}',${stk})"><i class="fas fa-cubes"></i> Restock</button>
+            <button class="btn btn-outline btn-sm" onclick="nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)"><i class="fas fa-edit"></i> Edit</button>
+          </div>
+        </div>
+        
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center;border-left:3px solid ${stockStatus.color}">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Stock</div>
+            <div style="font-size:18px;font-weight:800;color:${stockStatus.color};margin-top:2px">${stk}</div>
+            <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px">${stockStatus.txt}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Sell Price</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px">${c}${sellPrice.toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Cost</div>
+            <div style="font-size:15px;font-weight:700;color:var(--text-sec);margin-top:2px">${c}${costPrice.toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Margin</div>
+            <div style="font-size:15px;font-weight:700;color:${margin>=30?'var(--secondary)':margin>=15?'var(--warning)':'var(--danger)'};margin-top:2px">${margin}%</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Stock Value</div>
+            <div style="font-size:13px;font-weight:700;color:var(--text);margin-top:2px">${c}${stockValue.toLocaleString()}</div>
+          </div>
+        </div>
+        
+        ${p.Notes ? `<div style="margin-top:10px;padding:8px 10px;background:var(--bg);border-radius:6px;font-size:11.5px;color:var(--text-muted)"><i class="fas fa-sticky-note" style="color:var(--warning);margin-right:4px"></i>${esc(p.Notes)}</div>` : ''}
+      </div>`;
+    });
+  }
+  
+  return html;
+}
+
+// ─── Helper: Quick action — pre-fill wishlist for a specific customer ───
+function addWishlistForCustomer(custId, custName, custPhone) {
+  openPreorderModal();
+  setTimeout(() => {
+    const sel = document.getElementById('poCustomer');
+    if (sel) {
+      sel.value = custId;
+      onPreorderCustChange();
+    } else {
+      document.getElementById('poName').value = custName;
+      document.getElementById('poPhone').value = formatPhoneBD(custPhone);
+    }
+  }, 100);
+}
+
+// ─── Helper: Pre-fill wishlist with a search query as the product name ───
+function openPreorderModalPrefilled(query) {
+  openPreorderModal();
+  setTimeout(() => {
+    document.getElementById('poProduct').value = query;
+  }, 100);
+}
+
+// ─── Helper: Pre-fill wishlist with a specific product (for out-of-stock) ───
+function openPreorderModalForProduct(productName, size) {
+  openPreorderModal();
+  setTimeout(() => {
+    document.getElementById('poProduct').value = productName;
+    if (size) {
+      const sizeEl = document.getElementById('poSize');
+      if (sizeEl) sizeEl.value = size;
+    }
+  }, 100);
+}
+
+// ─── Helper: Quick add a product to a new POS sale ───
+function quickAddToPOS(productId) {
+  nav('pos');
+  setTimeout(() => {
+    addPOSRow();
+    const rows = document.querySelectorAll('#posItems tr');
+    const lastRow = rows[rows.length - 1];
+    if (lastRow) {
+      const sel = lastRow.querySelector('.pos-prod');
+      if (sel) {
+        sel.value = productId;
+        onPOSProdChange(sel);
+      }
+    }
+  }, 400);
 }
 
 function performGlobalSearch(query) {
@@ -1029,9 +1281,12 @@ function renderSearchResultsHTML(results, query, isLarge) {
   const total = customers.length + sales.length + products.length;
   
   if (total === 0) {
-    return `<div style="padding:30px 20px;text-align:center;color:var(--text-muted)">
-      <i class="fas fa-search" style="font-size:24px;opacity:.4;margin-bottom:10px"></i><br>
-      No results for "<strong>${esc(query)}</strong>"
+    return `<div style="padding:20px;text-align:center;color:var(--text-muted)">
+      <i class="fas fa-search" style="font-size:22px;opacity:.4;margin-bottom:8px"></i><br>
+      <div style="margin-bottom:12px">No results for "<strong>${esc(query)}</strong>"</div>
+      <button class="btn btn-warning btn-sm" onclick="closeGlobalSearch();openPreorderModalPrefilled('${esc(query)}')">
+        <i class="fas fa-clipboard-list"></i> Add to Wishlist
+      </button>
     </div>`;
   }
   
@@ -1043,15 +1298,15 @@ function renderSearchResultsHTML(results, query, isLarge) {
   if (customers.length) {
     html += `<div style="${titleStyle}"><i class="fas fa-users" style="color:var(--purple);margin-right:4px"></i> Customers (${customers.length})</div>`;
     customers.forEach(cu => {
-      html += `<div onclick="closeGlobalSearch();viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+      html += `<div style="${cardStyle};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div>
+          <div style="cursor:pointer;flex:1" onclick="closeGlobalSearch();viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(cu.Name, query)}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${highlightMatch(cu.Phone || '', query)} ${cu.Email ? ' • ' + esc(cu.Email) : ''}</div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:11px;color:var(--text-muted)">${Number(cu.TotalPurchases) || 0} orders</div>
-            <div style="font-size:12px;font-weight:700;color:var(--secondary)">${c}${(Number(cu.TotalSpent)||0).toLocaleString()}</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <button class="btn btn-success btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="New Sale"><i class="fas fa-cash-register"></i></button>
+            <button class="btn btn-warning btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();addWishlistForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="Wishlist"><i class="fas fa-clipboard-list"></i></button>
           </div>
         </div>
       </div>`;
@@ -1080,15 +1335,16 @@ function renderSearchResultsHTML(results, query, isLarge) {
     html += `<div style="${titleStyle}"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</div>`;
     products.forEach(p => {
       const stk = Number(p.Stock) || 0;
-      html += `<div onclick="closeGlobalSearch();nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+      html += `<div style="${cardStyle};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div>
+          <div style="cursor:pointer;flex:1" onclick="closeGlobalSearch();nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(p.ProductName, query)}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(p.ID)} • Stock: ${stk}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(p.ID)} • Stock: ${stk} • ${c}${Number(p.SellPrice).toLocaleString()}</div>
           </div>
-          <div style="text-align:right">
-            <div style="font-size:12px;font-weight:700">${c}${Number(p.SellPrice).toLocaleString()}</div>
-            <div style="margin-top:2px">${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? '<span class="badge badge-w">Low</span>' : '<span class="badge badge-s">OK</span>'}</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            ${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? '<span class="badge badge-w">Low</span>' : '<span class="badge badge-s">OK</span>'}
+            ${stk > 0 ? `<button class="btn btn-success btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();quickAddToPOS('${p.ID}')" title="Quick Sell"><i class="fas fa-cash-register"></i></button>` : ''}
+            <button class="btn btn-warning btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();openPreorderModalForProduct('${esc(p.ProductName)}','${esc(p.Size||'')}')" title="Add to Wishlist"><i class="fas fa-clipboard-list"></i></button>
           </div>
         </div>
       </div>`;
@@ -2027,10 +2283,8 @@ async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:doc
 function openAddBatchModal() {
   let m = document.getElementById('batchModal'); if (m) m.remove();
   // Allow ALL products (including existing variants) to be selected
-  // Sort alphabetically by ProductName
-  const prods = [...S.inventory].sort((a, b) => 
-    String(a.ProductName || '').localeCompare(String(b.ProductName || ''))
-  );
+  // Smart group sort: Club → Type → Edition → Size (logical grouping)
+  const prods = smartsort([...S.inventory]);
   
   document.body.insertAdjacentHTML('beforeend', `
   <div class="modal-overlay" id="batchModal"><div class="modal">
@@ -2354,13 +2608,12 @@ async function saveQuickCustomer() {
 function addPOSRow() {
   const tbody = document.getElementById('posItems');
   const tr = document.createElement('tr');
-  const pD = S.settings.patchDefaultPrice || 50;
-  const nD = S.settings.namePrintDefaultPrice || 100;
   
-  // Filter for in-stock items AND sort alphabetically by product name
-  const sortedProducts = S.inventory
-    .filter(i => Number(i.Stock) > 0)
-    .sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
+  // Smart group sort: Club → Type → Edition → Size (logical grouping)
+  const sortedProducts = smartSort([...S.inventory]);
+  
+  const pD=Number(S.settings.patchDefaultPrice)||0;
+  const nD=Number(S.settings.namePrintDefaultPrice)||0;
   
   const isCustomVisible = document.getElementById('posShowCustomization')?.checked;
   const hideStyle = isCustomVisible ? '' : 'style="display:none"';
@@ -4427,7 +4680,11 @@ function openPreorderModal(preorder = null) {
           </div>
           <div class="form-group" style="grid-column:1/-1">
             <label>Product Wanted *</label>
-            <input class="fc" id="poProduct" value="${esc(preorder?.ProductName || '')}" placeholder="e.g., Arsenal Home Player Edition">
+            <input class="fc" id="poProduct" value="${esc(preorder?.ProductName || '')}" placeholder="Type product name or pick from list below" list="poProductList">
+            <datalist id="poProductList">
+              ${smartSort([...S.inventory]).map(p => `<option value="${esc(p.ProductName)}${p.Size ? ' — Size ' + p.Size : ''}">`).join('')}
+            </datalist>
+            <small style="color:var(--text-muted);font-size:11px;margin-top:4px;display:block">💡 Start typing to see matching products, or type a custom name</small>
           </div>
           <div class="form-group">
             <label>Size</label>
