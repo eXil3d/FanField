@@ -612,8 +612,8 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   <nav class="sb-nav">
     <div class="nav-section">
       <div class="nav-title">Main</div>
-      <div class="nav-item active" data-page="dashboard"><i class="fas fa-chart-pie"></i>Dashboard</div>
-      <div class="nav-item" data-page="inventory"><i class="fas fa-boxes-stacked"></i>Inventory</div>
+      <div class="nav-item" data-page="dashboard"><i class="fas fa-chart-pie"></i>Dashboard</div>
+      <div class="nav-item active" data-page="inventory"><i class="fas fa-boxes-stacked"></i>Inventory</div>
       <div class="nav-item" data-page="pos"><i class="fas fa-cash-register"></i>New Sale / POS</div>
     </div>
     <div class="nav-section">
@@ -632,6 +632,7 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
     <div class="nav-section">
       <div class="nav-title">Finance</div>
       <div class="nav-item" data-page="expenses"><i class="fas fa-wallet"></i>Expenses</div>
+      <div class="nav-item" data-page="adjustments"><i class="fas fa-pen-to-square"></i>Adjustments</div>
       <div class="nav-item" data-page="affiliates"><i class="fas fa-link"></i>Affiliates</div>
       <div class="nav-item" data-page="vouchers"><i class="fas fa-ticket"></i>Vouchers</div>
       <div class="nav-item" data-page="settings"><i class="fas fa-gear"></i>Settings</div>
@@ -642,7 +643,7 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   <div class="topbar">
     <div class="topbar-left">
       <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
-      <div class="page-title"><h2 id="pgTitle">Dashboard</h2><p id="pgSub">Overview of your business</p></div>
+      <div class="page-title"><h2 id="pgTitle">Inventory</h2><p id="pgSub">Manage products & stock</p></div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="syncSt">Ready</span>
@@ -673,8 +674,8 @@ const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Trai
 const EDITION_ORDER={'Player Edition':1,'Fan Edition':2,'Special Edition':3,'BD Premium':4};
 
 let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],settings:{},dashboard:null,currency:'৳'};
-let currentPage='dashboard';
-let invSortCol='default',invSortDir='asc';
+let currentPage='inventory';
+let invSortCol='smart',invSortDir='asc';
 
 // API
 async function apiGet(action,params={}){
@@ -762,7 +763,7 @@ const _origNav = nav;
 nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
   
 // NAV
-const pgInfo={dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],profits:['Sales Profits','Profit tracking & margins'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],supplierLedger:['Supplier Ledger','Supplier transactions'],expenses:['Expenses','Business expenses'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
+const pgInfo={dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],profits:['Sales Profits','Profit tracking & margins'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],supplierLedger:['Supplier Ledger','Supplier transactions'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
 function nav(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -786,7 +787,7 @@ async function renderPage(page){
   const area=document.getElementById('contentArea');
   area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
   try{switch(page){
-    case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'profits':await renderProfits(area);break;case'customers':await renderCustomers(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'supplierLedger':await renderSupplierLedger(area);break;case'expenses':await renderExpenses(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
+    case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'profits':await renderProfits(area);break;case'customers':await renderCustomers(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'supplierLedger':await renderSupplierLedger(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
 
@@ -940,17 +941,21 @@ async function renderInventory(area){
   const types=[...new Set(S.inventory.map(i=>i.Type).filter(Boolean))];
   const sizes=[...new Set(S.inventory.map(i=>i.Size).filter(Boolean))];
   invSortCol='default';invSortDir='asc';
+  // Reset to smart sort by default every time inventory loads
+  invSortCol='smart';invSortDir='asc';
   area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
-    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Search..." oninput="filterInv()"></div>
+    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Search products, clubs, IDs..." oninput="filterInv()"></div>
     <select class="fc" style="width:auto;min-width:100px" id="invCat" onchange="filterInv()"><option value="">All Clubs</option>${cats.map(c=>`<option>${c}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:90px" id="invEd" onchange="filterInv()"><option value="">All Editions</option>${eds.map(e=>`<option>${e}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:80px" id="invType" onchange="filterInv()"><option value="">All Types</option>${types.map(t=>`<option>${t}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:70px" id="invSize" onchange="filterInv()"><option value="">Size</option>${sizes.map(s=>`<option>${s}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:80px" id="invStock" onchange="filterInv()"><option value="">Stock</option><option value="low">Low</option><option value="out">Out</option><option value="ok">OK</option></select>
-    <button class="btn btn-outline btn-sm" onclick="setInvSort('smart')" title="Smart Group Sort"><i class="fas fa-layer-group"></i><span class="hide-mobile"> Group</span></button>
+    <button class="btn btn-outline btn-sm" onclick="openInventoryInsights()" title="Inventory Insights — quick stats, top performers, alerts"><i class="fas fa-chart-pie"></i><span class="hide-mobile"> Insights</span></button>
     <button class="btn btn-success btn-sm" onclick="openAddBatchModal()"><i class="fas fa-layer-group"></i><span class="hide-mobile"> Batch</span></button>
     <button class="btn btn-primary btn-sm" onclick="openProductModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button>
-  </div></div><div class="card-body np"><div class="tbl-wrap" id="invTbl"></div></div></div>`;
+  </div></div>
+  <div id="invSummaryBar" style="padding:12px 22px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:18px;flex-wrap:wrap;font-size:12px;align-items:center"></div>
+  <div class="card-body np"><div class="tbl-wrap" id="invTbl"></div></div></div>`;
   filterInv();
 }
 function filterInv(){
@@ -966,15 +971,40 @@ function filterInv(){
     let mst=true;if(stk==='low')mst=Number(i.Stock)>0&&Number(i.Stock)<=Number(i.MinStock||5);else if(stk==='out')mst=Number(i.Stock)===0;else if(stk==='ok')mst=Number(i.Stock)>Number(i.MinStock||5);
     return ms&&mc&&me&&mt&&mz&&mst;
   });
-  // Default = alphabetical by Product Name; user can click headers for other sorts
-if (invSortCol === 'default') {
-  data = [...data].sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
-} else if (invSortCol === 'smart') {
-  data = smartSort(data);
-} else {
-  data = colSort(data, invSortCol, invSortDir);
-}
+  
+  // Default sort = SMART (groups by Club → Type → Edition → Size). Column clicks override.
+  if (invSortCol === 'smart' || invSortCol === 'default') {
+    data = smartSort(data);
+  } else {
+    data = colSort(data, invSortCol, invSortDir);
+  }
+  
   renderInvTable(data);
+  updateInvSummaryBar(data);
+}
+
+// Live summary bar showing filtered inventory at a glance
+function updateInvSummaryBar(data) {
+  const bar = document.getElementById('invSummaryBar');
+  if (!bar) return;
+  const c = C();
+  const totalProducts = data.length;
+  const totalUnits = data.reduce((s, i) => s + (Number(i.Stock) || 0), 0);
+  const totalCostValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.CostPrice) || 0)), 0);
+  const totalRetailValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.SellPrice) || 0)), 0);
+  const potentialProfit = totalRetailValue - totalCostValue;
+  const lowCount = data.filter(i => Number(i.Stock) > 0 && Number(i.Stock) <= Number(i.MinStock || 5)).length;
+  const outCount = data.filter(i => Number(i.Stock) === 0).length;
+  
+  bar.innerHTML = `
+    <span style="color:var(--text-muted)"><i class="fas fa-boxes-stacked" style="color:var(--primary);margin-right:4px"></i><strong style="color:var(--text)">${totalProducts}</strong> products</span>
+    <span style="color:var(--text-muted)"><i class="fas fa-cubes" style="color:var(--secondary);margin-right:4px"></i><strong style="color:var(--text)">${totalUnits}</strong> units</span>
+    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Cost: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
+    <span style="color:var(--text-muted)"><i class="fas fa-tag" style="color:var(--purple);margin-right:4px"></i>Retail: <strong style="color:var(--text)">${c}${totalRetailValue.toLocaleString()}</strong></span>
+    <span style="color:var(--text-muted)"><i class="fas fa-chart-line" style="color:var(--secondary);margin-right:4px"></i>Profit: <strong style="color:var(--secondary)">${c}${potentialProfit.toLocaleString()}</strong></span>
+    ${lowCount > 0 ? `<span style="color:var(--warning)"><i class="fas fa-triangle-exclamation"></i> <strong>${lowCount}</strong> low</span>` : ''}
+    ${outCount > 0 ? `<span style="color:var(--danger)"><i class="fas fa-circle-xmark"></i> <strong>${outCount}</strong> out</span>` : ''}
+  `;
 }
 function colSort(data,col,dir){return[...data].sort((a,b)=>{let vA,vB;switch(col){case'Edition':vA=EDITION_ORDER[a.Edition]||99;vB=EDITION_ORDER[b.Edition]||99;return dir==='asc'?vA-vB:vB-vA;case'Type':vA=TYPE_ORDER[a.Type]||99;vB=TYPE_ORDER[b.Type]||99;return dir==='asc'?vA-vB:vB-vA;case'Size':vA=SIZE_ORDER[a.Size]||99;vB=SIZE_ORDER[b.Size]||99;return dir==='asc'?vA-vB:vB-vA;case'CostPrice':case'SellPrice':case'Stock':vA=Number(a[col])||0;vB=Number(b[col])||0;return dir==='asc'?vA-vB:vB-vA;default:vA=String(a[col]||'').toLowerCase();vB=String(b[col]||'').toLowerCase();return dir==='asc'?vA.localeCompare(vB):-vA.localeCompare(vB)}})}
 function setInvSort(mode) {
@@ -982,7 +1012,301 @@ function setInvSort(mode) {
   invSortDir = 'asc';
   filterInv();
 }
-function toggleInvSort(col){if(invSortCol===col){invSortDir=invSortDir==='asc'?'desc':'asc';if(invSortDir==='asc'&&invSortCol===col){invSortCol='default'}}else{invSortCol=col;invSortDir='asc'}filterInv()}
+
+// ============================================================
+// INVENTORY INSIGHTS — Smart analytics panel
+// ============================================================
+async function openInventoryInsights() {
+  const inv = S.inventory;
+  if (!inv.length) { toast('No inventory data', 'warning'); return; }
+  
+  // Make sure we have sales for top-performer analysis
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  const salesItems = await apiGet('getSalesItems');
+  
+  const c = C();
+  
+  // ============================================================
+  // 1. Group by Club (find best/worst stocked clubs)
+  // ============================================================
+  const byClub = {};
+  inv.forEach(i => {
+    const club = i.Club_Country || 'Unknown';
+    if (!byClub[club]) byClub[club] = { products: 0, units: 0, costValue: 0, retailValue: 0, lowStock: 0, outOfStock: 0 };
+    byClub[club].products++;
+    byClub[club].units += Number(i.Stock) || 0;
+    byClub[club].costValue += (Number(i.Stock) || 0) * (Number(i.CostPrice) || 0);
+    byClub[club].retailValue += (Number(i.Stock) || 0) * (Number(i.SellPrice) || 0);
+    if (Number(i.Stock) === 0) byClub[club].outOfStock++;
+    else if (Number(i.Stock) <= Number(i.MinStock || 5)) byClub[club].lowStock++;
+  });
+  const topClubsByValue = Object.entries(byClub).sort((a, b) => b[1].retailValue - a[1].retailValue).slice(0, 10);
+  
+  // ============================================================
+  // 2. Sales velocity (units sold per product from SalesItems)
+  // ============================================================
+  const soldByProduct = {};
+  salesItems.forEach(si => {
+    const name = si.ProductName || '';
+    if (!soldByProduct[name]) soldByProduct[name] = { sold: 0, revenue: 0 };
+    soldByProduct[name].sold += Number(si.Quantity) || 0;
+    soldByProduct[name].revenue += Number(si.LineTotal) || 0;
+  });
+  
+  // Match with inventory to find "fast movers" (high sales, low stock)
+  const movers = inv.map(i => {
+    const sales = soldByProduct[i.ProductName] || { sold: 0, revenue: 0 };
+    return {
+      ...i,
+      unitsSold: sales.sold,
+      revenue: sales.revenue,
+      velocity: sales.sold / Math.max(Number(i.Stock) + sales.sold, 1) // % of total stock that has sold
+    };
+  });
+  
+  const topSellers = [...movers].filter(m => m.unitsSold > 0).sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 10);
+  const slowMovers = [...movers].filter(m => Number(m.Stock) > 0 && m.unitsSold === 0).slice(0, 10);
+  const restockAlerts = [...movers].filter(m => m.unitsSold > 0 && Number(m.Stock) <= Number(m.MinStock || 5)).sort((a, b) => b.unitsSold - a.unitsSold).slice(0, 10);
+  
+  // ============================================================
+  // 3. Size distribution analysis
+  // ============================================================
+  const bySize = {};
+  inv.forEach(i => {
+    const sz = i.Size || 'Unknown';
+    if (!bySize[sz]) bySize[sz] = { units: 0, products: 0 };
+    bySize[sz].units += Number(i.Stock) || 0;
+    bySize[sz].products++;
+  });
+  const sizeOrder = ['S','M','L','XL','2XL','3XL','4XL','5XL'];
+  const sortedSizes = sizeOrder.filter(s => bySize[s]).map(s => ({ size: s, ...bySize[s] }));
+  
+  // ============================================================
+  // 4. Edition distribution
+  // ============================================================
+  const byEdition = {};
+  inv.forEach(i => {
+    const ed = i.Edition || 'Unknown';
+    if (!byEdition[ed]) byEdition[ed] = { units: 0, products: 0, retailValue: 0 };
+    byEdition[ed].units += Number(i.Stock) || 0;
+    byEdition[ed].products++;
+    byEdition[ed].retailValue += (Number(i.Stock) || 0) * (Number(i.SellPrice) || 0);
+  });
+  
+  // ============================================================
+  // 5. Capital tied up (dead stock = no sales + high stock)
+  // ============================================================
+  const deadStock = [...movers].filter(m => Number(m.Stock) >= 5 && m.unitsSold === 0)
+    .sort((a, b) => (Number(b.Stock) * Number(b.CostPrice)) - (Number(a.Stock) * Number(a.CostPrice)))
+    .slice(0, 10);
+  const deadStockValue = deadStock.reduce((s, m) => s + (Number(m.Stock) * Number(m.CostPrice)), 0);
+  
+  let m = document.getElementById('invInsightsModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="invInsightsModal"><div class="modal" style="max-width:1100px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-chart-pie" style="color:var(--primary);margin-right:6px"></i>Inventory Insights</h3>
+        <button class="modal-close" onclick="closeModal('invInsightsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Tab Switcher -->
+        <div style="display:flex;gap:6px;margin-bottom:18px;border-bottom:1px solid var(--border);overflow-x:auto;padding-bottom:1px">
+          <button class="btn btn-outline btn-sm ins-tab active-tab" data-tab="overview" onclick="switchInsightsTab('overview')"><i class="fas fa-gauge"></i> Overview</button>
+          <button class="btn btn-outline btn-sm ins-tab" data-tab="bestsellers" onclick="switchInsightsTab('bestsellers')"><i class="fas fa-fire"></i> Top Sellers</button>
+          <button class="btn btn-outline btn-sm ins-tab" data-tab="alerts" onclick="switchInsightsTab('alerts')"><i class="fas fa-bell"></i> Restock Alerts</button>
+          <button class="btn btn-outline btn-sm ins-tab" data-tab="dead" onclick="switchInsightsTab('dead')"><i class="fas fa-snowflake"></i> Dead Stock</button>
+          <button class="btn btn-outline btn-sm ins-tab" data-tab="breakdown" onclick="switchInsightsTab('breakdown')"><i class="fas fa-layer-group"></i> Breakdown</button>
+        </div>
+        
+        <!-- OVERVIEW TAB -->
+        <div class="ins-content" id="ins-overview">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+            <div style="padding:14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--primary)">
+              <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Products</div>
+              <div style="font-size:22px;font-weight:800">${inv.length}</div>
+            </div>
+            <div style="padding:14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--secondary)">
+              <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Units</div>
+              <div style="font-size:22px;font-weight:800">${inv.reduce((s,i)=>s+(Number(i.Stock)||0),0)}</div>
+            </div>
+            <div style="padding:14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--warning)">
+              <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Capital Invested</div>
+              <div style="font-size:22px;font-weight:800">${c}${inv.reduce((s,i)=>s+(Number(i.Stock)||0)*(Number(i.CostPrice)||0),0).toLocaleString()}</div>
+            </div>
+            <div style="padding:14px;background:var(--bg);border-radius:8px;border-left:3px solid var(--purple)">
+              <div style="font-size:10.5px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Potential Revenue</div>
+              <div style="font-size:22px;font-weight:800">${c}${inv.reduce((s,i)=>s+(Number(i.Stock)||0)*(Number(i.SellPrice)||0),0).toLocaleString()}</div>
+            </div>
+          </div>
+          
+          <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-sec)">🏆 Top 10 Clubs by Retail Value</h4>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>#</th><th>Club / Country</th><th>Products</th><th>Units</th><th>Cost Value</th><th>Retail Value</th><th>Health</th></tr></thead>
+            <tbody>
+              ${topClubsByValue.map(([club, st], idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td><strong>${esc(club)}</strong></td>
+                  <td>${st.products}</td>
+                  <td>${st.units}</td>
+                  <td>${c}${st.costValue.toLocaleString()}</td>
+                  <td><strong>${c}${st.retailValue.toLocaleString()}</strong></td>
+                  <td>${st.outOfStock > 0 ? `<span class="badge badge-d">${st.outOfStock} out</span> ` : ''}${st.lowStock > 0 ? `<span class="badge badge-w">${st.lowStock} low</span>` : ''}${st.outOfStock === 0 && st.lowStock === 0 ? '<span class="badge badge-s">Healthy</span>' : ''}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+        </div>
+        
+        <!-- TOP SELLERS TAB -->
+        <div class="ins-content" id="ins-bestsellers" style="display:none">
+          <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-fire" style="color:var(--warning)"></i>
+            Products with the highest sales volume. Keep these well-stocked!
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>#</th><th>Product</th><th>Units Sold</th><th>Revenue</th><th>Current Stock</th><th>Status</th></tr></thead>
+            <tbody>
+              ${topSellers.length ? topSellers.map((m, idx) => `
+                <tr>
+                  <td>${idx + 1}</td>
+                  <td><strong>${esc(m.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(m.ID)}</small></td>
+                  <td><strong style="color:var(--secondary)">${m.unitsSold}</strong></td>
+                  <td>${c}${m.revenue.toLocaleString()}</td>
+                  <td>${m.Stock}</td>
+                  <td>${Number(m.Stock) === 0 ? '<span class="badge badge-d">Out of Stock</span>' : Number(m.Stock) <= Number(m.MinStock || 5) ? '<span class="badge badge-w">Restock Soon</span>' : '<span class="badge badge-s">OK</span>'}</td>
+                </tr>
+              `).join('') : '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">No sales data yet</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+        
+        <!-- RESTOCK ALERTS TAB -->
+        <div class="ins-content" id="ins-alerts" style="display:none">
+          <div style="background:rgba(239,68,68,.08);padding:12px;border-radius:8px;border-left:3px solid var(--danger);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-bell" style="color:var(--danger)"></i>
+            <strong>Restock priority list:</strong> Products that have sold well but are now running low. Order these first!
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>#</th><th>Product</th><th>Sold</th><th>Stock Left</th><th>Min Stock</th><th>Urgency</th><th>Action</th></tr></thead>
+            <tbody>
+              ${restockAlerts.length ? restockAlerts.map((m, idx) => {
+                const urgency = Number(m.Stock) === 0 ? 'CRITICAL' : (Number(m.Stock) / Math.max(Number(m.MinStock || 5), 1)) < 0.5 ? 'HIGH' : 'MEDIUM';
+                const urgColor = urgency === 'CRITICAL' ? 'badge-d' : urgency === 'HIGH' ? 'badge-w' : 'badge-i';
+                return `<tr>
+                  <td>${idx + 1}</td>
+                  <td><strong>${esc(m.ProductName)}</strong></td>
+                  <td>${m.unitsSold}</td>
+                  <td><strong style="color:${Number(m.Stock) === 0 ? 'var(--danger)' : 'var(--warning)'}">${m.Stock}</strong></td>
+                  <td>${m.MinStock || 5}</td>
+                  <td><span class="badge ${urgColor}">${urgency}</span></td>
+                  <td><button class="btn btn-success btn-sm" onclick="closeModal('invInsightsModal');openStockModal('${m.ID}',${Number(m.Stock) || 0})"><i class="fas fa-cubes"></i> Restock</button></td>
+                </tr>`;
+              }).join('') : '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--secondary)"><i class="fas fa-check-circle"></i> All bestsellers are well-stocked!</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+        
+        <!-- DEAD STOCK TAB -->
+        <div class="ins-content" id="ins-dead" style="display:none">
+          <div style="background:rgba(107,114,128,.08);padding:12px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-snowflake" style="color:var(--text-muted)"></i>
+            <strong>Dead stock:</strong> Products with 5+ units that haven't sold yet. Consider promotions or discounts.<br>
+            <strong style="color:var(--warning)">Capital tied up: ${c}${deadStockValue.toLocaleString()}</strong>
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>#</th><th>Product</th><th>Stock</th><th>Cost Value</th><th>Days Listed</th></tr></thead>
+            <tbody>
+              ${deadStock.length ? deadStock.map((m, idx) => {
+                const created = new Date(m.CreatedAt || m.DateAdded || Date.now());
+                const daysAgo = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+                return `<tr>
+                  <td>${idx + 1}</td>
+                  <td><strong>${esc(m.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(m.ID)}</small></td>
+                  <td><strong>${m.Stock}</strong></td>
+                  <td>${c}${(Number(m.Stock) * Number(m.CostPrice)).toLocaleString()}</td>
+                  <td>${isNaN(daysAgo) ? '-' : daysAgo + 'd'}</td>
+                </tr>`;
+              }).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--secondary)"><i class="fas fa-check-circle"></i> No dead stock — everything is moving!</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+        
+        <!-- BREAKDOWN TAB -->
+        <div class="ins-content" id="ins-breakdown" style="display:none">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+            <div>
+              <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-sec)">📏 Stock by Size</h4>
+              <div class="tbl-wrap"><table>
+                <thead><tr><th>Size</th><th>Products</th><th>Units</th></tr></thead>
+                <tbody>
+                  ${sortedSizes.map(s => `<tr><td><strong>${s.size}</strong></td><td>${s.products}</td><td>${s.units}</td></tr>`).join('')}
+                </tbody>
+              </table></div>
+            </div>
+            <div>
+              <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-sec)">🏅 Stock by Edition</h4>
+              <div class="tbl-wrap"><table>
+                <thead><tr><th>Edition</th><th>Products</th><th>Units</th><th>Retail Value</th></tr></thead>
+                <tbody>
+                  ${Object.entries(byEdition).sort((a, b) => b[1].retailValue - a[1].retailValue).map(([ed, st]) => `<tr><td><strong>${esc(ed)}</strong></td><td>${st.products}</td><td>${st.units}</td><td>${c}${st.retailValue.toLocaleString()}</td></tr>`).join('')}
+                </tbody>
+              </table></div>
+            </div>
+          </div>
+          
+          ${slowMovers.length ? `
+            <h4 style="font-size:13px;font-weight:700;margin:18px 0 10px;color:var(--text-sec)">🐢 Slow Movers (in stock, no sales yet)</h4>
+            <div class="tbl-wrap"><table>
+              <thead><tr><th>#</th><th>Product</th><th>Stock</th><th>Sell Price</th></tr></thead>
+              <tbody>
+                ${slowMovers.map((m, idx) => `<tr><td>${idx + 1}</td><td>${esc(m.ProductName)}</td><td>${m.Stock}</td><td>${c}${Number(m.SellPrice).toLocaleString()}</td></tr>`).join('')}
+              </tbody>
+            </table></div>
+          ` : ''}
+        </div>
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('invInsightsModal')">Close</button>
+      </div>
+    </div></div>
+    <style>
+      .ins-tab { white-space:nowrap; }
+      .ins-tab.active-tab { background:var(--primary-light); color:var(--primary); border-color:var(--primary); }
+    </style>
+  `);
+  
+  openModal('invInsightsModal');
+}
+
+function switchInsightsTab(tab) {
+  document.querySelectorAll('.ins-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.ins-tab').forEach(el => el.classList.remove('active-tab'));
+  const target = document.getElementById('ins-' + tab);
+  if (target) target.style.display = 'block';
+  document.querySelector(`.ins-tab[data-tab="${tab}"]`)?.classList.add('active-tab');
+}
+  
+function toggleInvSort(col) {
+  if (invSortCol === col) {
+    if (invSortDir === 'asc') {
+      invSortDir = 'desc';
+    } else {
+      // After desc, return to default smart grouping
+      invSortCol = 'smart';
+      invSortDir = 'asc';
+    }
+  } else {
+    invSortCol = col;
+    invSortDir = 'asc';
+  }
+  filterInv();
+}
+
 function si(col){if(invSortCol!==col)return'<i class="fas fa-sort" style="opacity:.3;margin-left:3px"></i>';return invSortDir==='asc'?'<i class="fas fa-sort-up" style="color:var(--primary);margin-left:3px"></i>':'<i class="fas fa-sort-down" style="color:var(--primary);margin-left:3px"></i>'}
 function renderInvTable(data){
   const el=document.getElementById('invTbl');const c=C();
@@ -3515,6 +3839,241 @@ async function saveSLE(){const sel=document.getElementById('sleSupp');const r=aw
 // EXPENSES
 // ============================================================
 async function renderExpenses(area){S.expenses=await apiGet('getExpenses');const c=C();const total=S.expenses.reduce((s,e)=>s+(Number(e.Amount)||0),0);area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="eSrch" placeholder="Search..." oninput="filterExp()"></div><button class="btn btn-primary" onclick="openExpModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div style="padding:14px 20px;background:var(--bg);border-bottom:1px solid var(--border)"><strong>Total: <span style="color:var(--danger)">${c}${total.toLocaleString()}</span></strong></div><div class="tbl-wrap" id="eTbl"></div></div></div>`;filterExp()}
+
+// ============================================================
+// ADJUSTMENTS REPORT — All sale price adjustments
+// ============================================================
+async function renderAdjustments(area) {
+  // Adjustments are logged in 2 places:
+  // 1. Payments sheet (entries with Method='Adjustment' or Notes containing 'REFUND — Sale adjustment' / 'MEMO —')
+  // 2. Sales sheet Notes column (parsed [ADJUSTMENT ...] entries)
+  
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  const payments = await apiGet('getPayments');
+  S.payments = payments;
+  
+  const c = C();
+  
+  // Parse adjustments from Sales sheet Notes column
+  const adjustments = [];
+  S.sales.forEach(sale => {
+    const notes = sale.Notes || '';
+    // Match all [ADJUSTMENT timestamp] entries within the notes
+    const regex = /\[ADJUSTMENT ([^\]]+)\]\s*(Reduced|Increased)\s+([^\s]+)\s+by\s+([+-]?\d+(?:\.\d+)?)\.\s*Old:\s*(\d+(?:\.\d+)?)\s*→\s*New:\s*(\d+(?:\.\d+)?)\.\s*Reason:\s*([^|]+?)(?=\s*\|\s*\[|$)/g;
+    let match;
+    while ((match = regex.exec(notes)) !== null) {
+      adjustments.push({
+        timestamp: match[1].trim(),
+        type: match[2], // Reduced | Increased
+        invoiceNo: match[3],
+        amount: Math.abs(Number(match[4])),
+        oldAmount: Number(match[5]),
+        newAmount: Number(match[6]),
+        reason: match[7].trim(),
+        saleId: sale.ID,
+        customerName: sale.CustomerName || 'Walk-in',
+        customerId: sale.CustomerID || '',
+        status: sale.Status
+      });
+    }
+  });
+  
+  // Sort by timestamp descending
+  adjustments.sort((a, b) => {
+    const dA = new Date(a.timestamp).getTime() || 0;
+    const dB = new Date(b.timestamp).getTime() || 0;
+    return dB - dA;
+  });
+  
+  // Calculate metrics
+  const totalAdjustments = adjustments.length;
+  const totalReduced = adjustments.filter(a => a.type === 'Reduced').reduce((s, a) => s + a.amount, 0);
+  const totalIncreased = adjustments.filter(a => a.type === 'Increased').reduce((s, a) => s + a.amount, 0);
+  const netImpact = totalIncreased - totalReduced;
+  
+  // Get refund entries from Payments (negative payments with REFUND notes)
+  const refunds = payments.filter(p => Number(p.Amount) < 0 && (String(p.Notes || '').includes('REFUND') || String(p.PaymentMethod || '') === 'Adjustment'));
+  
+  area.innerHTML = `
+    <!-- Summary Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon purple"><i class="fas fa-pen-to-square"></i></div></div>
+        <div class="stat-val">${totalAdjustments}</div>
+        <div class="stat-label">Total Adjustments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon red"><i class="fas fa-arrow-down"></i></div></div>
+        <div class="stat-val">${c}${totalReduced.toLocaleString()}</div>
+        <div class="stat-label">Total Reduced</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon green"><i class="fas fa-arrow-up"></i></div></div>
+        <div class="stat-val">${c}${totalIncreased.toLocaleString()}</div>
+        <div class="stat-label">Total Increased</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon orange"><i class="fas fa-scale-balanced"></i></div></div>
+        <div class="stat-val" style="color:${netImpact < 0 ? 'var(--danger)' : 'var(--secondary)'}">${netImpact < 0 ? '-' : '+'}${c}${Math.abs(netImpact).toLocaleString()}</div>
+        <div class="stat-label">Net Revenue Impact</div>
+      </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-pen-to-square" style="color:var(--purple);margin-right:6px"></i>All Adjustments (${adjustments.length})</h3>
+        <div class="toolbar">
+          <div class="search-box" style="min-width:180px"><i class="fas fa-search"></i><input type="text" id="adjSrch" placeholder="Search invoice, reason..." oninput="filterAdjustments()"></div>
+          <select class="fc" style="width:auto" id="adjType" onchange="filterAdjustments()">
+            <option value="">All Types</option>
+            <option value="Reduced">Reduced</option>
+            <option value="Increased">Increased</option>
+          </select>
+          <select class="fc" style="width:auto" id="adjPeriod" onchange="filterAdjustments()">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">This Month</option>
+            <option value="lastmonth">Last Month</option>
+          </select>
+          <button class="btn btn-outline btn-sm" onclick="exportAdjustments()" title="Export to CSV"><i class="fas fa-download"></i><span class="hide-mobile"> Export</span></button>
+        </div>
+      </div>
+      <div class="card-body np">
+        <div class="tbl-wrap" id="adjTbl"></div>
+      </div>
+    </div>
+    
+    ${refunds.length > 0 ? `
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-money-bill-wave" style="color:var(--secondary);margin-right:6px"></i>Refunds Recorded (${refunds.length})</h3>
+      </div>
+      <div class="card-body np">
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Refund Amount</th><th>Method</th><th>Reason</th></tr></thead>
+            <tbody>
+              ${[...refunds].reverse().map(r => `
+                <tr>
+                  <td>${fmtD(r.Date)}</td>
+                  <td><strong>${r.InvoiceNo}</strong></td>
+                  <td>${esc(r.CustomerName || '-')}</td>
+                  <td style="color:var(--danger);font-weight:700">${c}${Math.abs(Number(r.Amount)).toLocaleString()}</td>
+                  <td><span class="badge badge-i">${r.PaymentMethod || '-'}</span></td>
+                  <td style="font-size:11px;color:var(--text-muted)">${esc(r.Notes || '-')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    ` : ''}
+  `;
+  
+  window._allAdjustments = adjustments;
+  filterAdjustments();
+}
+
+function filterAdjustments() {
+  const all = window._allAdjustments || [];
+  const srch = (document.getElementById('adjSrch')?.value || '').toLowerCase();
+  const type = document.getElementById('adjType')?.value || '';
+  const period = document.getElementById('adjPeriod')?.value || 'all';
+  const c = C();
+  
+  let data = all.filter(a => {
+    const ms = !srch || 
+      (a.invoiceNo || '').toLowerCase().includes(srch) ||
+      (a.reason || '').toLowerCase().includes(srch) ||
+      (a.customerName || '').toLowerCase().includes(srch);
+    const mt = !type || a.type === type;
+    return ms && mt;
+  });
+  
+  // Period filter
+  if (period !== 'all') {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    
+    data = data.filter(a => {
+      const d = new Date(a.timestamp);
+      if (isNaN(d)) return false;
+      if (period === 'today') return d >= todayStart;
+      if (period === 'week') return d >= weekAgo;
+      if (period === 'month') return d >= monthStart;
+      if (period === 'lastmonth') return d >= lastMonthStart && d <= lastMonthEnd;
+      return true;
+    });
+  }
+  
+  const el = document.getElementById('adjTbl');
+  if (!data.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)"><i class="fas fa-check-circle" style="font-size:32px;opacity:.4;margin-bottom:10px"></i><br>No adjustments found for this filter</div>';
+    return;
+  }
+  
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Date & Time</th><th>Invoice</th><th>Customer</th>
+      <th>Old Amount</th><th>New Amount</th><th>Change</th>
+      <th>Type</th><th>Reason</th><th>Actions</th>
+    </tr></thead>
+    <tbody>
+      ${data.map(a => {
+        const isReduced = a.type === 'Reduced';
+        return `<tr>
+          <td><small>${fmtD(a.timestamp)}</small><br><small style="color:var(--text-muted);font-size:10px">${new Date(a.timestamp).toLocaleTimeString()}</small></td>
+          <td><strong>${a.invoiceNo}</strong></td>
+          <td>${esc(a.customerName)}</td>
+          <td style="color:var(--text-muted);text-decoration:line-through">${c}${a.oldAmount.toLocaleString()}</td>
+          <td><strong>${c}${a.newAmount.toLocaleString()}</strong></td>
+          <td><strong style="color:${isReduced ? 'var(--danger)' : 'var(--secondary)'}">
+            <i class="fas fa-arrow-${isReduced ? 'down' : 'up'}"></i>
+            ${isReduced ? '-' : '+'}${c}${a.amount.toLocaleString()}
+          </strong></td>
+          <td><span class="badge ${isReduced ? 'badge-d' : 'badge-s'}">${a.type}</span></td>
+          <td style="font-size:11px;color:var(--text-sec);max-width:240px">${esc(a.reason)}</td>
+          <td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${a.invoiceNo}')" title="View Invoice"><i class="fas fa-file-invoice"></i></button></td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+function exportAdjustments() {
+  const all = window._allAdjustments || [];
+  if (!all.length) { toast('No adjustments to export', 'warning'); return; }
+  
+  const headers = ['Date', 'Invoice', 'Customer', 'Old Amount', 'New Amount', 'Change', 'Type', 'Reason'];
+  const rows = all.map(a => [
+    a.timestamp,
+    a.invoiceNo,
+    a.customerName,
+    a.oldAmount,
+    a.newAmount,
+    (a.type === 'Reduced' ? '-' : '+') + a.amount,
+    a.type,
+    '"' + String(a.reason).replace(/"/g, '""') + '"'
+  ]);
+  
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `adjustments_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('CSV downloaded!', 'success');
+}  
+
 function filterExp(){const srch=(document.getElementById('eSrch')?.value||'').toLowerCase();const data=S.expenses.filter(e=>!srch||(e.Category||'').toLowerCase().includes(srch)||(e.Description||'').toLowerCase().includes(srch));const sorted=[...data].reverse();const c=C();document.getElementById('eTbl').innerHTML=sorted.length?`<table><thead><tr><th>Date</th><th>Category</th><th>Desc</th><th>Amount</th><th>Method</th><th></th></tr></thead><tbody>${sorted.map(e=>`<tr><td>${fmtD(e.Date)}</td><td><span class="badge badge-p">${e.Category}</span></td><td>${e.Description||'-'}</td><td style="color:var(--danger);font-weight:600">${c}${Number(e.Amount).toLocaleString()}</td><td>${e.PaymentMethod||'-'}</td><td><button class="btn btn-danger btn-sm" onclick="delExp('${e.ID}')"><i class="fas fa-trash"></i></button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No expenses</div>'}
 function openExpModal(){let m=document.getElementById('expModal');if(m)m.remove();const cats=['Rent','Transport','Packaging','Marketing','Salary','Utilities','Shipping','Stock Purchase','Affiliate Payout','Other'];document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="expModal"><div class="modal"><div class="modal-hdr"><h3>Add Expense</h3><button class="modal-close" onclick="closeModal('expModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Category</label><select class="fc" id="exCat">${cats.map(c=>`<option>${c}</option>`).join('')}</select></div><div class="form-group"><label>Amount</label><input type="number" class="fc" id="exAmt"></div><div class="form-group"><label>Description</label><input class="fc" id="exDesc"></div><div class="form-group"><label>Paid To</label><input class="fc" id="exPaidTo"></div><div class="form-group"><label>Method</label><select class="fc" id="exMethod">${makeOptions(PAY_METHODS)}</select></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('expModal')">Cancel</button><button class="btn btn-primary" onclick="saveExp()"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('expModal')}
 async function saveExp(){const data={Category:document.getElementById('exCat').value,Amount:document.getElementById('exAmt').value,Description:document.getElementById('exDesc').value,PaidTo:document.getElementById('exPaidTo').value,PaymentMethod:document.getElementById('exMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid','error');return}const r=await apiPost('addExpense',data);if(r.success){toast('Added!');closeModal('expModal');renderPage('expenses')}}
@@ -3643,8 +4202,8 @@ async function formatAllPhoneNumbers() {
   }
 }
   
-// INIT
-document.addEventListener('DOMContentLoaded',()=>renderPage('dashboard'));
+// INIT — Open Inventory page by default
+document.addEventListener('DOMContentLoaded',()=>renderPage('inventory'));
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
 </script>
 </body>
