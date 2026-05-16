@@ -521,6 +521,21 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   .stats-grid{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
 }
 
+/* Topbar search */
+@media(max-width:768px) {
+  .topbar-center { display: none; }
+}
+kbd {
+  display: inline-block;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-radius: 2px; }
+  
 @media(max-width:1024px){
   .dash-grid{grid-template-columns:1fr}
   .content{padding:20px}
@@ -612,22 +627,23 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   <nav class="sb-nav">
     <div class="nav-section">
       <div class="nav-title">Main</div>
+      <div class="nav-item active" data-page="search"><i class="fas fa-magnifying-glass"></i>Search</div>
       <div class="nav-item" data-page="dashboard"><i class="fas fa-chart-pie"></i>Dashboard</div>
-      <div class="nav-item active" data-page="inventory"><i class="fas fa-boxes-stacked"></i>Inventory</div>
+      <div class="nav-item" data-page="inventory"><i class="fas fa-boxes-stacked"></i>Inventory</div>
       <div class="nav-item" data-page="pos"><i class="fas fa-cash-register"></i>New Sale / POS</div>
     </div>
     <div class="nav-section">
       <div class="nav-title">Management</div>
       <div class="nav-item" data-page="sales"><i class="fas fa-receipt"></i>Sales Ledger</div>
       <div class="nav-item" data-page="delivery"><i class="fas fa-truck-fast"></i>Delivery</div>
-      <div class="nav-item" data-page="profits"><i class="fas fa-chart-line"></i>Sales Profits</div>
       <div class="nav-item" data-page="customers"><i class="fas fa-users"></i>Customers</div>
+      <div class="nav-item" data-page="preorders"><i class="fas fa-clipboard-list"></i>Pre-Orders<span class="nav-badge" id="preorderBadge" style="display:none">0</span></div>
       <div class="nav-item" data-page="payments"><i class="fas fa-money-bill-wave"></i>Pending Payments<span class="nav-badge" id="pendBadge" style="display:none">0</span></div>
     </div>
     <div class="nav-section">
       <div class="nav-title">Procurement</div>
       <div class="nav-item" data-page="suppliers"><i class="fas fa-truck"></i>Suppliers</div>
-      <div class="nav-item" data-page="supplierLedger"><i class="fas fa-book"></i>Supplier Ledger</div>
+      <div class="nav-item" data-page="stockHistory"><i class="fas fa-clock-rotate-left"></i>Stock History</div>
     </div>
     <div class="nav-section">
       <div class="nav-title">Finance</div>
@@ -643,7 +659,18 @@ textarea.fc{resize:vertical;min-height:70px;line-height:1.5}
   <div class="topbar">
     <div class="topbar-left">
       <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
-      <div class="page-title"><h2 id="pgTitle">Inventory</h2><p id="pgSub">Manage products & stock</p></div>
+      <div class="page-title"><h2 id="pgTitle">Search</h2><p id="pgSub">Find anything fast</p></div>
+    </div>
+    <div class="topbar-center" style="flex:1;max-width:500px;margin:0 16px">
+      <div style="position:relative" id="globalSearchWrap">
+        <i class="fas fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none"></i>
+        <input type="text" id="globalSearch" placeholder="Search customers, invoices, products... (Ctrl+K)" 
+          style="width:100%;padding:9px 14px 9px 38px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-2);color:var(--text);transition:all .15s"
+          oninput="performGlobalSearch(this.value)"
+          onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 3px var(--primary-light)';document.getElementById('globalSearchResults').style.display=this.value?'block':'none'"
+          onblur="setTimeout(()=>{document.getElementById('globalSearchResults').style.display='none';this.style.borderColor='';this.style.boxShadow=''},200)">
+        <div id="globalSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:480px;overflow-y:auto;z-index:200"></div>
+      </div>
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="syncSt">Ready</span>
@@ -763,7 +790,7 @@ const _origNav = nav;
 nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
   
 // NAV
-const pgInfo={dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],profits:['Sales Profits','Profit tracking & margins'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],supplierLedger:['Supplier Ledger','Supplier transactions'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
+const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],preorders:['Pre-Orders','Track customer requests for out-of-stock items'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
 function nav(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -787,10 +814,9 @@ async function renderPage(page){
   const area=document.getElementById('contentArea');
   area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
   try{switch(page){
-    case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'profits':await renderProfits(area);break;case'customers':await renderCustomers(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'supplierLedger':await renderSupplierLedger(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
+    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
-
 // ============================================================
 // PHONE NUMBER FORMATTER (Bangladesh format: 017-1234-5678)
 // ============================================================
@@ -886,6 +912,215 @@ function buildPN(club,type,edition,size){return[club,type,edition,size].filter(B
 function smartSort(data){return[...data].sort((a,b)=>{const cA=(a.Club_Country||'').toLowerCase(),cB=(b.Club_Country||'').toLowerCase();if(cA!==cB)return cA<cB?-1:1;const tA=TYPE_ORDER[a.Type]||99,tB=TYPE_ORDER[b.Type]||99;if(tA!==tB)return tA-tB;const eA=EDITION_ORDER[a.Edition]||99,eB=EDITION_ORDER[b.Edition]||99;if(eA!==eB)return eA-eB;return(SIZE_ORDER[a.Size]||99)-(SIZE_ORDER[b.Size]||99)})}
 function statCard(icon,color,val,label){return`<div class="stat-card"><div class="stat-hdr"><div class="stat-icon ${color}"><i class="fas ${icon}"></i></div></div><div class="stat-val">${val}</div><div class="stat-label">${label}</div></div>`}
 
+
+// ============================================================
+// GLOBAL SEARCH — Landing page & topbar search
+// ============================================================
+async function renderSearchPage(area) {
+  // Preload data if not loaded
+  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  
+  const c = C();
+  area.innerHTML = `
+    <div style="max-width:800px;margin:60px auto 0;text-align:center">
+      <img src="${LOGO_URL}" alt="Fan Field" style="width:80px;height:80px;border-radius:16px;margin-bottom:20px;box-shadow:0 8px 24px rgba(59,130,246,.3)">
+      <h1 style="font-size:32px;font-weight:900;letter-spacing:-1px;margin-bottom:8px">Welcome back!</h1>
+      <p style="color:var(--text-muted);font-size:14px;margin-bottom:32px">Search customers, invoices, or products instantly</p>
+      
+      <div style="position:relative;margin-bottom:40px">
+        <i class="fas fa-search" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:16px;pointer-events:none"></i>
+        <input type="text" id="bigSearchInput" placeholder="Try: customer name, phone, FF-1024, Arsenal Home..." 
+          style="width:100%;padding:18px 20px 18px 52px;border:2px solid var(--border);border-radius:14px;font-size:15px;background:var(--bg-2);color:var(--text);transition:all .15s"
+          oninput="performBigSearch(this.value)"
+          onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 4px var(--primary-light)'"
+          onblur="this.style.borderColor='';this.style.boxShadow=''">
+      </div>
+      
+      <!-- Quick stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:32px">
+        <div onclick="nav('inventory')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--primary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:20px;font-weight:800;color:var(--primary)"><i class="fas fa-boxes-stacked"></i> ${S.inventory.length}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Products</div>
+        </div>
+        <div onclick="nav('customers')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--purple)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:20px;font-weight:800;color:var(--purple)"><i class="fas fa-users"></i> ${S.customers.length}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Customers</div>
+        </div>
+        <div onclick="nav('sales')" style="cursor:pointer;padding:16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;transition:all .2s" onmouseover="this.style.borderColor='var(--secondary)';this.style.transform='translateY(-2px)'" onmouseout="this.style.borderColor='var(--border)';this.style.transform=''">
+          <div style="font-size:20px;font-weight:800;color:var(--secondary)"><i class="fas fa-receipt"></i> ${S.sales.length}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Sales</div>
+        </div>
+        <div onclick="nav('pos')" style="cursor:pointer;padding:16px;background:linear-gradient(135deg,var(--primary),var(--purple));color:#fff;border-radius:12px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:20px;font-weight:800"><i class="fas fa-cash-register"></i></div>
+          <div style="font-size:11px;margin-top:4px;opacity:.9">Start New Sale</div>
+        </div>
+      </div>
+      
+      <div id="bigSearchResults" style="text-align:left"></div>
+      
+      <div style="margin-top:40px;color:var(--text-muted);font-size:11px">
+        <i class="fas fa-keyboard"></i> Press <kbd style="padding:2px 6px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;font-family:monospace">Ctrl+K</kbd> anywhere to focus the search bar in the topbar
+      </div>
+    </div>
+  `;
+  
+  // Auto-focus the big search
+  setTimeout(() => document.getElementById('bigSearchInput')?.focus(), 100);
+}
+
+function performBigSearch(query) {
+  const resultsEl = document.getElementById('bigSearchResults');
+  if (!resultsEl) return;
+  if (!query || query.length < 2) {
+    resultsEl.innerHTML = '';
+    return;
+  }
+  const results = searchAll(query);
+  resultsEl.innerHTML = renderSearchResultsHTML(results, query, true);
+}
+
+function performGlobalSearch(query) {
+  const resultsEl = document.getElementById('globalSearchResults');
+  if (!resultsEl) return;
+  if (!query || query.length < 2) {
+    resultsEl.style.display = 'none';
+    return;
+  }
+  const results = searchAll(query);
+  resultsEl.innerHTML = renderSearchResultsHTML(results, query, false);
+  resultsEl.style.display = 'block';
+}
+
+function searchAll(query) {
+  const q = query.toLowerCase();
+  const c = C();
+  
+  // Search customers
+  const customers = (S.customers || []).filter(cu => 
+    (cu.Name || '').toLowerCase().includes(q) ||
+    (cu.Phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
+    (cu.Email || '').toLowerCase().includes(q)
+  ).slice(0, 5);
+  
+  // Search sales
+  const sales = (S.sales || []).filter(s => 
+    (s.InvoiceNo || '').toLowerCase().includes(q) ||
+    (s.CustomerName || '').toLowerCase().includes(q) ||
+    (s.CustomerPhone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
+  ).slice(0, 5);
+  
+  // Search products
+  const products = (S.inventory || []).filter(p => 
+    (p.ProductName || '').toLowerCase().includes(q) ||
+    (p.Club_Country || '').toLowerCase().includes(q) ||
+    (p.ID || '').toLowerCase().includes(q)
+  ).slice(0, 5);
+  
+  return { customers, sales, products };
+}
+
+function renderSearchResultsHTML(results, query, isLarge) {
+  const c = C();
+  const { customers, sales, products } = results;
+  const total = customers.length + sales.length + products.length;
+  
+  if (total === 0) {
+    return `<div style="padding:30px 20px;text-align:center;color:var(--text-muted)">
+      <i class="fas fa-search" style="font-size:24px;opacity:.4;margin-bottom:10px"></i><br>
+      No results for "<strong>${esc(query)}</strong>"
+    </div>`;
+  }
+  
+  const cardStyle = isLarge ? 'padding:14px 16px' : 'padding:10px 14px';
+  const titleStyle = isLarge ? 'font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:14px 16px 6px' : 'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:10px 14px 4px';
+  
+  let html = '';
+  
+  if (customers.length) {
+    html += `<div style="${titleStyle}"><i class="fas fa-users" style="color:var(--purple);margin-right:4px"></i> Customers (${customers.length})</div>`;
+    customers.forEach(cu => {
+      html += `<div onclick="closeGlobalSearch();viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(cu.Name, query)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${highlightMatch(cu.Phone || '', query)} ${cu.Email ? ' • ' + esc(cu.Email) : ''}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--text-muted)">${Number(cu.TotalPurchases) || 0} orders</div>
+            <div style="font-size:12px;font-weight:700;color:var(--secondary)">${c}${(Number(cu.TotalSpent)||0).toLocaleString()}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  
+  if (sales.length) {
+    html += `<div style="${titleStyle}"><i class="fas fa-receipt" style="color:var(--primary);margin-right:4px"></i> Invoices (${sales.length})</div>`;
+    sales.forEach(s => {
+      html += `<div onclick="closeGlobalSearch();viewInvoice('${s.InvoiceNo}')" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(s.InvoiceNo, query)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(s.CustomerName || 'Walk-in')} • ${fmtD(s.Date)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;font-weight:700">${c}${Number(s.FinalAmount).toLocaleString()}</div>
+            <div style="margin-top:2px">${statusBadge(s.Status)}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  
+  if (products.length) {
+    html += `<div style="${titleStyle}"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</div>`;
+    products.forEach(p => {
+      const stk = Number(p.Stock) || 0;
+      html += `<div onclick="closeGlobalSearch();nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(p.ProductName, query)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(p.ID)} • Stock: ${stk}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:12px;font-weight:700">${c}${Number(p.SellPrice).toLocaleString()}</div>
+            <div style="margin-top:2px">${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? '<span class="badge badge-w">Low</span>' : '<span class="badge badge-s">OK</span>'}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  
+  return html;
+}
+
+function highlightMatch(text, query) {
+  if (!text) return '';
+  const safe = esc(text);
+  const q = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${q})`, 'gi');
+  return safe.replace(regex, '<mark style="background:rgba(59,130,246,.3);color:var(--text);padding:0 2px;border-radius:2px">$1</mark>');
+}
+
+function closeGlobalSearch() {
+  document.getElementById('globalSearchResults').style.display = 'none';
+  document.getElementById('globalSearch').value = '';
+}
+
+// Ctrl+K hotkey
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+    e.preventDefault();
+    const inp = document.getElementById('globalSearch');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+  if (e.key === 'Escape') {
+    closeGlobalSearch();
+  }
+});
+  
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -914,9 +1149,12 @@ async function renderDashboard(area){
     <div class="card"><div class="card-hdr"><h3><i class="fas fa-chart-bar" style="color:var(--primary);margin-right:6px"></i>Monthly Sales</h3></div><div class="card-body"><div class="chart-bars" id="dChart"></div></div></div>
     <div class="card"><div class="card-hdr"><h3><i class="fas fa-triangle-exclamation" style="color:var(--warning);margin-right:6px"></i>Stock Alerts</h3></div><div class="card-body np"><div class="tbl-wrap" id="dAlerts"></div></div></div>
   </div>
-  <div class="dash-grid">
-    <div class="card"><div class="card-hdr"><h3><i class="fas fa-clock-rotate-left" style="color:var(--purple);margin-right:6px"></i>Recent Sales</h3></div><div class="card-body np"><div class="tbl-wrap" id="dRecent"></div></div></div>
-    <div class="card"><div class="card-hdr"><h3><i class="fas fa-cubes" style="color:var(--secondary);margin-right:6px"></i>Recent Stock Updates</h3></div><div class="card-body np"><div class="tbl-wrap" id="dStockLog"></div></div></div>
+  <div class="card">
+    <div class="card-hdr">
+      <h3><i class="fas fa-clock-rotate-left" style="color:var(--purple);margin-right:6px"></i>Recent Sales</h3>
+      <button class="btn btn-outline btn-sm" onclick="nav('sales')"><i class="fas fa-arrow-right"></i> View All</button>
+    </div>
+    <div class="card-body np"><div class="tbl-wrap" id="dRecent"></div></div>
   </div>`;
   // Chart
   const chart=document.getElementById('dChart');const cd=d.monthlySalesChart||[];
@@ -926,10 +1164,7 @@ async function renderDashboard(area){
   document.getElementById('dAlerts').innerHTML=alerts.length?`<table><thead><tr><th>Product</th><th>Stock</th><th>Status</th></tr></thead><tbody>${alerts.slice(0,12).map(i=>`<tr><td><strong>${esc(i.ProductName)}</strong></td><td>${i.Stock}</td><td>${i._t==='out'?'<span class="badge badge-d">Out</span>':'<span class="badge badge-w">Low</span>'}</td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)"><i class="fas fa-check-circle"></i> All stock healthy!</div>';
   // Recent sales
   document.getElementById('dRecent').innerHTML=(d.recentSales||[]).length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${(d.recentSales||[]).map(s=>`<tr><td><strong>${s.InvoiceNo}</strong><br><small style="color:var(--text-muted)">${fmtD(s.Date)}</small></td><td>${esc(s.CustomerName||'Walk-in')}</td><td><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td><td>${statusBadge(s.Status)}</td><td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${s.InvoiceNo}')"><i class="fas fa-file-invoice"></i></button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales yet</div>';
-  // Stock log
-  const slog=d.recentStockUpdates||[];
-  document.getElementById('dStockLog').innerHTML=slog.length?`<table><thead><tr><th>Date</th><th>Product</th><th>Action</th><th>Change</th></tr></thead><tbody>${slog.map(l=>`<tr><td><small>${fmtD(l.Date)}</small></td><td>${esc(l.ProductName||l.ProductID)}</td><td><span class="badge badge-i">${l.Action}</span></td><td>${l.OldStock}→<strong>${l.NewStock}</strong></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No stock updates</div>';
-}
+  }
 
 // ============================================================
 // INVENTORY (with filters & sorting)
@@ -991,17 +1226,13 @@ function updateInvSummaryBar(data) {
   const totalProducts = data.length;
   const totalUnits = data.reduce((s, i) => s + (Number(i.Stock) || 0), 0);
   const totalCostValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.CostPrice) || 0)), 0);
-  const totalRetailValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.SellPrice) || 0)), 0);
-  const potentialProfit = totalRetailValue - totalCostValue;
   const lowCount = data.filter(i => Number(i.Stock) > 0 && Number(i.Stock) <= Number(i.MinStock || 5)).length;
   const outCount = data.filter(i => Number(i.Stock) === 0).length;
   
   bar.innerHTML = `
     <span style="color:var(--text-muted)"><i class="fas fa-boxes-stacked" style="color:var(--primary);margin-right:4px"></i><strong style="color:var(--text)">${totalProducts}</strong> products</span>
     <span style="color:var(--text-muted)"><i class="fas fa-cubes" style="color:var(--secondary);margin-right:4px"></i><strong style="color:var(--text)">${totalUnits}</strong> units</span>
-    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Cost: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
-    <span style="color:var(--text-muted)"><i class="fas fa-tag" style="color:var(--purple);margin-right:4px"></i>Retail: <strong style="color:var(--text)">${c}${totalRetailValue.toLocaleString()}</strong></span>
-    <span style="color:var(--text-muted)"><i class="fas fa-chart-line" style="color:var(--secondary);margin-right:4px"></i>Profit: <strong style="color:var(--secondary)">${c}${potentialProfit.toLocaleString()}</strong></span>
+    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Capital Invested: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
     ${lowCount > 0 ? `<span style="color:var(--warning)"><i class="fas fa-triangle-exclamation"></i> <strong>${lowCount}</strong> low</span>` : ''}
     ${outCount > 0 ? `<span style="color:var(--danger)"><i class="fas fa-circle-xmark"></i> <strong>${outCount}</strong> out</span>` : ''}
   `;
@@ -1919,8 +2150,14 @@ async function renderPOS(area){
       <div class="form-group"><label>Affiliate Code</label><input class="fc" id="posAffCode" placeholder="Affiliate code" oninput="calcPOSTotal()"></div>
       <div class="form-group"><label>Voucher Code</label><input class="fc" id="posVchCode" placeholder="Voucher code" oninput="calcPOSTotal()"></div>
     </div>
-    <h4 style="margin:18px 0 10px;font-size:13px;font-weight:600"><i class="fas fa-list" style="color:var(--primary);margin-right:5px"></i>Items</h4>
-    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product / Service</th><th>Patch</th><th>Name/No. Print</th><th>Patch ৳</th><th>Print ৳</th><th>Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
+    <h4 style="margin:18px 0 10px;font-size:13px;font-weight:600;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <span><i class="fas fa-list" style="color:var(--primary);margin-right:5px"></i>Items</span>
+      <label style="font-size:11px;font-weight:500;display:flex;align-items:center;gap:5px;color:var(--text-muted);cursor:pointer">
+        <input type="checkbox" id="posShowCustomization" onchange="togglePOSCustomization()" class="cb">
+        <i class="fas fa-sparkles"></i> Show customization (patch/name print)
+      </label>
+    </h4>
+    <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product / Service</th><th class="custom-col" style="display:none">Patch</th><th class="custom-col" style="display:none">Name/No. Print</th><th class="custom-col" style="display:none">Patch ৳</th><th class="custom-col" style="display:none">Print ৳</th><th>Price</th><th>Cost</th><th>Qty</th><th>Total</th><th></th></tr></thead><tbody id="posItems"></tbody></table></div>
     <button class="btn btn-outline btn-sm" onclick="addPOSRow()" style="margin-top:10px"><i class="fas fa-plus"></i>Add Item</button>
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
     <div class="fg" style="max-width:500px;margin-left:auto">
@@ -2123,22 +2360,34 @@ function addPOSRow() {
     .filter(i => Number(i.Stock) > 0)
     .sort((a, b) => String(a.ProductName || '').localeCompare(String(b.ProductName || '')));
   
+  const isCustomVisible = document.getElementById('posShowCustomization')?.checked;
+  const hideStyle = isCustomVisible ? '' : 'style="display:none"';
   tr.innerHTML = `
     <td><select class="pos-prod" onchange="onPOSProdChange(this)">
       <option value="">Select</option>
       <option value="__CUSTOMIZATION__" data-price="0" data-cost="0" data-name="Bring-your-own jersey customization" data-club="" data-ed="" data-type="Service" data-size="" data-stock="">Bring-your-own jersey customization (Service)</option>
       ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
     </select></td>
-    <td><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
-    <td><input class="pos-nameprint" placeholder="Name/number or service details" oninput="calcPOSTotal()"></td>
-    <td><input type="number" class="pos-patchprice" value="${pD}" onchange="calcPOSTotal()"></td>
-    <td><input type="number" class="pos-nameprice" value="${nD}" onchange="calcPOSTotal()"></td>
+    <td class="custom-col" ${hideStyle}><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
+    <td class="custom-col" ${hideStyle}><input class="pos-nameprint" placeholder="Name/number" oninput="calcPOSTotal()"></td>
+    <td class="custom-col" ${hideStyle}><input type="number" class="pos-patchprice" value="${pD}" onchange="calcPOSTotal()"></td>
+    <td class="custom-col" ${hideStyle}><input type="number" class="pos-nameprice" value="${nD}" onchange="calcPOSTotal()"></td>
     <td><input type="number" class="pos-price" value="0" onchange="calcPOSTotal()"></td>
     <td><input type="number" class="pos-cost" value="0" onchange="calcPOSTotal()"></td>
     <td><input type="number" class="pos-qty" value="1" min="1" onchange="calcPOSTotal()" style="width:50px"></td>
     <td><input class="pos-linetotal" value="0" readonly style="width:70px"></td>
     <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove();calcPOSTotal()"><i class="fas fa-times"></i></button></td>`;
   tbody.appendChild(tr);
+  
+  // Hidden inputs still need to exist for calcPOSTotal but with empty values
+  // (they ARE rendered above but hidden via display:none on their td)
+}
+
+function togglePOSCustomization() {
+  const show = document.getElementById('posShowCustomization').checked;
+  document.querySelectorAll('.custom-col').forEach(el => {
+    el.style.display = show ? '' : 'none';
+  });
 }
   function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0;const isService=opt.value==='__CUSTOMIZATION__';const np=tr.querySelector('.pos-nameprint');if(np&&!np.value.trim()&&isService)np.value='Customization service'}calcPOSTotal()}
 function calcPOSTotal(){
@@ -2577,6 +2826,8 @@ function showInvoice(invoiceNo, sd, items) {
       <div class="btn-group">
         <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
         <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
+        <button class="btn btn-success btn-sm" onclick="shareInvoiceAsImage('${esc(sd.CustomerPhone||'')}','${invoiceNo}')" title="Share via WhatsApp/Messenger as image"><i class="fas fa-share-nodes"></i>Share</button>
+        <button class="btn btn-primary btn-sm" onclick="downloadInvoiceAsPDF('${invoiceNo}')"><i class="fas fa-download"></i>PDF</button>
         <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
         <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
       </div>
@@ -2587,6 +2838,8 @@ function showInvoice(invoiceNo, sd, items) {
   window._invCompactHTML = compactHTML;
   window._invFullHTML = fullHTML;
   window._invCurrentMode = 'compact';
+  window._invCurrentInvoiceNo = invoiceNo;
+  window._invCurrentPhone = sd.CustomerPhone || '';
   openModal('invoiceModal');
 }
 
@@ -2662,6 +2915,8 @@ async function viewInvoice(invoiceNo) {
       <div class="btn-group">
         <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
         <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
+        <button class="btn btn-success btn-sm" onclick="shareInvoiceAsImage('${esc(sale.CustomerPhone||'')}','${invoiceNo}')" title="Share via WhatsApp/Messenger as image"><i class="fas fa-share-nodes"></i>Share</button>
+        <button class="btn btn-primary btn-sm" onclick="downloadInvoiceAsPDF('${invoiceNo}')"><i class="fas fa-download"></i>PDF</button>
         <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
         <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
       </div>
@@ -2672,9 +2927,10 @@ async function viewInvoice(invoiceNo) {
   window._invCompactHTML = compactHTML;
   window._invFullHTML = fullHTML;
   window._invCurrentMode = 'compact';
+  window._invCurrentInvoiceNo = invoiceNo;
+  window._invCurrentPhone = sale.CustomerPhone || '';
   openModal('invoiceModal');
 }
-
 function switchInvoiceView(mode) {
   const body = document.getElementById('invModalBody');
   if (!body) return;
@@ -2704,6 +2960,175 @@ function printInvoice() {
   }
   w.document.close();
   setTimeout(() => w.print(), 500);
+}
+
+// ============================================================
+// SHARE INVOICE AS IMAGE — WhatsApp / Messenger / Any
+// ============================================================
+async function shareInvoiceAsImage(phone, invoiceNo) {
+  const content = document.getElementById('invPrint');
+  if (!content) { toast('Nothing to share', 'error'); return; }
+  
+  toast('Generating image...', 'info');
+  
+  try {
+    // Use html2canvas to capture invoice
+    const canvas = await html2canvas(content, {
+      backgroundColor: '#ffffff',
+      scale: 2, // higher resolution
+      logging: false,
+      useCORS: true
+    });
+    
+    // Convert to blob
+    canvas.toBlob(async (blob) => {
+      if (!blob) { toast('Failed to generate image', 'error'); return; }
+      
+      const file = new File([blob], `Invoice_${invoiceNo}.png`, { type: 'image/png' });
+      
+      // Try native share API first (mobile)
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: `Invoice ${invoiceNo}`,
+            text: `Your invoice from ${S.settings.businessName || 'Fan Field'}`
+          });
+          toast('Shared!', 'success');
+          return;
+        } catch (err) {
+          if (err.name !== 'AbortError') console.error(err);
+        }
+      }
+      
+      // Fallback: download + show share options modal
+      showShareOptionsModal(blob, phone, invoiceNo);
+    }, 'image/png');
+    
+  } catch (err) {
+    console.error(err);
+    toast('Failed to generate image: ' + err.message, 'error');
+  }
+}
+
+function showShareOptionsModal(blob, phone, invoiceNo) {
+  const url = URL.createObjectURL(blob);
+  const cleanPhone = unformatPhone(phone || '');
+  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
+  const message = encodeURIComponent(`Hi! Here's your invoice ${invoiceNo} from ${S.settings.businessName || 'Fan Field'}. Thank you for shopping with us! 🎽`);
+  
+  let m = document.getElementById('shareModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay active" id="shareModal" style="z-index:3000">
+      <div class="modal" style="max-width:520px">
+        <div class="modal-hdr">
+          <h3><i class="fas fa-share-nodes" style="color:var(--secondary);margin-right:6px"></i>Share Invoice ${invoiceNo}</h3>
+          <button class="modal-close" onclick="closeShareModal('${url}')">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="text-align:center;margin-bottom:18px">
+            <img src="${url}" alt="Invoice preview" style="max-width:100%;max-height:300px;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md)">
+          </div>
+          
+          <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:16px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-info-circle" style="color:var(--secondary)"></i>
+            <strong>Step 1:</strong> Click "Download" to save image • <strong>Step 2:</strong> Click an app below to open chat • <strong>Step 3:</strong> Attach the downloaded image
+          </div>
+          
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
+            <button class="btn btn-primary" onclick="downloadShareImage('${url}','${invoiceNo}')" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">
+              <i class="fas fa-download"></i> Download Image
+            </button>
+            ${cleanPhone ? `
+              <a href="https://wa.me/${waPhone}?text=${message}" target="_blank" class="btn" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
+                <i class="fab fa-whatsapp"></i> WhatsApp
+              </a>
+            ` : `
+              <a href="https://web.whatsapp.com" target="_blank" class="btn" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
+                <i class="fab fa-whatsapp"></i> WhatsApp Web
+              </a>
+            `}
+            <a href="https://www.messenger.com" target="_blank" class="btn" style="background:linear-gradient(135deg,#0084ff,#0066cc);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
+              <i class="fab fa-facebook-messenger"></i> Messenger
+            </a>
+            <button class="btn btn-outline" onclick="copyImageToClipboard('${url}')">
+              <i class="fas fa-copy"></i> Copy Image
+            </button>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-outline" onclick="closeShareModal('${url}')">Close</button>
+        </div>
+      </div>
+    </div>
+  `);
+}
+
+function closeShareModal(url) {
+  document.getElementById('shareModal')?.remove();
+  if (url) URL.revokeObjectURL(url);
+}
+
+function downloadShareImage(url, invoiceNo) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Invoice_${invoiceNo}.png`;
+  a.click();
+  toast('Image downloaded! Now attach it in your chat app.', 'success');
+}
+
+async function copyImageToClipboard(url) {
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+    toast('Image copied to clipboard! Paste in any chat.', 'success');
+  } catch (err) {
+    toast('Copy failed. Use Download instead.', 'error');
+  }
+}
+
+// ============================================================
+// DOWNLOAD INVOICE AS PDF
+// ============================================================
+async function downloadInvoiceAsPDF(invoiceNo) {
+  const content = document.getElementById('invPrint');
+  if (!content) { toast('Nothing to download', 'error'); return; }
+  
+  toast('Generating PDF...', 'info');
+  
+  try {
+    const canvas = await html2canvas(content, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      logging: false,
+      useCORS: true
+    });
+    
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    
+    const isCompact = (window._invCurrentMode === 'compact');
+    // Compact uses thin receipt-like page, Full uses A4
+    const pdf = isCompact 
+      ? new jsPDF({ unit: 'mm', format: [80, Math.min(280, (canvas.height / canvas.width) * 80)] })
+      : new jsPDF({ unit: 'mm', format: 'a4' });
+    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - (isCompact ? 4 : 20);
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    pdf.addImage(imgData, 'PNG', isCompact ? 2 : 10, isCompact ? 2 : 10, imgWidth, imgHeight);
+    pdf.save(`Invoice_${invoiceNo}.pdf`);
+    
+    toast('PDF downloaded!', 'success');
+  } catch (err) {
+    console.error(err);
+    toast('Failed to generate PDF: ' + err.message, 'error');
+  }
 }
 // ============================================================
 // SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column)
@@ -3636,11 +4061,100 @@ function editProfit(id,cur){const val=prompt('Corrected profit:',cur);if(val===n
 // ============================================================
 async function renderCustomers(area) {
   S.customers = await apiGet('getCustomers');
-  area.innerHTML = `<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
-    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="cSrch" placeholder="Search customers..." oninput="filterCust()"></div>
-    <button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i><span class="hide-mobile"> Add Customer</span></button>
-  </div></div><div class="card-body np"><div class="tbl-wrap" id="cTbl"></div></div></div>`;
+  const c = C();
+  
+  // Calculate VIP stats
+  const customersWithSpend = S.customers.filter(cu => Number(cu.TotalSpent) > 0);
+  const totalCustomers = S.customers.length;
+  const totalRevenue = customersWithSpend.reduce((s, cu) => s + (Number(cu.TotalSpent) || 0), 0);
+  const totalPending = S.customers.reduce((s, cu) => s + (Number(cu.PendingAmount) || 0), 0);
+  
+  // Top 10 by spent
+  const topCustomers = [...customersWithSpend].sort((a, b) => Number(b.TotalSpent) - Number(a.TotalSpent)).slice(0, 10);
+  
+  // Lapsed VIPs — top 20% by spend who haven't bought recently
+  const now = new Date();
+  const days30Ago = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  area.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon purple"><i class="fas fa-users"></i></div></div>
+        <div class="stat-val">${totalCustomers}</div>
+        <div class="stat-label">Total Customers</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon green"><i class="fas fa-coins"></i></div></div>
+        <div class="stat-val">${c}${totalRevenue.toLocaleString()}</div>
+        <div class="stat-label">Lifetime Revenue</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon red"><i class="fas fa-clock"></i></div></div>
+        <div class="stat-val">${c}${totalPending.toLocaleString()}</div>
+        <div class="stat-label">Outstanding Payments</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon blue"><i class="fas fa-crown"></i></div></div>
+        <div class="stat-val">${customersWithSpend.length}</div>
+        <div class="stat-label">Active Customers</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-crown" style="color:var(--warning);margin-right:6px"></i>VIP Customers — Top 10 by Lifetime Spend</h3>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('vipSection').style.display=document.getElementById('vipSection').style.display==='none'?'block':'none'">
+          <i class="fas fa-chevron-down"></i> Toggle
+        </button>
+      </div>
+      <div class="card-body np" id="vipSection">
+        <div class="tbl-wrap">
+          ${topCustomers.length ? `<table>
+            <thead><tr><th>Rank</th><th>Customer</th><th>Phone</th><th>Orders</th><th>Total Spent</th><th>Avg Order</th><th>Actions</th></tr></thead>
+            <tbody>${topCustomers.map((cu, idx) => {
+              const orders = Number(cu.TotalPurchases) || 1;
+              const spent = Number(cu.TotalSpent) || 0;
+              const avg = spent / orders;
+              const rankIcon = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : '⭐';
+              return `<tr style="background:${idx < 3 ? 'rgba(245,158,11,.05)' : 'transparent'}">
+                <td style="font-size:18px">${rankIcon} <strong style="font-size:14px">#${idx+1}</strong></td>
+                <td><strong>${esc(cu.Name)}</strong></td>
+                <td>${cu.Phone ? esc(formatPhoneBD(cu.Phone)) : '-'}</td>
+                <td><span class="badge badge-i">${orders}</span></td>
+                <td><strong style="color:var(--secondary)">${c}${spent.toLocaleString()}</strong></td>
+                <td>${c}${Math.round(avg).toLocaleString()}</td>
+                <td><div class="btn-group">
+                  <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="New Sale"><i class="fas fa-cash-register"></i></button>
+                  <button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="Send WhatsApp"><i class="fab fa-whatsapp"></i></button>
+                  <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="History"><i class="fas fa-history"></i></button>
+                </div></td>
+              </tr>`;
+            }).join('')}</tbody>
+          </table>` : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No customer purchases yet</div>'}
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-hdr">
+        <div class="toolbar" style="width:100%">
+          <div class="search-box"><i class="fas fa-search"></i><input type="text" id="cSrch" placeholder="Search customers..." oninput="filterCust()"></div>
+          <button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i><span class="hide-mobile"> Add Customer</span></button>
+        </div>
+      </div>
+      <div class="card-body np"><div class="tbl-wrap" id="cTbl"></div></div>
+    </div>
+  `;
   filterCust();
+}
+
+function sendVIPMessage(name, phone) {
+  const cleanPhone = unformatPhone(phone);
+  if (!cleanPhone) { toast('No phone number', 'warning'); return; }
+  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
+  const businessName = S.settings.businessName || 'Fan Field';
+  const message = encodeURIComponent(`Hi ${name}! 👋\n\nThank you for being a loyal customer at ${businessName}! 🎽\n\nWe have some new jerseys you might love. Check us out anytime!\n\nBest regards,\n${businessName}`);
+  window.open(`https://wa.me/${waPhone}?text=${message}`, '_blank');
 }
 
 function filterCust() {
@@ -3767,6 +4281,373 @@ async function delCust(id) {
   if (!confirm('Delete this customer?')) return;
   const r = await apiPost('deleteCustomer', {ID: id});
   if (r.success) { toast('Deleted'); renderPage('customers'); }
+}
+
+
+// ============================================================
+// PRE-ORDERS — Customer requests for out-of-stock items
+// ============================================================
+async function renderPreorders(area) {
+  const preorders = await apiGet('getPreorders');
+  S.preorders = preorders || [];
+  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  
+  const c = C();
+  const pending = S.preorders.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
+  const fulfilled = S.preorders.filter(p => p.Status === 'Fulfilled');
+  
+  area.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon orange"><i class="fas fa-clipboard-list"></i></div></div>
+        <div class="stat-val">${pending.length}</div>
+        <div class="stat-label">Active Pre-Orders</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div></div>
+        <div class="stat-val">${fulfilled.length}</div>
+        <div class="stat-label">Fulfilled</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon purple"><i class="fas fa-list"></i></div></div>
+        <div class="stat-val">${S.preorders.length}</div>
+        <div class="stat-label">Total Records</div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-clipboard-list" style="color:var(--warning);margin-right:6px"></i>Pre-Order Requests</h3>
+        <div class="btn-group">
+          <select class="fc btn-sm" style="width:auto" id="poFilter" onchange="filterPreorders()">
+            <option value="active">Active Only</option>
+            <option value="all">All</option>
+            <option value="fulfilled">Fulfilled</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="openPreorderModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add Pre-Order</span></button>
+        </div>
+      </div>
+      <div class="card-body np"><div class="tbl-wrap" id="preorderTbl"></div></div>
+    </div>
+  `;
+  
+  filterPreorders();
+}
+
+function filterPreorders() {
+  const filter = document.getElementById('poFilter')?.value || 'active';
+  let data = S.preorders || [];
+  if (filter === 'active') data = data.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
+  else if (filter === 'fulfilled') data = data.filter(p => p.Status === 'Fulfilled');
+  else if (filter === 'cancelled') data = data.filter(p => p.Status === 'Cancelled');
+  
+  const sorted = [...data].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+  const c = C();
+  const el = document.getElementById('preorderTbl');
+  
+  if (!sorted.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)"><i class="fas fa-clipboard-list" style="font-size:32px;opacity:.4;margin-bottom:10px"></i><br>No pre-orders found</div>';
+    return;
+  }
+  
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th>Date</th><th>Customer</th><th>Phone</th><th>Product Wanted</th>
+      <th>Size</th><th>Qty</th><th>Notes</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${sorted.map(p => {
+      const isFulfilled = p.Status === 'Fulfilled';
+      const isCancelled = p.Status === 'Cancelled';
+      return `<tr style="${isFulfilled || isCancelled ? 'opacity:.6' : ''}">
+        <td><small>${fmtD(p.Date)}</small></td>
+        <td><strong>${esc(p.CustomerName)}</strong></td>
+        <td>${esc(formatPhoneBD(p.CustomerPhone || ''))}</td>
+        <td><strong>${esc(p.ProductName)}</strong></td>
+        <td>${esc(p.Size || '-')}</td>
+        <td>${p.Quantity || 1}</td>
+        <td style="font-size:11px;max-width:200px">${esc(p.Notes || '-')}</td>
+        <td>${preorderStatusBadge(p.Status)}</td>
+        <td><div class="btn-group">
+          ${!isFulfilled && !isCancelled ? `
+            <button class="btn btn-success btn-sm" onclick="fulfillPreorder('${p.ID}','${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Mark fulfilled & notify customer"><i class="fas fa-check"></i></button>
+            <button class="btn btn-outline btn-sm" onclick="notifyPreorder('${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Send WhatsApp"><i class="fab fa-whatsapp"></i></button>
+            <button class="btn btn-warning btn-sm" onclick="cancelPreorder('${p.ID}')" title="Cancel"><i class="fas fa-ban"></i></button>
+          ` : ''}
+          <button class="btn btn-danger btn-sm" onclick="deletePreorder('${p.ID}')" title="Delete"><i class="fas fa-trash"></i></button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function preorderStatusBadge(status) {
+  const map = {
+    'Pending': '<span class="badge badge-w">Pending</span>',
+    'Ordered': '<span class="badge badge-i">Ordered from Supplier</span>',
+    'Received': '<span class="badge badge-p">Received - Ready</span>',
+    'Fulfilled': '<span class="badge badge-s">✓ Fulfilled</span>',
+    'Cancelled': '<span class="badge badge-d">Cancelled</span>'
+  };
+  return map[status] || `<span class="badge badge-i">${status || 'Pending'}</span>`;
+}
+
+function openPreorderModal(preorder = null) {
+  let m = document.getElementById('preorderModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="preorderModal"><div class="modal" style="max-width:600px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-clipboard-list" style="color:var(--warning);margin-right:6px"></i>${preorder ? 'Edit' : 'New'} Pre-Order</h3>
+        <button class="modal-close" onclick="closeModal('preorderModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(245,158,11,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
+          <i class="fas fa-lightbulb" style="color:var(--warning)"></i>
+          Log a customer's request for an out-of-stock or unavailable item. Notify them via WhatsApp when ready.
+        </div>
+        <div class="fg">
+          <div class="form-group">
+            <label>Customer *</label>
+            <select class="fc" id="poCustomer" onchange="onPreorderCustChange()">
+              <option value="">Walk-in / Quick Entry</option>
+              ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c => `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}" ${c.ID === preorder?.CustomerID ? 'selected' : ''}>${esc(c.Name)} (${c.Phone||''})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Customer Name *</label>
+            <input class="fc" id="poName" value="${esc(preorder?.CustomerName || '')}">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Customer Phone</label>
+            <input class="fc" id="poPhone" value="${esc(formatPhoneBD(preorder?.CustomerPhone || ''))}" placeholder="017-1234-5678">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Product Wanted *</label>
+            <input class="fc" id="poProduct" value="${esc(preorder?.ProductName || '')}" placeholder="e.g., Arsenal Home Player Edition">
+          </div>
+          <div class="form-group">
+            <label>Size</label>
+            <select class="fc" id="poSize">
+              <option value="">Any/Not Specified</option>
+              ${SIZES.map(s => `<option ${s === preorder?.Size ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Quantity</label>
+            <input type="number" class="fc" id="poQty" value="${preorder?.Quantity || 1}" min="1">
+          </div>
+          <div class="form-group">
+            <label>Status</label>
+            <select class="fc" id="poStatus">
+              <option value="Pending" ${preorder?.Status === 'Pending' ? 'selected' : ''}>Pending</option>
+              <option value="Ordered" ${preorder?.Status === 'Ordered' ? 'selected' : ''}>Ordered from Supplier</option>
+              <option value="Received" ${preorder?.Status === 'Received' ? 'selected' : ''}>Received - Ready</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Expected Date</label>
+            <input type="date" class="fc" id="poExpected" value="${preorder?.ExpectedDate || ''}">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Notes</label>
+            <textarea class="fc" id="poNotes" rows="2" placeholder="Color preference, alternatives, etc.">${esc(preorder?.Notes || '')}</textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('preorderModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="savePreorder('${preorder?.ID || ''}')"><i class="fas fa-save"></i>Save</button>
+      </div>
+    </div></div>
+  `);
+  openModal('preorderModal');
+  setTimeout(() => bindPhoneFormatter('poPhone'), 50);
+}
+
+function onPreorderCustChange() {
+  const sel = document.getElementById('poCustomer');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.value) {
+    document.getElementById('poName').value = opt.dataset.name || '';
+    document.getElementById('poPhone').value = formatPhoneBD(opt.dataset.phone || '');
+  }
+}
+
+async function savePreorder(id) {
+  const custSel = document.getElementById('poCustomer');
+  const data = {
+    ID: id,
+    CustomerID: custSel.value,
+    CustomerName: document.getElementById('poName').value.trim(),
+    CustomerPhone: document.getElementById('poPhone').value.trim(),
+    ProductName: document.getElementById('poProduct').value.trim(),
+    Size: document.getElementById('poSize').value,
+    Quantity: Number(document.getElementById('poQty').value) || 1,
+    Status: document.getElementById('poStatus').value,
+    ExpectedDate: document.getElementById('poExpected').value,
+    Notes: document.getElementById('poNotes').value.trim()
+  };
+  
+  if (!data.CustomerName) { toast('Customer name required', 'error'); return; }
+  if (!data.ProductName) { toast('Product name required', 'error'); return; }
+  
+  const r = await apiPost(id ? 'updatePreorder' : 'addPreorder', data);
+  if (r.success) {
+    toast(id ? 'Updated!' : 'Pre-order saved!');
+    closeModal('preorderModal');
+    renderPage('preorders');
+  }
+}
+
+async function fulfillPreorder(id, custName, phone, product) {
+  if (!confirm(`Mark this pre-order as fulfilled?\n\n${custName} — ${product}\n\nThis will:\n• Mark status as Fulfilled\n• Open WhatsApp to notify the customer`)) return;
+  
+  const r = await apiPost('updatePreorder', { ID: id, Status: 'Fulfilled', FulfilledDate: new Date().toISOString() });
+  if (r.success) {
+    toast(`✓ Marked fulfilled for ${custName}`);
+    // Open WhatsApp
+    notifyPreorder(custName, phone, product);
+    renderPage('preorders');
+  }
+}
+
+function notifyPreorder(name, phone, product) {
+  const cleanPhone = unformatPhone(phone);
+  if (!cleanPhone) { toast('No phone number to notify', 'warning'); return; }
+  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
+  const businessName = S.settings.businessName || 'Fan Field';
+  const message = encodeURIComponent(`Hi ${name}! 🎉\n\nGreat news! The jersey you requested is now available:\n\n*${product}*\n\nPlease visit us or reply to confirm your order. Thank you for your patience!\n\n— ${businessName}`);
+  window.open(`https://wa.me/${waPhone}?text=${message}`, '_blank');
+}
+
+async function cancelPreorder(id) {
+  if (!confirm('Cancel this pre-order?')) return;
+  const r = await apiPost('updatePreorder', { ID: id, Status: 'Cancelled' });
+  if (r.success) { toast('Cancelled'); renderPage('preorders'); }
+}
+
+async function deletePreorder(id) {
+  if (!confirm('Delete this pre-order permanently?')) return;
+  const r = await apiPost('deletePreorder', { ID: id });
+  if (r.success) { toast('Deleted'); renderPage('preorders'); }
+}
+
+async function checkPendingPreorders() {
+  try {
+    const preorders = await apiGet('getPreorders');
+    const active = (preorders || []).filter(p => p.Status === 'Received' || p.Status === 'Pending');
+    const badge = document.getElementById('preorderBadge');
+    if (badge) {
+      if (active.length > 0) {
+        badge.style.display = '';
+        badge.textContent = active.length;
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (e) {}
+}
+
+// ============================================================
+// STOCK HISTORY — Full log of all stock changes
+// ============================================================
+async function renderStockHistory(area) {
+  const stockLog = await apiGet('getStockLog');
+  S.stockLog = stockLog || [];
+  
+  area.innerHTML = `
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-clock-rotate-left" style="color:var(--primary);margin-right:6px"></i>Stock Change History (${S.stockLog.length})</h3>
+        <div class="toolbar">
+          <div class="search-box"><i class="fas fa-search"></i><input type="text" id="shSrch" placeholder="Search product, action..." oninput="filterStockHistory()"></div>
+          <select class="fc btn-sm" style="width:auto" id="shAction" onchange="filterStockHistory()">
+            <option value="">All Actions</option>
+            <option value="Sale">Sale</option>
+            <option value="Manual">Manual Update</option>
+            <option value="Batch">Batch Added</option>
+            <option value="Reverse">Reversed</option>
+            <option value="Return">Returns</option>
+            <option value="Exchange">Exchanges</option>
+          </select>
+          <select class="fc btn-sm" style="width:auto" id="shPeriod" onchange="filterStockHistory()">
+            <option value="all">All Time</option>
+            <option value="today">Today</option>
+            <option value="week">Last 7 Days</option>
+            <option value="month">This Month</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body np"><div class="tbl-wrap" id="shTbl"></div></div>
+    </div>
+  `;
+  
+  filterStockHistory();
+}
+
+function filterStockHistory() {
+  const srch = (document.getElementById('shSrch')?.value || '').toLowerCase();
+  const action = document.getElementById('shAction')?.value || '';
+  const period = document.getElementById('shPeriod')?.value || 'all';
+  
+  let data = (S.stockLog || []).filter(log => {
+    const ms = !srch || (log.ProductName || '').toLowerCase().includes(srch) || (log.Action || '').toLowerCase().includes(srch) || (log.ProductID || '').toLowerCase().includes(srch);
+    const ma = !action || (log.Action || '').includes(action);
+    return ms && ma;
+  });
+  
+  if (period !== 'all') {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    data = data.filter(log => {
+      const d = new Date(log.Date);
+      if (isNaN(d)) return false;
+      if (period === 'today') return d >= todayStart;
+      if (period === 'week') return d >= weekAgo;
+      if (period === 'month') return d >= monthStart;
+      return true;
+    });
+  }
+  
+  const sorted = [...data].sort((a, b) => new Date(b.Date) - new Date(a.Date));
+  const el = document.getElementById('shTbl');
+  
+  if (!sorted.length) {
+    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)">No stock changes found</div>';
+    return;
+  }
+  
+  el.innerHTML = `<table>
+    <thead><tr><th>Date & Time</th><th>Product</th><th>Action</th><th>Qty</th><th>Old</th><th>New</th><th>Change</th><th>Reference</th><th>Notes</th></tr></thead>
+    <tbody>${sorted.map(log => {
+      const change = (Number(log.NewStock) || 0) - (Number(log.OldStock) || 0);
+      const isIncrease = change > 0;
+      const action = log.Action || '';
+      let badgeClass = 'badge-i';
+      if (action.includes('Sale')) badgeClass = 'badge-d';
+      else if (action.includes('Batch') || action.includes('Initial')) badgeClass = 'badge-s';
+      else if (action.includes('Reverse') || action.includes('Return')) badgeClass = 'badge-w';
+      else if (action.includes('Exchange')) badgeClass = 'badge-p';
+      
+      return `<tr>
+        <td><small>${fmtD(log.Date)}</small><br><small style="color:var(--text-muted);font-size:10px">${new Date(log.Date).toLocaleTimeString()}</small></td>
+        <td><strong>${esc(log.ProductName || log.ProductID)}</strong><br><small style="color:var(--text-muted)">${esc(log.ProductID)}</small></td>
+        <td><span class="badge ${badgeClass}">${action}</span></td>
+        <td>${log.Quantity || 0}</td>
+        <td>${log.OldStock || 0}</td>
+        <td><strong>${log.NewStock || 0}</strong></td>
+        <td style="color:${isIncrease ? 'var(--secondary)' : 'var(--danger)'};font-weight:700">
+          ${isIncrease ? '+' : ''}${change}
+        </td>
+        <td><small>${esc(log.Reference || '-')}</small></td>
+        <td style="font-size:11px;color:var(--text-muted)">${esc(log.Notes || '-')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
 }
   // ============================================================
 // CREATE SALE DIRECTLY FROM CUSTOMER PAGE
@@ -4202,8 +5083,15 @@ async function formatAllPhoneNumbers() {
   }
 }
   
-// INIT — Open Inventory page by default
-document.addEventListener('DOMContentLoaded',()=>renderPage('inventory'));
+// INIT — Open Search page by default
+document.addEventListener('DOMContentLoaded', async () => {
+  // Preload key data so search is instant
+  S.inventory = await apiGet('getInventory');
+  S.customers = await apiGet('getCustomers');
+  S.sales = await apiGet('getSales');
+  renderPage('search');
+  checkPendingPreorders();
+});
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
 </script>
 </body>
