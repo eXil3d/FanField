@@ -1503,39 +1503,142 @@ function renderSearchResultsHTML(results, query, isLarge) {
 }
 function highlightMatch(text, query) {
   if (!text || !query) return esc(text || '');
-  let safe = esc(text);
   
-  // Split query into tokens and highlight each individually
+  // First, escape the text for HTML safety
+  const safe = esc(text);
+  
+  // Get tokens from query
   const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
-  
-  // Also try to highlight the full query if it contains digits (for phone numbers)
   const qDigits = query.replace(/\D/g, '');
   
-  // Highlight each token (word-order independent)
+  // Build a list of all matches with their positions
+  // We work on the lowercase version to find positions, but slice from the original
+  const lowerSafe = safe.toLowerCase();
+  const matches = []; // {start, end, type: 'text' | 'phone'}
+  
+  // ============================================================
+  // 1. Find text token matches (word-boundary-aware for single letters)
+  // ============================================================
   tokens.forEach(token => {
-    if (token.length < 1) return;
-    const escapedToken = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${escapedToken})`, 'gi');
-    safe = safe.replace(regex, '<mark style="background:rgba(59,130,246,.3);color:var(--text);padding:0 2px;border-radius:2px;font-weight:600">$1</mark>');
+    if (!token) return;
+    
+    // For single-character tokens, ONLY match at word boundaries
+    // (so "s" matches the size "S" but not the "s" in "style" or "Arsenal")
+    const useWordBoundary = token.length === 1;
+    
+    let searchFrom = 0;
+    while (searchFrom < lowerSafe.length) {
+      const idx = lowerSafe.indexOf(token, searchFrom);
+      if (idx === -1) break;
+      
+      // For single letters: check word boundaries
+      if (useWordBoundary) {
+        const charBefore = idx > 0 ? lowerSafe[idx - 1] : ' ';
+        const charAfter = idx + token.length < lowerSafe.length ? lowerSafe[idx + token.length] : ' ';
+        // A word boundary = non-alphanumeric character
+        const isBoundaryBefore = !/[a-z0-9]/.test(charBefore);
+        const isBoundaryAfter = !/[a-z0-9]/.test(charAfter);
+        
+        if (isBoundaryBefore && isBoundaryAfter) {
+          matches.push({ start: idx, end: idx + token.length, type: 'text' });
+        }
+      } else {
+        // For multi-char tokens, match anywhere
+        matches.push({ start: idx, end: idx + token.length, type: 'text' });
+      }
+      
+      searchFrom = idx + 1;
+    }
   });
   
-  // Highlight phone digit patterns (e.g., "7730" inside "017-7730-2424")
+  // ============================================================
+  // 2. Find phone digit pattern matches (require min 3 digits)
+  // ============================================================
   if (qDigits.length >= 3) {
-    // Match digits that may have separators between them
-    const digitPattern = qDigits.split('').join('[-\\s]*');
-    const phoneRegex = new RegExp(`(${digitPattern})`, 'gi');
-    // Only replace if not already inside a <mark> tag
-    safe = safe.replace(phoneRegex, (match, p1, offset, fullString) => {
-      // Check if this match is inside an existing mark tag
-      const before = fullString.substring(0, offset);
-      const openMarks = (before.match(/<mark/g) || []).length;
-      const closeMarks = (before.match(/<\/mark>/g) || []).length;
-      if (openMarks > closeMarks) return match; // already inside a mark
-      return `<mark style="background:rgba(16,185,129,.3);color:var(--text);padding:0 2px;border-radius:2px;font-weight:600">${match}</mark>`;
-    });
+    // Build a pattern that allows separators between digits
+    const digitChars = qDigits.split('');
+    let searchFrom = 0;
+    
+    while (searchFrom < safe.length) {
+      let matchStart = -1;
+      let matchEnd = -1;
+      let i = searchFrom;
+      let digitIdx = 0;
+      
+      // Try to find the digit sequence starting at position i
+      while (i < safe.length && digitIdx < digitChars.length) {
+        const ch = safe[i];
+        if (ch === digitChars[digitIdx]) {
+          if (matchStart === -1) matchStart = i;
+          digitIdx++;
+          matchEnd = i + 1;
+          i++;
+        } else if (matchStart !== -1 && /[-\s().+]/.test(ch)) {
+          // Skip separator chars
+          i++;
+        } else {
+          // No match — reset
+          matchStart = -1;
+          digitIdx = 0;
+          i++;
+          break;
+        }
+      }
+      
+      if (digitIdx === digitChars.length && matchStart !== -1) {
+        matches.push({ start: matchStart, end: matchEnd, type: 'phone' });
+        searchFrom = matchEnd;
+      } else {
+        searchFrom++;
+      }
+    }
   }
   
-  return safe;
+  // ============================================================
+  // 3. If no matches, return original safe text
+  // ============================================================
+  if (matches.length === 0) return safe;
+  
+  // ============================================================
+  // 4. Merge overlapping matches and sort
+  // ============================================================
+  matches.sort((a, b) => a.start - b.start || b.end - a.end);
+  const merged = [];
+  for (const m of matches) {
+    const last = merged[merged.length - 1];
+    if (last && m.start <= last.end) {
+      last.end = Math.max(last.end, m.end);
+      // Phone color takes priority if both types match same range
+      if (m.type === 'phone') last.type = 'phone';
+    } else {
+      merged.push({ ...m });
+    }
+  }
+  
+  // ============================================================
+  // 5. Build the highlighted output
+  // ============================================================
+  let result = '';
+  let pos = 0;
+  
+  for (const m of merged) {
+    // Add the text before the match
+    result += safe.substring(pos, m.start);
+    
+    // Add the highlighted match
+    const bgColor = m.type === 'phone' 
+      ? 'rgba(16,185,129,.3)'  // green for phone
+      : 'rgba(59,130,246,.3)'; // blue for text
+    
+    result += `<mark style="background:${bgColor};color:var(--text);padding:0 2px;border-radius:2px;font-weight:600">${safe.substring(m.start, m.end)}</mark>`;
+    
+    pos = m.end;
+  }
+  
+  // Add any remaining text
+  result += safe.substring(pos);
+  
+  return result;
 }
 
 function closeGlobalSearch() {
