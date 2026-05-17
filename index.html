@@ -2328,11 +2328,17 @@ async function openInventoryInsights() {
               ${deadStock.length > 0 ? `<span style="margin-left:16px;color:var(--text-muted);font-size:12px">• <strong style="color:var(--text)">${deadStock.length}</strong> item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
             </div>
             ${deadStock.length > 0 ? `
-              <div class="btn-group" style="flex-shrink:0">
+              <div class="btn-group" style="flex-shrink:0;flex-wrap:wrap">
+                <button class="btn btn-success btn-sm" onclick="saveDeadStockSnapshot()" title="Save monthly snapshot for tracking trends"><i class="fas fa-camera"></i> Snapshot</button>
+                <button class="btn btn-outline btn-sm" onclick="openDeadStockHistory()" title="View historical snapshots"><i class="fas fa-clock-rotate-left"></i> History</button>
                 <button class="btn btn-primary btn-sm" onclick="downloadDeadStockPDF()" title="Download as PDF"><i class="fas fa-file-pdf"></i> PDF</button>
                 <button class="btn btn-outline btn-sm" onclick="downloadDeadStockCSV()" title="Download as CSV"><i class="fas fa-file-csv"></i> CSV</button>
               </div>
-            ` : ''}
+            ` : `
+              <div class="btn-group" style="flex-shrink:0">
+                <button class="btn btn-outline btn-sm" onclick="openDeadStockHistory()" title="View historical snapshots"><i class="fas fa-clock-rotate-left"></i> View History</button>
+              </div>
+            `}
           </div>
           
           <div class="tbl-wrap"><table>
@@ -2861,6 +2867,417 @@ async function saveProduct(id) {
     }
     return;
   }
+
+  // ============================================================
+// DEAD STOCK — Save monthly snapshot
+// ============================================================
+async function saveDeadStockSnapshot() {
+  const data = window._deadStockData || [];
+  if (!data.length) { toast('No dead stock to save', 'warning'); return; }
+  
+  const monthName = new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+  
+  if (!confirm(`Save snapshot for ${monthName}?\n\nThis will save ${data.length} dead stock items with a total capital of ${C()}${(window._deadStockValue || 0).toLocaleString()}.\n\nIf a snapshot for this month already exists, it will be replaced.`)) return;
+  
+  toast('Saving snapshot...', 'info');
+  
+  // Prepare items
+  const items = data.map(item => ({
+    ProductID: item.ID,
+    ProductName: item.ProductName,
+    Club_Country: item.Club_Country,
+    Edition: item.Edition,
+    Type: item.Type,
+    Size: item.Size,
+    Stock: item.Stock,
+    CostPrice: item.CostPrice,
+    SellPrice: item.SellPrice,
+    CapitalTied: item.capitalTied,
+    DaysInactive: item.daysSinceActivity,
+    Urgency: (() => {
+      const d = item.daysSinceActivity;
+      if (d >= 90) return 'CRITICAL';
+      if (d >= 60) return 'HIGH';
+      if (d >= 30) return 'MEDIUM';
+      return 'LOW';
+    })()
+  }));
+  
+  const result = await apiPost('saveDeadStockSnapshot', { items });
+  
+  if (result.success) {
+    if (result.replaced) {
+      toast(`✓ Snapshot for ${monthName} updated! (${result.itemCount} items saved)`, 'success');
+    } else {
+      toast(`✓ Snapshot for ${monthName} saved! (${result.itemCount} items)`, 'success');
+    }
+  } else {
+    toast('Failed to save snapshot: ' + (result.error || 'Unknown error'), 'error');
+  }
+}
+
+// ============================================================
+// DEAD STOCK HISTORY — Full historical view
+// ============================================================
+async function openDeadStockHistory() {
+  toast('Loading history...', 'info');
+  
+  const history = await apiGet('getDeadStockHistory');
+  const chronic = await apiGet('getChronicDeadStock');
+  
+  if (!history.length) {
+    toast('No history yet. Save a snapshot first!', 'warning');
+    return;
+  }
+  
+  const c = C();
+  
+  // Group history by month
+  const byMonth = {};
+  history.forEach(row => {
+    const month = row.Month;
+    if (!byMonth[month]) {
+      byMonth[month] = {
+        month,
+        items: [],
+        totalCapital: 0,
+        totalUnits: 0,
+        snapshotDate: row.SnapshotDate
+      };
+    }
+    byMonth[month].items.push(row);
+    byMonth[month].totalCapital += Number(row.CapitalTied) || 0;
+    byMonth[month].totalUnits += Number(row.Stock) || 0;
+  });
+  
+  const months = Object.values(byMonth).sort((a, b) => b.month.localeCompare(a.month));
+  
+  // Trend calc: compare current month to previous
+  let trendHTML = '';
+  if (months.length >= 2) {
+    const current = months[0];
+    const previous = months[1];
+    const capitalDiff = current.totalCapital - previous.totalCapital;
+    const itemsDiff = current.items.length - previous.items.length;
+    const trendUp = capitalDiff > 0;
+    
+    trendHTML = `
+      <div style="padding:12px;background:${trendUp ? 'rgba(239,68,68,.08)' : 'rgba(16,185,129,.08)'};border-radius:8px;border-left:3px solid ${trendUp ? 'var(--danger)' : 'var(--secondary)'};margin-bottom:14px;font-size:12px">
+        <strong>📈 Trend (${formatMonthLabel(previous.month)} → ${formatMonthLabel(current.month)}):</strong>
+        <span style="color:${trendUp ? 'var(--danger)' : 'var(--secondary)'};font-weight:700">
+          ${trendUp ? '↑' : '↓'} ${c}${Math.abs(capitalDiff).toLocaleString()} 
+          (${capitalDiff > 0 ? '+' : ''}${Math.round((capitalDiff/Math.max(previous.totalCapital,1))*100)}%)
+        </span>
+        <span style="margin-left:12px;color:var(--text-muted)">
+          ${itemsDiff > 0 ? '+' : ''}${itemsDiff} items
+        </span>
+      </div>
+    `;
+  }
+  
+  let m = document.getElementById('deadStockHistoryModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="deadStockHistoryModal"><div class="modal" style="max-width:1100px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-clock-rotate-left" style="color:var(--primary);margin-right:6px"></i>Dead Stock — Historical Tracker</h3>
+        <button class="modal-close" onclick="closeModal('deadStockHistoryModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Tab Switcher -->
+        <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--border);overflow-x:auto;padding-bottom:1px">
+          <button class="btn btn-outline btn-sm dsh-tab active-dsh-tab" data-tab="overview" onclick="switchDSHTab('overview')"><i class="fas fa-chart-line"></i> Overview</button>
+          <button class="btn btn-outline btn-sm dsh-tab" data-tab="chronic" onclick="switchDSHTab('chronic')"><i class="fas fa-fire"></i> Chronic Items</button>
+          <button class="btn btn-outline btn-sm dsh-tab" data-tab="trends" onclick="switchDSHTab('trends')"><i class="fas fa-tag"></i> Category Trends</button>
+          <button class="btn btn-outline btn-sm dsh-tab" data-tab="months" onclick="switchDSHTab('months')"><i class="fas fa-calendar"></i> Monthly Snapshots</button>
+        </div>
+        
+        <!-- OVERVIEW TAB -->
+        <div class="dsh-content" id="dsh-overview">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px">
+            <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--primary)">
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Snapshots</div>
+              <div style="font-size:22px;font-weight:800">${months.length}</div>
+            </div>
+            <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--warning)">
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Chronic Items</div>
+              <div style="font-size:22px;font-weight:800;color:var(--warning)">${chronic.items.length}</div>
+            </div>
+            <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--danger)">
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Latest Capital</div>
+              <div style="font-size:18px;font-weight:800;color:var(--danger)">${c}${months[0]?.totalCapital.toLocaleString() || 0}</div>
+            </div>
+            <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--purple)">
+              <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Latest Items</div>
+              <div style="font-size:22px;font-weight:800">${months[0]?.items.length || 0}</div>
+            </div>
+          </div>
+          
+          ${trendHTML}
+          
+          <!-- Monthly Trend Chart -->
+          <h4 style="font-size:13px;font-weight:700;margin:14px 0 8px;color:var(--text-sec)">📊 Capital Tied Up Over Time</h4>
+          <div style="background:var(--bg);padding:14px;border-radius:8px;border:1px solid var(--border)">
+            ${renderTrendChart(months, c)}
+          </div>
+          
+          <!-- Top 10 Most Persistent Items -->
+          <h4 style="font-size:13px;font-weight:700;margin:18px 0 8px;color:var(--text-sec)">🔥 Top 10 Most Persistent Dead Stock</h4>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>#</th><th>Product</th><th>Times Flagged</th><th>First → Last</th><th>Total Capital</th></tr></thead>
+              <tbody>
+                ${chronic.items.slice(0, 10).map((item, idx) => `
+                  <tr>
+                    <td><strong>${idx + 1}</strong></td>
+                    <td><strong>${esc(item.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(item.Club_Country)} • ${esc(item.Size || '-')}</small></td>
+                    <td><span class="badge badge-w" style="font-size:11px">${item.appearances}× snapshots</span></td>
+                    <td><small>${formatMonthLabel(item.firstSeen)} → ${formatMonthLabel(item.lastSeen)}</small></td>
+                    <td><strong style="color:var(--warning)">${c}${item.totalCapitalAcrossMonths.toLocaleString()}</strong></td>
+                  </tr>
+                `).join('') || '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted)">No chronic items yet — need 2+ snapshots</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        
+        <!-- CHRONIC ITEMS TAB -->
+        <div class="dsh-content" id="dsh-chronic" style="display:none">
+          <div style="background:rgba(239,68,68,.08);padding:12px;border-radius:8px;border-left:3px solid var(--danger);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-fire" style="color:var(--danger)"></i>
+            <strong>Chronic dead stock</strong> = products that appeared in <strong>2 or more</strong> monthly snapshots. These are your biggest cash drains.
+          </div>
+          ${chronic.items.length ? `
+            <div class="tbl-wrap"><table>
+              <thead><tr>
+                <th>#</th><th>Product</th><th>Flagged In</th><th>Total Capital Wasted</th>
+                <th>Latest Stock</th><th>Latest Days</th><th>Actions</th>
+              </tr></thead>
+              <tbody>
+                ${chronic.items.map((item, idx) => `
+                  <tr>
+                    <td><strong>${idx + 1}</strong></td>
+                    <td>
+                      <strong>${esc(item.ProductName)}</strong><br>
+                      <small style="color:var(--text-muted)">${esc(item.Club_Country)} • ${esc(item.Edition)} • ${esc(item.Size || '-')}</small>
+                    </td>
+                    <td><strong>${item.appearances}</strong> snapshot${item.appearances !== 1 ? 's' : ''}<br><small style="color:var(--text-muted)">${item.months.length} months</small></td>
+                    <td><strong style="color:var(--danger);font-size:13px">${c}${item.totalCapitalAcrossMonths.toLocaleString()}</strong></td>
+                    <td>${item.latestStock}</td>
+                    <td><strong>${item.latestDays}d</strong></td>
+                    <td><div class="btn-group">
+                      <button class="btn btn-outline btn-sm" onclick="closeModal('deadStockHistoryModal');closeModal('invInsightsModal');showProductDetails('${item.ProductID}')"><i class="fas fa-eye"></i></button>
+                    </div></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table></div>
+          ` : '<div style="padding:30px;text-align:center;color:var(--text-muted)"><i class="fas fa-info-circle"></i> Need at least 2 monthly snapshots to detect chronic items</div>'}
+        </div>
+        
+        <!-- CATEGORY TRENDS TAB -->
+        <div class="dsh-content" id="dsh-trends" style="display:none">
+          <div style="background:rgba(139,92,246,.08);padding:12px;border-radius:8px;border-left:3px solid var(--purple);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-tag" style="color:var(--purple)"></i>
+            See which <strong>categories</strong> (clubs, editions, types) consistently produce dead stock across all snapshots.
+          </div>
+          
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
+            <!-- Top Problem Clubs -->
+            <div>
+              <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-sec)">🏟 Top Problem Clubs</h4>
+              <div class="tbl-wrap"><table>
+                <thead><tr><th>Club</th><th>Items</th><th>Capital Wasted</th></tr></thead>
+                <tbody>
+                  ${chronic.categoryTrends.clubs.map(club => `
+                    <tr>
+                      <td><strong>${esc(club.name)}</strong></td>
+                      <td>${club.uniqueProducts} prods<br><small style="color:var(--text-muted)">${club.appearances}× flagged</small></td>
+                      <td><strong style="color:var(--warning)">${c}${club.totalCapital.toLocaleString()}</strong></td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">No data</td></tr>'}
+                </tbody>
+              </table></div>
+            </div>
+            
+            <!-- Top Problem Editions -->
+            <div>
+              <h4 style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--text-sec)">🏅 Top Problem Editions</h4>
+              <div class="tbl-wrap"><table>
+                <thead><tr><th>Edition</th><th>Items</th><th>Capital</th></tr></thead>
+                <tbody>
+                  ${chronic.categoryTrends.editions.map(ed => `
+                    <tr>
+                      <td><strong>${esc(ed.name)}</strong></td>
+                      <td>${ed.uniqueProducts}<br><small style="color:var(--text-muted)">${ed.appearances}×</small></td>
+                      <td><strong style="color:var(--warning)">${c}${ed.totalCapital.toLocaleString()}</strong></td>
+                    </tr>
+                  `).join('') || '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-muted)">No data</td></tr>'}
+                </tbody>
+              </table></div>
+            </div>
+          </div>
+          
+          <h4 style="font-size:13px;font-weight:700;margin:18px 0 10px;color:var(--text-sec)">👕 Top Problem Types</h4>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Type</th><th>Unique Products</th><th>Times Flagged</th><th>Total Capital</th></tr></thead>
+            <tbody>
+              ${chronic.categoryTrends.types.map(t => `
+                <tr>
+                  <td><strong>${esc(t.name)}</strong></td>
+                  <td>${t.uniqueProducts}</td>
+                  <td>${t.appearances}</td>
+                  <td><strong style="color:var(--warning)">${c}${t.totalCapital.toLocaleString()}</strong></td>
+                </tr>
+              `).join('') || '<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text-muted)">No data</td></tr>'}
+            </tbody>
+          </table></div>
+        </div>
+        
+        <!-- MONTHLY SNAPSHOTS TAB -->
+        <div class="dsh-content" id="dsh-months" style="display:none">
+          <div style="background:rgba(59,130,246,.08);padding:12px;border-radius:8px;border-left:3px solid var(--primary);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+            <i class="fas fa-calendar" style="color:var(--primary)"></i>
+            All saved monthly snapshots. Click any month to see its full report.
+          </div>
+          <div class="tbl-wrap"><table>
+            <thead><tr><th>Month</th><th>Snapshot Date</th><th>Items</th><th>Total Units</th><th>Capital Tied Up</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${months.map(m => `
+                <tr>
+                  <td><strong>${formatMonthLabel(m.month)}</strong></td>
+                  <td><small>${fmtD(m.snapshotDate)}</small></td>
+                  <td><span class="badge badge-w">${m.items.length}</span></td>
+                  <td>${m.totalUnits}</td>
+                  <td><strong style="color:var(--warning)">${c}${m.totalCapital.toLocaleString()}</strong></td>
+                  <td><div class="btn-group">
+                    <button class="btn btn-outline btn-sm" onclick="viewMonthlySnapshot('${m.month}')" title="View details"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-danger btn-sm" onclick="deleteMonthlySnapshot('${m.month}')" title="Delete this snapshot"><i class="fas fa-trash"></i></button>
+                  </div></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table></div>
+        </div>
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('deadStockHistoryModal')">Close</button>
+      </div>
+    </div></div>
+    <style>
+      .dsh-tab { white-space:nowrap; }
+      .dsh-tab.active-dsh-tab { background:var(--primary-light); color:var(--primary); border-color:var(--primary); }
+    </style>
+  `);
+  
+  window._deadStockHistory = history;
+  window._deadStockByMonth = byMonth;
+  openModal('deadStockHistoryModal');
+}
+
+function switchDSHTab(tab) {
+  document.querySelectorAll('.dsh-content').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.dsh-tab').forEach(el => el.classList.remove('active-dsh-tab'));
+  const target = document.getElementById('dsh-' + tab);
+  if (target) target.style.display = 'block';
+  document.querySelector(`.dsh-tab[data-tab="${tab}"]`)?.classList.add('active-dsh-tab');
+}
+
+function formatMonthLabel(monthKey) {
+  // monthKey is "2024-12"
+  const [year, month] = monthKey.split('-');
+  const date = new Date(year, parseInt(month) - 1, 1);
+  return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+}
+
+function renderTrendChart(months, currency) {
+  if (months.length === 0) return '<div style="text-align:center;color:var(--text-muted);padding:20px">No data</div>';
+  
+  // Sort by month ascending for chart
+  const sorted = [...months].sort((a, b) => a.month.localeCompare(b.month));
+  const maxCapital = Math.max(...sorted.map(m => m.totalCapital));
+  
+  return `
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:8px;height:160px;padding-top:10px">
+      ${sorted.map(m => {
+        const heightPct = maxCapital > 0 ? (m.totalCapital / maxCapital * 100) : 0;
+        const isLatest = m.month === sorted[sorted.length - 1].month;
+        return `
+          <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:60px">
+            <div style="font-size:10px;color:var(--text-muted);font-weight:600">${currency}${(m.totalCapital/1000).toFixed(0)}k</div>
+            <div style="width:100%;background:linear-gradient(to top, ${isLatest ? 'var(--danger), var(--warning)' : 'var(--primary), var(--purple)'});border-radius:4px 4px 0 0;height:${Math.max(heightPct, 4)}%;min-height:4px;transition:all .3s;cursor:pointer" title="${formatMonthLabel(m.month)}: ${currency}${m.totalCapital.toLocaleString()} • ${m.items.length} items"></div>
+            <div style="font-size:10px;color:var(--text-muted);text-align:center;white-space:nowrap">${formatMonthLabel(m.month).replace(' ', '\n')}</div>
+            <div style="font-size:10px;font-weight:700">${m.items.length}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div style="text-align:center;font-size:10px;color:var(--text-muted);margin-top:8px">
+      <span style="display:inline-block;width:10px;height:10px;background:linear-gradient(to top, var(--primary), var(--purple));border-radius:2px;vertical-align:middle"></span> Past months
+      <span style="display:inline-block;width:10px;height:10px;background:linear-gradient(to top, var(--danger), var(--warning));border-radius:2px;vertical-align:middle;margin-left:14px"></span> Latest snapshot
+    </div>
+  `;
+}
+
+async function viewMonthlySnapshot(monthKey) {
+  const monthData = window._deadStockByMonth[monthKey];
+  if (!monthData) return;
+  
+  const c = C();
+  const sorted = [...monthData.items].sort((a, b) => Number(b.CapitalTied) - Number(a.CapitalTied));
+  
+  let m = document.getElementById('monthSnapshotModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay active" id="monthSnapshotModal" style="z-index:3000"><div class="modal" style="max-width:900px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-camera" style="color:var(--primary);margin-right:6px"></i>${formatMonthLabel(monthKey)} Snapshot</h3>
+        <button class="modal-close" onclick="closeModal('monthSnapshotModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:var(--bg);padding:12px;border-radius:8px;margin-bottom:14px;display:flex;justify-content:space-around;text-align:center;flex-wrap:wrap;gap:10px">
+          <div><strong style="font-size:18px">${sorted.length}</strong><br><small style="color:var(--text-muted)">items</small></div>
+          <div><strong style="font-size:18px">${monthData.totalUnits}</strong><br><small style="color:var(--text-muted)">units</small></div>
+          <div><strong style="font-size:18px;color:var(--warning)">${c}${monthData.totalCapital.toLocaleString()}</strong><br><small style="color:var(--text-muted)">capital</small></div>
+          <div><strong style="font-size:14px">${fmtD(monthData.snapshotDate)}</strong><br><small style="color:var(--text-muted)">saved on</small></div>
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>#</th><th>Product</th><th>Stock</th><th>Capital</th><th>Days</th><th>Urgency</th></tr></thead>
+          <tbody>
+            ${sorted.map((item, idx) => `
+              <tr>
+                <td>${idx + 1}</td>
+                <td><strong>${esc(item.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(item.Club_Country)} • ${esc(item.Size || '-')}</small></td>
+                <td>${item.Stock}</td>
+                <td><strong style="color:var(--warning)">${c}${Number(item.CapitalTied).toLocaleString()}</strong></td>
+                <td>${item.DaysInactive}d</td>
+                <td><span class="badge badge-${item.Urgency === 'CRITICAL' ? 'd' : item.Urgency === 'HIGH' ? 'w' : item.Urgency === 'MEDIUM' ? 'i' : 'p'}">${item.Urgency}</span></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('monthSnapshotModal')">Close</button>
+      </div>
+    </div></div>
+  `);
+}
+
+async function deleteMonthlySnapshot(monthKey) {
+  if (!confirm(`Delete the snapshot for ${formatMonthLabel(monthKey)}?\n\nThis cannot be undone.`)) return;
+  
+  const result = await apiPost('deleteDeadStockSnapshot', { monthKey });
+  if (result.success) {
+    toast(`Snapshot deleted (${result.deleted} entries)`, 'success');
+    closeModal('deadStockHistoryModal');
+    openDeadStockHistory();
+  }
+}
   
   // ============================================================
   // ADD MODE: Variant builder
