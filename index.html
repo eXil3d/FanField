@@ -614,9 +614,114 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
   .inv-preview *{color:#000!important}
   .inv-preview .inv-table th{background:#2563eb!important;color:#fff!important}
 }
+
+/* ============================================================
+   SKELETON SCREENS — Shimmer loading placeholders
+   ============================================================ */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.skel {
+  background: linear-gradient(90deg,
+    var(--bg) 0%,
+    var(--surface-hover) 40%,
+    var(--surface-hover) 60%,
+    var(--bg) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+  border-radius: 4px;
+  display: inline-block;
+  height: 14px;
+  width: 100%;
+}
+
+.skel-text { height: 12px; margin: 4px 0; }
+.skel-title { height: 18px; width: 200px; }
+.skel-stat { height: 28px; width: 80px; }
+.skel-circle { border-radius: 50%; width: 36px; height: 36px; }
+.skel-btn { height: 32px; width: 90px; border-radius: var(--radius-sm); }
+
+/* ============================================================
+   TOP PROGRESS BAR
+   ============================================================ */
+.top-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--primary), var(--purple), var(--primary));
+  background-size: 200% 100%;
+  z-index: 10000;
+  width: 0%;
+  opacity: 0;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+  box-shadow: 0 0 10px var(--primary), 0 0 4px var(--purple);
+  animation: progressGlow 1.5s infinite linear;
+}
+.top-progress.active { opacity: 1; }
+@keyframes progressGlow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* ============================================================
+   PAGE TRANSITION FADE
+   ============================================================ */
+#contentArea > * {
+  animation: contentFadeIn 0.25s ease-out;
+}
+@keyframes contentFadeIn {
+  from { opacity: 0.5; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ============================================================
+   SUBTLE "DATA REFRESHED" INDICATOR
+   ============================================================ */
+.refresh-pulse {
+  animation: refreshPulse 0.6s ease-out;
+}
+@keyframes refreshPulse {
+  0% { background-color: rgba(16, 185, 129, 0.15); }
+  100% { background-color: transparent; }
+}
+
+/* ============================================================
+   BUTTON LOADING STATE
+   ============================================================ */
+.btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+  pointer-events: none;
+}
+.btn:active {
+  transform: scale(0.97);
+}
+
+/* ============================================================
+   PREFETCH HINT (subtle)
+   ============================================================ */
+.nav-item.prefetched::after {
+  content: '';
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--secondary);
+  opacity: 0.5;
+}
+  
 </style>
 </head>
 <body>
+  <!-- Top loading progress bar (NProgress style) -->
+  <div class="top-progress" id="topProgress"></div>
 <div class="toast-container" id="toastBox"></div>
 <div class="app">
 <aside class="sidebar" id="sidebar">
@@ -676,7 +781,7 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
     </div>
     <div class="topbar-right">
       <span class="sync-status" id="syncSt">Ready</span>
-      <button class="btn-icon" onclick="refreshPage()"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
+      <button class="btn-icon" onclick="hardRefresh(event)" title="Refresh (Shift+click to clear cache)"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
     </div>
   </div>
   <div class="content" id="contentArea"></div>
@@ -703,6 +808,506 @@ const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Trai
 const EDITION_ORDER={'Player Edition':1,'Fan Edition':2,'Special Edition':3,'BD Premium':4};
 
 let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],settings:{},dashboard:null,currency:'৳'};
+// ============================================================
+// ⚡ PERFORMANCE LAYER — Cache + Progress + Skeleton + Optimistic
+// ============================================================
+
+// ============ TOP PROGRESS BAR ============
+let activeRequests = 0;
+let progressTimer;
+
+function showProgress() {
+  activeRequests++;
+  const bar = document.getElementById('topProgress');
+  if (!bar) return;
+  bar.classList.add('active');
+  
+  // Animate progressively (gives illusion of progress)
+  clearTimeout(progressTimer);
+  let width = parseInt(bar.style.width) || 0;
+  
+  const grow = () => {
+    if (activeRequests <= 0) return;
+    if (width < 90) {
+      // Slow down as it approaches 90%
+      const increment = width < 30 ? 20 : width < 60 ? 10 : width < 80 ? 4 : 1;
+      width = Math.min(90, width + increment);
+      bar.style.width = width + '%';
+      progressTimer = setTimeout(grow, 300);
+    }
+  };
+  
+  if (width === 0) {
+    bar.style.width = '15%';
+    width = 15;
+    progressTimer = setTimeout(grow, 200);
+  }
+}
+
+function hideProgress() {
+  activeRequests = Math.max(0, activeRequests - 1);
+  if (activeRequests === 0) {
+    clearTimeout(progressTimer);
+    const bar = document.getElementById('topProgress');
+    if (!bar) return;
+    bar.style.width = '100%';
+    setTimeout(() => {
+      bar.classList.remove('active');
+      setTimeout(() => { bar.style.width = '0%'; }, 200);
+    }, 200);
+  }
+}
+
+// ============ LOCALSTORAGE CACHE ============
+const LS_PREFIX = 'ff_cache_';
+const LS_TTL = 5 * 60 * 1000; // 5 minutes
+
+function hardRefresh(event) {
+  if (event && event.shiftKey) {
+    lsCacheClearAll();
+    toast('Cache cleared — fetching fresh data', 'success');
+  }
+  refreshPage();
+}
+
+function refreshPage() {
+  const page = currentPage || 'search';
+  renderPage(page);
+}
+  
+function lsCacheGet(key) {
+  try {
+    const raw = localStorage.getItem(LS_PREFIX + key);
+    if (!raw) return null;
+    const obj = JSON.parse(raw);
+    const age = Date.now() - obj.time;
+    return {
+      data: obj.data,
+      age,
+      stale: age > LS_TTL
+    };
+  } catch { return null; }
+}
+
+function lsCacheSet(key, data) {
+  try {
+    localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data, time: Date.now() }));
+  } catch (e) {
+    // Storage full — clear old entries
+    Object.keys(localStorage)
+      .filter(k => k.startsWith(LS_PREFIX))
+      .forEach(k => localStorage.removeItem(k));
+    try { localStorage.setItem(LS_PREFIX + key, JSON.stringify({ data, time: Date.now() })); } catch {}
+  }
+}
+
+function lsCacheInvalidate(...keys) {
+  keys.forEach(k => localStorage.removeItem(LS_PREFIX + k));
+}
+
+function lsCacheClearAll() {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith(LS_PREFIX))
+    .forEach(k => localStorage.removeItem(k));
+}
+
+// ============ SMART API GET (cache-first, refresh-in-background) ============
+async function apiGetSmart(action, opts = {}) {
+  const { 
+    forceRefresh = false, 
+    onFreshData = null,  // callback when fresh data arrives
+    skipCache = false 
+  } = opts;
+  
+  // Skip cache entirely (for sensitive data)
+  if (skipCache || forceRefresh) {
+    const fresh = await apiGet(action);
+    if (!skipCache) lsCacheSet(action, fresh);
+    return fresh;
+  }
+  
+  const cached = lsCacheGet(action);
+  
+  // CASE 1: Have fresh cache → return immediately, no network call
+  if (cached && !cached.stale) {
+    return cached.data;
+  }
+  
+  // CASE 2: Have stale cache → return immediately + refresh in background
+  if (cached && cached.stale) {
+    // Fire-and-forget background refresh
+    apiGet(action).then(fresh => {
+      lsCacheSet(action, fresh);
+      // Notify caller if they want fresh data
+      if (onFreshData) onFreshData(fresh);
+      // Fire global event so UI can update silently
+      document.dispatchEvent(new CustomEvent('data-refreshed', { 
+        detail: { action, data: fresh } 
+      }));
+    }).catch(err => console.warn('Background refresh failed:', err));
+    
+    return cached.data; // return stale data INSTANTLY
+  }
+  
+  // CASE 3: No cache → must wait
+  const fresh = await apiGet(action);
+  lsCacheSet(action, fresh);
+  return fresh;
+}
+
+// ============ SMART API POST (with cache invalidation) ============
+async function apiPostSmart(action, data, invalidate = []) {
+  const result = await apiPost(action, data);
+  if (result.success) {
+    lsCacheInvalidate(...invalidate);
+  }
+  return result;
+}
+
+// ============ WRAP EXISTING APIGET/APIPOST WITH PROGRESS ============
+const _originalApiGet = window.apiGet;
+const _originalApiPost = window.apiPost;
+
+window.apiGet = async function(action) {
+  showProgress();
+  try {
+    return await _originalApiGet(action);
+  } finally {
+    hideProgress();
+  }
+};
+
+// Map of which cache keys to invalidate when each action runs
+const INVALIDATE_MAP = {
+  // Inventory
+  addProduct: ['getInventory', 'getDashboard'],
+  updateProduct: ['getInventory', 'getDashboard'],
+  deleteProduct: ['getInventory', 'getDashboard'],
+  updateStock: ['getInventory', 'getDashboard', 'getStockLog'],
+  addBatch: ['getInventory', 'getDashboard', 'getStockLog'],
+  
+  // Sales
+  addSale: ['getSales', 'getInventory', 'getDashboard', 'getCustomers', 'getPayments', 'getStockLog', 'getSalesItems'],
+  updateSale: ['getSales', 'getDashboard', 'getCustomers', 'getPayments'],
+  deleteSale: ['getSales', 'getInventory', 'getDashboard', 'getCustomers', 'getPayments', 'getStockLog'],
+  reverseSale: ['getSales', 'getInventory', 'getDashboard', 'getCustomers', 'getPayments', 'getStockLog'],
+  adjustSaleAmount: ['getSales', 'getDashboard', 'getCustomers', 'getPayments'],
+  
+  // Customers
+  addCustomer: ['getCustomers', 'getDashboard'],
+  updateCustomer: ['getCustomers'],
+  deleteCustomer: ['getCustomers', 'getDashboard'],
+  
+  // Payments
+  addPayment: ['getPayments', 'getSales', 'getDashboard', 'getCustomers'],
+  
+  // Suppliers
+  addSupplier: ['getSuppliers'],
+  updateSupplier: ['getSuppliers'],
+  deleteSupplier: ['getSuppliers'],
+  addSupplierPayment: ['getSuppliers', 'getDashboard'],
+  
+  // Expenses
+  addExpense: ['getExpenses', 'getDashboard'],
+  updateExpense: ['getExpenses', 'getDashboard'],
+  deleteExpense: ['getExpenses', 'getDashboard'],
+  
+  // Pre-orders
+  addPreorder: ['getPreorders'],
+  updatePreorder: ['getPreorders'],
+  deletePreorder: ['getPreorders'],
+  
+  // Affiliates
+  addAffiliate: ['getAffiliates'],
+  updateAffiliate: ['getAffiliates'],
+  deleteAffiliate: ['getAffiliates'],
+  
+  // Vouchers
+  addVoucher: ['getVouchers'],
+  updateVoucher: ['getVouchers'],
+  deleteVoucher: ['getVouchers'],
+  
+  // Delivery
+  updateDelivery: ['getDeliveries', 'getSales'],
+  
+  // Settings
+  updateSettings: ['getSettings']
+};
+
+window.apiPost = async function(action, data) {
+  showProgress();
+  try {
+    const result = await _originalApiPost(action, data);
+    // Auto-invalidate relevant caches on success
+    if (result && result.success !== false) {
+      const keys = INVALIDATE_MAP[action];
+      if (keys) lsCacheInvalidate(...keys);
+    }
+    return result;
+  } finally {
+    hideProgress();
+  }
+};
+
+// ============================================================
+// SKELETON SCREENS — Loading placeholders that match content
+// ============================================================
+
+function skelTable(rows = 8, cols = 6) {
+  let html = '<div class="card">';
+  html += '<div class="card-hdr"><div class="skel skel-title"></div></div>';
+  html += '<div class="card-body np"><div class="tbl-wrap"><table>';
+  html += '<thead><tr>';
+  for (let i = 0; i < cols; i++) {
+    html += `<th><div class="skel" style="width:${50 + Math.random() * 40}%;height:11px"></div></th>`;
+  }
+  html += '</tr></thead><tbody>';
+  for (let r = 0; r < rows; r++) {
+    html += '<tr>';
+    for (let c = 0; c < cols; c++) {
+      html += `<td><div class="skel" style="width:${40 + Math.random() * 55}%;height:12px"></div></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div></div></div>';
+  return html;
+}
+
+function skelStats(count = 4) {
+  let html = '<div class="stats-grid">';
+  for (let i = 0; i < count; i++) {
+    html += `<div class="stat-card">
+      <div class="stat-hdr"><div class="skel skel-circle"></div></div>
+      <div class="skel skel-stat" style="margin:8px 0"></div>
+      <div class="skel" style="width:60%;height:11px"></div>
+    </div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function skelDashboard() {
+  return skelStats(4) + skelTable(6, 5);
+}
+
+function skelInventory() {
+  let html = skelStats(0); // no stats on inventory
+  html = '<div class="card">';
+  html += '<div class="card-hdr"><div style="display:flex;gap:10px;width:100%">';
+  html += '<div class="skel" style="height:36px;width:240px"></div>';
+  html += '<div class="skel" style="height:36px;width:100px"></div>';
+  html += '<div class="skel" style="height:36px;width:100px"></div>';
+  html += '<div style="flex:1"></div>';
+  html += '<div class="skel skel-btn"></div>';
+  html += '<div class="skel skel-btn"></div>';
+  html += '</div></div>';
+  html += '<div style="padding:12px 22px"><div class="skel" style="height:14px;width:60%"></div></div>';
+  html += '<div class="card-body np"><div class="tbl-wrap"><table>';
+  html += '<thead><tr>';
+  for (let i = 0; i < 8; i++) html += `<th><div class="skel" style="width:70%;height:11px"></div></th>`;
+  html += '</tr></thead><tbody>';
+  for (let r = 0; r < 10; r++) {
+    html += '<tr>';
+    for (let c = 0; c < 8; c++) {
+      html += `<td><div class="skel" style="width:${40 + Math.random() * 50}%;height:12px"></div></td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table></div></div></div>';
+  return html;
+}
+
+function skelSearch() {
+  return `<div style="max-width:800px;margin:60px auto 0;text-align:center">
+    <div class="skel skel-circle" style="width:80px;height:80px;margin:0 auto 20px"></div>
+    <div class="skel" style="height:36px;width:60%;margin:0 auto 8px"></div>
+    <div class="skel" style="height:14px;width:40%;margin:0 auto 32px"></div>
+    <div class="skel" style="height:60px;border-radius:14px;margin-bottom:40px"></div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      ${Array(4).fill('<div class="skel" style="height:80px;border-radius:12px"></div>').join('')}
+    </div>
+  </div>`;
+}
+
+function skelForPage(page) {
+  switch (page) {
+    case 'dashboard': return skelDashboard();
+    case 'inventory': return skelInventory();
+    case 'search': return skelSearch();
+    case 'customers':
+    case 'sales':
+    case 'expenses':
+    case 'suppliers':
+    case 'payments':
+    case 'delivery':
+    case 'adjustments':
+    case 'stockHistory':
+    case 'preorders':
+    case 'affiliates':
+    case 'vouchers':
+      return skelStats(4) + skelTable(8, 7);
+    case 'pos':
+      return `<div class="card"><div class="card-hdr"><div class="skel skel-title"></div></div>
+        <div class="card-body">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+            ${Array(4).fill('<div class="skel" style="height:38px"></div>').join('')}
+          </div>
+          ${skelTable(5, 8)}
+        </div></div>`;
+    default: return skelTable(8, 6);
+  }
+}
+
+// ============================================================
+// SILENT REFRESH NOTIFICATION
+// ============================================================
+let lastRefreshToast = 0;
+function showRefreshToast() {
+  // Throttle so we don't spam toasts
+  const now = Date.now();
+  if (now - lastRefreshToast < 3000) return;
+  lastRefreshToast = now;
+  
+  // Subtle toast
+  const existing = document.getElementById('refreshToast');
+  if (existing) existing.remove();
+  
+  const t = document.createElement('div');
+  t.id = 'refreshToast';
+  t.style.cssText = `
+    position: fixed; bottom: 80px; right: 20px;
+    background: var(--surface); border: 1px solid var(--secondary);
+    color: var(--secondary); padding: 8px 14px;
+    border-radius: 20px; font-size: 11.5px; font-weight: 600;
+    box-shadow: var(--shadow-md); z-index: 9000;
+    display: flex; align-items: center; gap: 6px;
+    animation: slideInRight 0.3s ease-out;
+  `;
+  t.innerHTML = '<i class="fas fa-check-circle"></i> Data updated';
+  document.body.appendChild(t);
+  setTimeout(() => {
+    t.style.transition = 'opacity 0.4s, transform 0.4s';
+    t.style.opacity = '0';
+    t.style.transform = 'translateX(20px)';
+    setTimeout(() => t.remove(), 400);
+  }, 1800);
+}
+
+// Listen for background data refreshes
+document.addEventListener('data-refreshed', (e) => {
+  showRefreshToast();
+  
+  // Update global state silently
+  const { action, data } = e.detail;
+  if (action === 'getInventory') S.inventory = data;
+  else if (action === 'getCustomers') S.customers = data;
+  else if (action === 'getSales') S.sales = data;
+  else if (action === 'getSuppliers') S.suppliers = data;
+  else if (action === 'getExpenses') S.expenses = data;
+  else if (action === 'getSettings') S.settings = data || S.settings;
+});
+
+// ============================================================
+// PREFETCH ON HOVER — Warm cache before user clicks
+// ============================================================
+const PREFETCH_MAP = {
+  dashboard: ['getDashboard'],
+  inventory: ['getInventory'],
+  pos: ['getInventory', 'getCustomers', 'getSettings'],
+  sales: ['getSales'],
+  customers: ['getCustomers'],
+  suppliers: ['getSuppliers'],
+  expenses: ['getExpenses'],
+  payments: ['getSales', 'getPayments'],
+  delivery: ['getSales', 'getDeliveries'],
+  preorders: ['getPreorders'],
+  stockHistory: ['getStockLog'],
+  adjustments: ['getSales', 'getPayments'],
+  affiliates: ['getAffiliates'],
+  vouchers: ['getVouchers']
+};
+
+const prefetched = new Set();
+
+function setupPrefetch() {
+  document.querySelectorAll('.nav-item[data-page]').forEach(el => {
+    let timer;
+    
+    el.addEventListener('mouseenter', () => {
+      const page = el.dataset.page;
+      if (!page || prefetched.has(page)) return;
+      
+      timer = setTimeout(async () => {
+        const actions = PREFETCH_MAP[page] || [];
+        if (!actions.length) return;
+        
+        prefetched.add(page);
+        el.classList.add('prefetched');
+        
+        // Fetch in background (silent — no progress bar)
+        actions.forEach(action => {
+          const cached = lsCacheGet(action);
+          if (!cached || cached.stale) {
+            _originalApiGet(action).then(data => {
+              lsCacheSet(action, data);
+            }).catch(() => {});
+          }
+        });
+      }, 250); // 250ms hover delay to avoid trigger-happy fetches
+    });
+    
+    el.addEventListener('mouseleave', () => clearTimeout(timer));
+  });
+}
+
+// Idle prefetch — load common pages when browser is idle
+function idlePrefetch() {
+  const idleCb = window.requestIdleCallback || ((cb) => setTimeout(cb, 1000));
+  
+  idleCb(() => {
+    const priorities = ['getInventory', 'getCustomers', 'getSales'];
+    priorities.forEach((action, i) => {
+      setTimeout(() => {
+        const cached = lsCacheGet(action);
+        if (!cached) {
+          _originalApiGet(action).then(data => lsCacheSet(action, data)).catch(() => {});
+        }
+      }, i * 500); // stagger to avoid hammering the server
+    });
+  }, { timeout: 3000 });
+}
+
+// ============================================================
+// OPTIMISTIC UI HELPER — Update UI before server confirms
+// ============================================================
+async function optimisticAction({
+  ui,           // function that updates UI immediately
+  rollback,     // function that reverts UI if action fails
+  action,       // async function that calls the server
+  successMsg = 'Done!',
+  errorMsg = 'Action failed',
+  invalidate = [] // cache keys to invalidate on success
+}) {
+  // 1. Update UI immediately
+  try { ui(); } catch (e) { console.warn('Optimistic UI failed:', e); }
+  
+  // 2. Send to server in background
+  try {
+    const result = await action();
+    if (result && result.success !== false) {
+      toast(successMsg, 'success');
+      lsCacheInvalidate(...invalidate);
+      return result;
+    } else {
+      throw new Error(result?.error || errorMsg);
+    }
+  } catch (err) {
+    // 3. Rollback on failure
+    try { rollback(); } catch (e) { console.warn('Rollback failed:', e); }
+    toast(errorMsg + ': ' + err.message, 'error');
+    throw err;
+  }
+}
 let currentPage='inventory';
 let invSortCol='smart',invSortDir='asc';
 
@@ -812,12 +1417,39 @@ function nav(page) {
 }document.querySelectorAll('.nav-item').forEach(n=>n.addEventListener('click',()=>nav(n.dataset.page)));
 function refreshPage(){renderPage(currentPage)}
 
-async function renderPage(page){
-  const area=document.getElementById('contentArea');
-  area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
-  try{switch(page){
-    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
-  }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
+async function renderPage(page) {
+  const area = document.getElementById('contentArea');
+  
+  // Show skeleton instantly (no spinner — feels much faster)
+  area.innerHTML = skelForPage(page);
+  
+  try {
+    switch (page) {
+      case 'search': await renderSearchPage(area); break;
+      case 'dashboard': await renderDashboard(area); break;
+      case 'inventory': await renderInventory(area); break;
+      case 'pos': await renderPOS(area); break;
+      case 'sales': await renderSales(area); break;
+      case 'delivery': await renderDelivery(area); break;
+      case 'customers': await renderCustomers(area); break;
+      case 'preorders': await renderPreorders(area); break;
+      case 'payments': await renderPayments(area); break;
+      case 'suppliers': await renderSuppliers(area); break;
+      case 'stockHistory': await renderStockHistory(area); break;
+      case 'expenses': await renderExpenses(area); break;
+      case 'adjustments': await renderAdjustments(area); break;
+      case 'affiliates': await renderAffiliates(area); break;
+      case 'vouchers': await renderVouchers(area); break;
+      case 'settings': await renderSettings(area); break;
+    }
+  } catch (e) {
+    console.error('Page render error:', e);
+    area.innerHTML = `<div class="loading" style="color:var(--danger);flex-direction:column;gap:12px">
+      <i class="fas fa-exclamation-circle" style="font-size:32px"></i>
+      <div>Failed to load — ${e.message || 'check connection'}</div>
+      <button class="btn btn-outline btn-sm" onclick="renderPage('${page}')"><i class="fas fa-rotate"></i> Retry</button>
+    </div>`;
+  }
 }
 // ============================================================
 // PHONE NUMBER FORMATTER (Bangladesh format: 017-1234-5678)
@@ -922,10 +1554,10 @@ function statCard(icon,color,val,label){return`<div class="stat-card"><div class
 // SEARCH PAGE — Actually useful landing page
 // ============================================================
 async function renderSearchPage(area) {
-  // Preload data if not loaded
-  if (!S.customers.length) S.customers = await apiGet('getCustomers');
-  if (!S.sales.length) S.sales = await apiGet('getSales');
-  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  // Use smart cache (instant if cached, fetches in background if stale)
+  if (!S.customers || !S.customers.length) S.customers = await apiGetSmart('getCustomers');
+  if (!S.sales || !S.sales.length) S.sales = await apiGetSmart('getSales');
+  if (!S.inventory || !S.inventory.length) S.inventory = await apiGetSmart('getInventory');
   
   const c = C();
   area.innerHTML = `
@@ -998,7 +1630,7 @@ async function renderSearchPage(area) {
 function openWishlistFromSearch() {
   // Open the pre-order modal with empty data
   if (!S.customers.length) {
-    apiGet('getCustomers').then(d => { S.customers = d; openPreorderModal(); });
+    apiGetSmart('getCustomers').then(d => { S.customers = d; openPreorderModal(); });
   } else {
     openPreorderModal();
   }
@@ -1564,7 +2196,7 @@ async function showCustomerDetails(custId) {
   if (!cu) { toast('Customer not found', 'error'); return; }
   
   // Get customer's sales
-  if (!S.sales.length) S.sales = await apiGet('getSales');
+  if (!S.sales.length) S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
   const customerSales = S.sales.filter(s => s.CustomerID === custId).sort((a, b) => new Date(b.Date) - new Date(a.Date));
   
   const c = C();
@@ -1575,7 +2207,7 @@ async function showCustomerDetails(custId) {
   const daysSinceLastOrder = lastOrder ? Math.floor((Date.now() - new Date(lastOrder.Date).getTime()) / (1000 * 60 * 60 * 24)) : null;
   
   // Get pre-orders for this customer
-  if (!S.preorders) S.preorders = await apiGet('getPreorders');
+  if (!S.preorders) S.preorders = await apiGetSmart('getPreorders');
   const activePreorders = (S.preorders || []).filter(p => p.CustomerID === custId && p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
   
   let m = document.getElementById('custDetailsModal');
@@ -1682,13 +2314,13 @@ async function showProductDetails(productId) {
   if (!p) { toast('Product not found', 'error'); return; }
   
   // Get sales for this product
-  const salesItems = await apiGet('getSalesItems');
+  const salesItems = await apiGetSmart('getSalesItems');
   const productSales = salesItems.filter(si => si.ProductID === productId);
   const totalSold = productSales.reduce((s, si) => s + (Number(si.Quantity) || 0), 0);
   const totalRevenue = productSales.reduce((s, si) => s + (Number(si.LineTotal) || 0), 0);
   
   // Recent sales for this product
-  if (!S.sales.length) S.sales = await apiGet('getSales');
+  if (!S.sales.length) S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
   const recentInvoices = [...new Set(productSales.slice(-10).map(si => si.InvoiceNo))]
     .map(inv => S.sales.find(s => s.InvoiceNo === inv))
     .filter(s => s)
@@ -1867,7 +2499,7 @@ function sendPaymentReminder(name, phone, amount) {
 // DASHBOARD
 // ============================================================
 async function renderDashboard(area){
-  const d=await apiGet('getDashboard');S.dashboard=d;const c=C();
+  const d=await apiGetSmart('getDashboard');S.dashboard=d;const c=C();
   const pendCount=(d.recentSales||[]).filter(s=>Number(s.DueAmount)>0).length;
   const badge=document.getElementById('pendBadge');
   if(pendCount>0){badge.style.display='';badge.textContent=pendCount}else{badge.style.display='none'}
@@ -1912,7 +2544,7 @@ async function renderDashboard(area){
 // INVENTORY (with filters & sorting)
 // ============================================================
 async function renderInventory(area){
-  S.inventory=await apiGet('getInventory');S.suppliers=await apiGet('getSuppliers');
+  S.inventory=await apiGetSmart('getInventory');S.suppliers=await apiGetSmart('getSuppliers');
   const cats=[...new Set(S.inventory.map(i=>i.Club_Country).filter(Boolean))].sort();
   const eds=[...new Set(S.inventory.map(i=>i.Edition).filter(Boolean))];
   const types=[...new Set(S.inventory.map(i=>i.Type).filter(Boolean))];
@@ -2007,8 +2639,8 @@ async function openInventoryInsights() {
   if (!inv.length) { toast('No inventory data', 'warning'); return; }
   
   // Make sure we have sales for top-performer analysis
-  if (!S.sales.length) S.sales = await apiGet('getSales');
-  const salesItems = await apiGet('getSalesItems');
+  if (!S.sales.length) S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
+  const salesItems = await apiGetSmart('getSalesItems');
   
   const c = C();
   
@@ -2774,7 +3406,26 @@ async function saveProduct(id) {
     }
   }
 }
-async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
+async function delProduct(id) {
+  if (!confirm('Delete this product? This cannot be undone.')) return;
+  
+  const snapshot = [...S.inventory];
+  
+  await optimisticAction({
+    ui: () => {
+      S.inventory = S.inventory.filter(p => p.ID !== id);
+      filterInv();
+    },
+    rollback: () => {
+      S.inventory = snapshot;
+      filterInv();
+    },
+    action: () => apiPost('deleteProduct', { ID: id }),
+    successMsg: 'Product deleted!',
+    errorMsg: 'Failed to delete',
+    invalidate: ['getInventory', 'getDashboard']
+  });
+}
 function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
 async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:document.getElementById('stkMode').value,Stock:document.getElementById('stkQty').value});if(r.success){toast(`Stock: ${r.newStock}`);closeModal('stockModal');renderPage('inventory')}}
 function openAddBatchModal() {
@@ -2892,7 +3543,7 @@ async function saveBatch() {
 // POS - NEW SALE (with delivery, voucher, notes on receipt)
 // ============================================================
 async function renderPOS(area){
-  if(!S.inventory.length)S.inventory=await apiGet('getInventory');if(!S.customers.length)S.customers=await apiGet('getCustomers');if(!S.affiliates.length)S.affiliates=await apiGet('getAffiliates');S.vouchers=await apiGet('getVouchers');S.settings=await apiGet('getSettings');
+  if(!S.inventory.length)S.inventory=await apiGetSmart('getInventory');if(!S.customers.length)S.customers=await apiGetSmart('getCustomers');if(!S.affiliates.length)S.affiliates=await apiGetSmart('getAffiliates');S.vouchers=await apiGetSmart('getVouchers');S.settings=await apiGet('getSettings');
   const dInDhaka=S.settings.deliveryInsideDhaka||80;const dOutDhaka=S.settings.deliveryOutsideDhaka||150;const dCampus=S.settings.deliveryOnCampus||0;
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-cash-register" style="color:var(--primary);margin-right:6px"></i>Create New Sale</h3></div><div class="card-body">
     <div class="fg">
@@ -3057,7 +3708,7 @@ async function saveQuickCustomer() {
     closeModal('quickCustModal');
     
     // Refresh customers list
-    S.customers = await apiGet('getCustomers');
+    S.customers = await apiGetSmart('getCustomers');
     
     // Rebuild the POS customer dropdown with new customer included
     const custSelect = document.getElementById('posCust');
@@ -3172,7 +3823,7 @@ async function submitSale(){
   const payload={CustomerID:custSel.value,CustomerName:custOpt?(custOpt.dataset.name||custOpt.textContent):'Walk-in Customer',CustomerPhone:document.getElementById('posCustPhone').value,Items:items,TotalAmount:document.getElementById('posSub').value,Discount:document.getElementById('posDisc').value,AffiliateCode:document.getElementById('posAffCode').value,AffiliateDiscount:document.getElementById('posAffDisc').value,VoucherCode:document.getElementById('posVchCode').value,VoucherDiscount:document.getElementById('posVchDisc').value,DeliveryType:document.getElementById('posDel').value,DeliveryCharge:document.getElementById('posDelCharge').value,DeliveryAddress:document.getElementById('posDelAddr')?.value||'',PaidAmount:document.getElementById('posPaid').value,PaymentMethod:document.getElementById('posPayM').value,Notes:document.getElementById('posNotes').value};
   if(!confirm(`Complete sale of ${C()}${document.getElementById('posTotal').value}?`))return;
   const r=await apiPost('createSale',payload);
-  if(r.success){toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);showInvoice(r.invoiceNo,payload,items);clearPOS();S.inventory=await apiGet('getInventory')}
+  if(r.success){toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);showInvoice(r.invoiceNo,payload,items);clearPOS();S.inventory=await apiGetSmart('getInventory')}
 }
 
 
@@ -3596,7 +4247,7 @@ function showInvoice(invoiceNo, sd, items) {
 }
 
 async function viewInvoice(invoiceNo) {
-  if (!S.sales.length) S.sales = await apiGet('getSales');
+  if (!S.sales.length) S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
   const sale = S.sales.find(s => String(s.InvoiceNo) === String(invoiceNo));
   if (!sale) { toast('Not found', 'error'); return; }
   const rawItems = await apiGet('getSalesItems', {invoiceNo});
@@ -3712,6 +4363,27 @@ function printInvoice() {
   }
   w.document.close();
   setTimeout(() => w.print(), 500);
+}
+
+async function markDelivered(saleId) {
+  const snapshot = S.sales.find(s => s.ID === saleId)?.DeliveryStatus;
+  
+  await optimisticAction({
+    ui: () => {
+      const sale = S.sales.find(s => s.ID === saleId);
+      if (sale) sale.DeliveryStatus = 'Delivered';
+      // Re-render whatever shows delivery
+      const row = document.querySelector(`tr[data-sale="${saleId}"]`);
+      if (row) row.classList.add('refresh-pulse');
+    },
+    rollback: () => {
+      const sale = S.sales.find(s => s.ID === saleId);
+      if (sale) sale.DeliveryStatus = snapshot;
+    },
+    action: () => apiPost('updateDelivery', { saleId, status: 'Delivered' }),
+    successMsg: 'Marked delivered!',
+    invalidate: ['getDeliveries', 'getSales']
+  });
 }
 
 // ============================================================
@@ -3886,7 +4558,7 @@ async function downloadInvoiceAsPDF(invoiceNo) {
 // SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column)
 // ============================================================
 async function renderSales(area){
-  S.sales=await apiGet('getSales');if(!S.customers.length)S.customers=await apiGet('getCustomers');
+  S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');if(!S.customers.length)S.customers=await apiGetSmart('getCustomers');
   area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
     <div class="search-box"><i class="fas fa-search"></i><input type="text" id="slSrch" placeholder="Search..." oninput="filterSL()"></div>
     <select class="fc" style="width:auto" id="slStatus" onchange="filterSL()"><option value="">All</option><option value="Paid">Paid</option><option value="Partial">Partial</option><option value="Unpaid">Unpaid</option><option value="Cancelled">Cancelled</option></select>
@@ -3924,7 +4596,7 @@ function showSaleSummary(id){
   document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="summaryModal"><div class="modal" style="max-width:500px"><div class="modal-hdr"><h3>Sale Summary</h3><button class="modal-close" onclick="closeModal('summaryModal')">&times;</button></div><div class="modal-body"><div class="summary-text" id="summaryTxt">${esc(txt)}</div></div><div class="modal-foot"><button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('summaryTxt').textContent);toast('Copied!')"><i class="fas fa-copy"></i>Copy</button></div></div></div>`);
   openModal('summaryModal');
 }
-async function reverseSale(id,inv){if(!confirm(`⚠️ Cancel sale ${inv}? This will:\n• Restore stock\n• Update customer\n• Reverse commissions\n\nContinue?`))return;const r=await apiPost('reverseSale',{ID:id});if(r.success){toast(r.message||'Sale reversed!');S.sales=await apiGet('getSales');filterSL()}}
+async function reverseSale(id,inv){if(!confirm(`⚠️ Cancel sale ${inv}? This will:\n• Restore stock\n• Update customer\n• Reverse commissions\n\nContinue?`))return;const r=await apiPost('reverseSale',{ID:id});if(r.success){toast(r.message||'Sale reversed!');S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');filterSL()}}
 // ============================================================
 // ADJUST SALE AMOUNT — Edit final amount of an existing sale
 // (Customer paid less/more than invoiced, on-the-spot price change, etc.)
@@ -4219,7 +4891,7 @@ async function submitAdjustAmount(saleId, invoiceNo, currentFinal) {
   if (r.success) {
     toast(`✅ ${r.message}`, 'success');
     closeModal('adjustAmountModal');
-    S.sales = await apiGet('getSales');
+    S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
     filterSL();
   } else {
     if (btn) {
@@ -4405,8 +5077,8 @@ async function submitPartialReturn(saleId, invoiceNo) {
   if (r.success) {
     toast(`Partial return processed! ${r.itemsReturned} item(s) returned. Refund: ${C()}${(r.refundAmount || 0).toLocaleString()}`);
     closeModal('partialReturnModal');
-    S.sales = await apiGet('getSales');
-    S.inventory = await apiGet('getInventory');
+    S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
+    S.inventory = await apiGetSmart('getInventory');
     filterSL();
   }
 }
@@ -4422,7 +5094,7 @@ async function openExchangeReplaceModal(saleId, invoiceNo) {
   if (!sale) { toast('Sale not found', 'error'); return; }
   
   // Make sure inventory is loaded
-  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  if (!S.inventory.length) S.inventory = await apiGetSmart('getInventory');
   if (!S.settings.businessName) S.settings = await apiGet('getSettings');
   
   const c = C();
@@ -4760,8 +5432,8 @@ async function submitExchangeReplace() {
       viewInvoice(r.newInvoiceNo);
     }
     
-    S.sales = await apiGet('getSales');
-    S.inventory = await apiGet('getInventory');
+    S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
+    S.inventory = await apiGetSmart('getInventory');
     filterSL();
   }
 }
@@ -4773,7 +5445,7 @@ async function submitManualSale(){const sel=document.getElementById('msCust');co
 // DELIVERY MANAGEMENT
 // ============================================================
 async function renderDelivery(area){
-  S.deliveries=await apiGet('getDeliveries');S.sales=await apiGet('getSales');const c=C();
+  S.deliveries=await apiGetSmart('getDeliveries');S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');const c=C();
   const activeSales=S.sales.filter(s=>s.DeliveryType&&s.DeliveryType!=='None'&&s.DeliveryType!==''&&s.Status!=='Cancelled');
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-truck-fast" style="color:var(--primary);margin-right:6px"></i>Delivery Management</h3>
     <select class="fc" style="width:auto" id="dlvFilter" onchange="filterDlv()"><option value="">All</option>${DELIVERY_STATUSES.map(s=>`<option>${s}</option>`).join('')}</select>
@@ -4805,14 +5477,14 @@ async function saveDlvUpdate(id,inv){const r=await apiPost('updateDeliveryStatus
 // ============================================================
 // PROFITS, CUSTOMERS, PAYMENTS (same as before with minor tweaks)
 // ============================================================
-async function renderProfits(area){if(!S.sales.length)S.sales=await apiGet('getSales');const c=C();const sorted=[...S.sales].filter(s=>s.Status!=='Cancelled').reverse();area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-chart-line" style="color:var(--secondary);margin-right:6px"></i>Profit Tracker</h3></div><div class="card-body np"><div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Type</th><th>Action</th></tr></thead><tbody>${sorted.map(s=>{const profit=Number(s.ProfitOverride)||Number(s.Profit)||0;return`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${fmtD(s.Date)}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.CostTotal).toLocaleString()}</td><td style="color:${profit>=0?'var(--secondary)':'var(--danger)'};font-weight:700">${c}${profit.toLocaleString()}</td><td>${s.ProfitOverride?'<span class="badge badge-p">Manual</span>':'<span class="badge badge-i">Auto</span>'}</td><td><button class="btn btn-outline btn-sm" onclick="editProfit('${s.ID}',${profit})"><i class="fas fa-pen"></i></button></td></tr>`}).join('')}</tbody></table></div></div></div>`}
+async function renderProfits(area){if(!S.sales.length)S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');const c=C();const sorted=[...S.sales].filter(s=>s.Status!=='Cancelled').reverse();area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-chart-line" style="color:var(--secondary);margin-right:6px"></i>Profit Tracker</h3></div><div class="card-body np"><div class="tbl-wrap"><table><thead><tr><th>Invoice</th><th>Date</th><th>Revenue</th><th>Cost</th><th>Profit</th><th>Type</th><th>Action</th></tr></thead><tbody>${sorted.map(s=>{const profit=Number(s.ProfitOverride)||Number(s.Profit)||0;return`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${fmtD(s.Date)}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.CostTotal).toLocaleString()}</td><td style="color:${profit>=0?'var(--secondary)':'var(--danger)'};font-weight:700">${c}${profit.toLocaleString()}</td><td>${s.ProfitOverride?'<span class="badge badge-p">Manual</span>':'<span class="badge badge-i">Auto</span>'}</td><td><button class="btn btn-outline btn-sm" onclick="editProfit('${s.ID}',${profit})"><i class="fas fa-pen"></i></button></td></tr>`}).join('')}</tbody></table></div></div></div>`}
 function editProfit(id,cur){const val=prompt('Corrected profit:',cur);if(val===null)return;apiPost('updateSaleProfit',{ID:id,Profit:Number(val),ProfitOverride:Number(val)}).then(r=>{if(r.success){toast('Updated!');S.sales=[];renderPage('profits')}})}
 
 // ============================================================
 // CUSTOMERS - with ledger view
 // ============================================================
 async function renderCustomers(area) {
-  S.customers = await apiGet('getCustomers');
+  S.customers = await apiGetSmart('getCustomers');
   const c = C();
   
   // Calculate VIP stats
@@ -5033,8 +5705,33 @@ async function saveCust(id) {
 
 async function delCust(id) {
   if (!confirm('Delete this customer?')) return;
-  const r = await apiPost('deleteCustomer', {ID: id});
-  if (r.success) { toast('Deleted'); renderPage('customers'); }
+  
+  // Snapshot for rollback
+  const snapshot = [...S.customers];
+  const row = document.querySelector(`#cTbl tr[data-id="${id}"]`);
+  
+  await optimisticAction({
+    ui: () => {
+      // Remove from local state + UI instantly
+      S.customers = S.customers.filter(c => c.ID !== id);
+      if (row) {
+        row.style.transition = 'all 0.3s';
+        row.style.opacity = '0.3';
+        row.style.transform = 'translateX(-20px)';
+        setTimeout(() => filterCust(), 350);
+      } else {
+        filterCust();
+      }
+    },
+    rollback: () => {
+      S.customers = snapshot;
+      filterCust();
+    },
+    action: () => apiPost('deleteCustomer', { ID: id }),
+    successMsg: 'Customer deleted!',
+    errorMsg: 'Failed to delete',
+    invalidate: ['getCustomers', 'getDashboard']
+  });
 }
 
 
@@ -5043,9 +5740,9 @@ async function delCust(id) {
 // PRE-ORDERS — Customer requests for out-of-stock items
 // ============================================================
 async function renderPreorders(area) {
-  const preorders = await apiGet('getPreorders');
+  const preorders = await apiGetSmart('getPreorders');
   S.preorders = preorders || [];
-  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  if (!S.customers.length) S.customers = await apiGetSmart('getCustomers');
   
   const c = C();
   const pending = S.preorders.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
@@ -5304,7 +6001,7 @@ async function deletePreorder(id) {
 
 async function checkPendingPreorders() {
   try {
-    const preorders = await apiGet('getPreorders');
+    const preorders = await apiGetSmart('getPreorders');
     const active = (preorders || []).filter(p => p.Status === 'Received' || p.Status === 'Pending');
     const badge = document.getElementById('preorderBadge');
     if (badge) {
@@ -5322,7 +6019,7 @@ async function checkPendingPreorders() {
 // STOCK HISTORY — Full log of all stock changes
 // ============================================================
 async function renderStockHistory(area) {
-  const stockLog = await apiGet('getStockLog');
+  const stockLog = await apiGetSmart('getStockLog');
   S.stockLog = stockLog || [];
   
   area.innerHTML = `
@@ -5465,21 +6162,21 @@ async function createSaleForCustomer(customerId, customerName, customerPhone) {
     }
   }, 400); // Give POS time to render and load data
 }
-async function renderPayments(area){if(!S.sales.length)S.sales=await apiGet('getSales');S.payments=await apiGet('getPayments');const c=C();const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${esc(s.CustomerName||'Walk-in')}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td><td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td>${fmtD(p.Date)}</td><td>${p.InvoiceNo}</td><td style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`}
+async function renderPayments(area){if(!S.sales.length)S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');S.payments=await apiGetSmart('getPayments');const c=C();const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${esc(s.CustomerName||'Walk-in')}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td><td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td>${fmtD(p.Date)}</td><td>${p.InvoiceNo}</td><td style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`}
 function openPayModal(inv,custId,custName,due){let m=document.getElementById('payModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="payModal"><div class="modal" style="max-width:500px"><div class="modal-hdr"><h3>Receive Payment</h3><button class="modal-close" onclick="closeModal('payModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Invoice</label><input class="fc" value="${inv}" readonly></div><div class="form-group"><label>Due</label><input class="fc" value="${due}" readonly></div><input type="hidden" id="pyInv" value="${inv}"><input type="hidden" id="pyCustId" value="${custId}"><input type="hidden" id="pyCustN" value="${custName}"><div class="form-group"><label>Amount</label><input type="number" class="fc" id="pyAmt" value="${due}"></div><div class="form-group"><label>Method</label><select class="fc" id="pyMethod">${makeOptions(PAY_METHODS)}</select></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('payModal')">Cancel</button><button class="btn btn-success" onclick="submitPayment()"><i class="fas fa-check"></i>Receive</button></div></div></div>`);openModal('payModal')}
-async function submitPayment(){const data={InvoiceNo:document.getElementById('pyInv').value,CustomerID:document.getElementById('pyCustId').value,CustomerName:document.getElementById('pyCustN').value,Amount:document.getElementById('pyAmt').value,PaymentMethod:document.getElementById('pyMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid amount','error');return}const r=await apiPost('addPayment',data);if(r.success){toast('Received!');closeModal('payModal');S.sales=await apiGet('getSales');renderPage('payments')}}
+async function submitPayment(){const data={InvoiceNo:document.getElementById('pyInv').value,CustomerID:document.getElementById('pyCustId').value,CustomerName:document.getElementById('pyCustN').value,Amount:document.getElementById('pyAmt').value,PaymentMethod:document.getElementById('pyMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid amount','error');return}const r=await apiPost('addPayment',data);if(r.success){toast('Received!');closeModal('payModal');S.sales=await apiGetSmart('geapiGetSmart('getSales')tCustomers');renderPage('payments')}}
 
 // ============================================================
 // SUPPLIERS & LEDGER
 // ============================================================
-async function renderSuppliers(area){S.suppliers=await apiGet('getSuppliers');const c=C();area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="sSrch" placeholder="Search..." oninput="filterSup()"></div><button class="btn btn-primary" onclick="openSupModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="sTbl"></div></div></div>`;filterSup()}
+async function renderSuppliers(area){S.suppliers=await apiGetSmart('getSuppliers');const c=C();area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="sSrch" placeholder="Search..." oninput="filterSup()"></div><button class="btn btn-primary" onclick="openSupModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="sTbl"></div></div></div>`;filterSup()}
 function filterSup(){const srch=(document.getElementById('sSrch')?.value||'').toLowerCase();const data=S.suppliers.filter(s=>!srch||(s.Name||'').toLowerCase().includes(srch));const c=C();document.getElementById('sTbl').innerHTML=data.length?`<table><thead><tr><th>Name</th><th>Phone</th><th>Orders</th><th>Total</th><th>Pending</th><th>Actions</th></tr></thead><tbody>${data.map(s=>`<tr><td><strong>${esc(s.Name)}</strong></td><td>${s.Phone ? esc(formatPhoneBD(s.Phone)) : '-'}</td><td>${s.TotalOrders||0}</td><td>${c}${Number(s.TotalAmount||0).toLocaleString()}</td><td style="color:${Number(s.PendingAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.PendingAmount||0).toLocaleString()}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="editSup('${s.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delSup('${s.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No suppliers</div>'}
 function openSupModal(sup=null){let m=document.getElementById('supModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="supModal"><div class="modal"><div class="modal-hdr"><h3>${sup?'Edit':'Add'} Supplier</h3><button class="modal-close" onclick="closeModal('supModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Name *</label><input class="fc" id="suName" value="${sup?.Name||''}"></div><div class="form-group"><label>Phone</label><input class="fc" id="suPhone" value="${formatPhoneBD(sup?.Phone || '')}" placeholder="017-1234-5678"></div><div class="form-group"><label>Email</label><input class="fc" id="suEmail" value="${sup?.Email||''}"></div><div class="form-group"><label>Address</label><input class="fc" id="suAddr" value="${sup?.Address||''}"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('supModal')">Cancel</button><button class="btn btn-primary" onclick="saveSup('${sup?.ID||''}')"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('supModal');setTimeout(() => bindPhoneFormatter('suPhone'), 50);}
 function editSup(id){const s=S.suppliers.find(x=>x.ID===id);if(s)openSupModal(s)}
 async function saveSup(id){const data={ID:id,Name:document.getElementById('suName').value,Phone:document.getElementById('suPhone').value,Email:document.getElementById('suEmail').value,Address:document.getElementById('suAddr').value};if(!data.Name){toast('Name required','error');return}const r=await apiPost(id?'updateSupplier':'addSupplier',data);if(r.success){toast('Saved!');closeModal('supModal');renderPage('suppliers')}}
 async function delSup(id){if(!confirm('Delete?'))return;const r=await apiPost('deleteSupplier',{ID:id});if(r.success){toast('Deleted');renderPage('suppliers')}}
 
-async function renderSupplierLedger(area){if(!S.suppliers.length)S.suppliers=await apiGet('getSuppliers');S.supplierLedger=await apiGet('getSupplierLedger');const c=C();area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><select class="fc" style="width:auto" id="slSup" onchange="filterSLedger()"><option value="">All</option>${S.suppliers.map(s=>`<option value="${s.ID}">${esc(s.Name)}</option>`).join('')}</select><button class="btn btn-primary" onclick="openSLModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="slTblL"></div></div></div>`;filterSLedger()}
+async function renderSupplierLedger(area){if(!S.suppliers.length)S.suppliers=await apiGetSmart('getSuppliers');S.supplierLedger=await apiGet('getSupplierLedger');const c=C();area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><select class="fc" style="width:auto" id="slSup" onchange="filterSLedger()"><option value="">All</option>${S.suppliers.map(s=>`<option value="${s.ID}">${esc(s.Name)}</option>`).join('')}</select><button class="btn btn-primary" onclick="openSLModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div class="tbl-wrap" id="slTblL"></div></div></div>`;filterSLedger()}
 function filterSLedger(){const supId=document.getElementById('slSup')?.value||'';const data=supId?S.supplierLedger.filter(e=>String(e.SupplierID)===supId):S.supplierLedger;const c=C();document.getElementById('slTblL').innerHTML=data.length?`<table><thead><tr><th>Date</th><th>Supplier</th><th>Desc</th><th>Debit</th><th>Credit</th><th>Balance</th></tr></thead><tbody>${data.map(e=>`<tr><td>${fmtD(e.Date)}</td><td>${esc(e.SupplierName)}</td><td>${e.Description||'-'}</td><td style="color:var(--danger)">${Number(e.Debit)?c+Number(e.Debit).toLocaleString():'-'}</td><td style="color:var(--secondary)">${Number(e.Credit)?c+Number(e.Credit).toLocaleString():'-'}</td><td><strong>${c}${Number(e.Balance).toLocaleString()}</strong></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No entries</div>'}
 function openSLModal(){let m=document.getElementById('slModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="slModal"><div class="modal"><div class="modal-hdr"><h3>Add Entry</h3><button class="modal-close" onclick="closeModal('slModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Supplier</label><select class="fc" id="sleSupp">${S.suppliers.map(s=>`<option value="${s.ID}" data-name="${esc(s.Name)}">${esc(s.Name)}</option>`).join('')}</select></div><div class="form-group"><label>Description</label><input class="fc" id="sleDesc"></div><div class="form-group"><label>Debit</label><input type="number" class="fc" id="sleDebit" value="0"></div><div class="form-group"><label>Credit</label><input type="number" class="fc" id="sleCredit" value="0"></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('slModal')">Cancel</button><button class="btn btn-primary" onclick="saveSLE()"><i class="fas fa-save"></i>Save</button></div></div></div>`);openModal('slModal')}
 async function saveSLE(){const sel=document.getElementById('sleSupp');const r=await apiPost('addSupplierLedgerEntry',{SupplierID:sel.value,SupplierName:sel.selectedOptions[0]?.dataset.name||'',Description:document.getElementById('sleDesc').value,Debit:document.getElementById('sleDebit').value,Credit:document.getElementById('sleCredit').value});if(r.success){toast('Added!');closeModal('slModal');renderPage('supplierLedger')}}
@@ -5487,7 +6184,7 @@ async function saveSLE(){const sel=document.getElementById('sleSupp');const r=aw
 // ============================================================
 // EXPENSES
 // ============================================================
-async function renderExpenses(area){S.expenses=await apiGet('getExpenses');const c=C();const total=S.expenses.reduce((s,e)=>s+(Number(e.Amount)||0),0);area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="eSrch" placeholder="Search..." oninput="filterExp()"></div><button class="btn btn-primary" onclick="openExpModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div style="padding:14px 20px;background:var(--bg);border-bottom:1px solid var(--border)"><strong>Total: <span style="color:var(--danger)">${c}${total.toLocaleString()}</span></strong></div><div class="tbl-wrap" id="eTbl"></div></div></div>`;filterExp()}
+async function renderExpenses(area){S.expenses=await apiGetSmart('getExpenses');const c=C();const total=S.expenses.reduce((s,e)=>s+(Number(e.Amount)||0),0);area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%"><div class="search-box"><i class="fas fa-search"></i><input type="text" id="eSrch" placeholder="Search..." oninput="filterExp()"></div><button class="btn btn-primary" onclick="openExpModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div></div><div class="card-body np"><div style="padding:14px 20px;background:var(--bg);border-bottom:1px solid var(--border)"><strong>Total: <span style="color:var(--danger)">${c}${total.toLocaleString()}</span></strong></div><div class="tbl-wrap" id="eTbl"></div></div></div>`;filterExp()}
 
 // ============================================================
 // ADJUSTMENTS REPORT — All sale price adjustments
@@ -5497,8 +6194,8 @@ async function renderAdjustments(area) {
   // 1. Payments sheet (entries with Method='Adjustment' or Notes containing 'REFUND — Sale adjustment' / 'MEMO —')
   // 2. Sales sheet Notes column (parsed [ADJUSTMENT ...] entries)
   
-  if (!S.sales.length) S.sales = await apiGet('getSales');
-  const payments = await apiGet('getPayments');
+  if (!S.sales.length) S.sales = await apiGetSmart('geapiGetSmart('getSales')tCustomers');
+  const payments = await apiGetSmart('getPayments');
   S.payments = payments;
   
   const c = C();
@@ -5729,7 +6426,7 @@ async function delExp(id){if(!confirm('Delete?'))return;const r=await apiPost('d
 // AFFILIATES (with commission rates & payout)
 // ============================================================
 async function renderAffiliates(area){
-  S.affiliates=await apiGet('getAffiliates');S.commissions=await apiGet('getAffiliateCommissions');const c=C();
+  S.affiliates=await apiGetSmart('getAffiliates');S.commissions=await apiGet('getAffiliateCommissions');const c=C();
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-link" style="color:var(--purple);margin-right:6px"></i>Affiliates</h3><button class="btn btn-primary" onclick="openAffModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div>
   <div class="card-body np"><div class="tbl-wrap">${S.affiliates.length?`<table><thead><tr><th>Code</th><th>Name</th><th>Discount</th><th>Used</th><th>Commission</th><th>Paid</th><th>Pending</th><th>Active</th><th>Actions</th></tr></thead><tbody>${S.affiliates.map(a=>{
     const discLabel=(a.DiscountType==='Fixed')?(c+Number(a.DiscountValue||0).toLocaleString()+' flat'):(Number(a.DiscountValue||0)+'%');
@@ -5767,7 +6464,7 @@ async function reverseCommPay(commId){if(!confirm('Reverse this commission payme
 // VOUCHERS
 // ============================================================
 async function renderVouchers(area){
-  S.vouchers=await apiGet('getVouchers');const c=C();
+  S.vouchers=await apiGetSmart('getVouchers');const c=C();
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-ticket" style="color:var(--warning);margin-right:6px"></i>Vouchers</h3><button class="btn btn-primary" onclick="openVchModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button></div>
   <div class="card-body np"><div class="tbl-wrap">${S.vouchers.length?`<table><thead><tr><th>Code</th><th>Name</th><th>Discount</th><th>Min Order</th><th>Max Uses</th><th>Used</th><th>Active</th><th>Actions</th></tr></thead><tbody>${S.vouchers.map(v=>{
     const dl=v.DiscountType==='Percentage'?(Number(v.DiscountValue)||0)+'%':(c+Number(v.DiscountValue||0).toLocaleString());
@@ -5850,11 +6547,30 @@ async function formatAllPhoneNumbers() {
   
 // INIT — Open Search page by default
 document.addEventListener('DOMContentLoaded', async () => {
-  // Preload key data so search is instant
-  S.inventory = await apiGet('getInventory');
-  S.customers = await apiGet('getCustomers');
-  S.sales = await apiGet('getSales');
+  // 1. Render the search page IMMEDIATELY with skeleton (no waiting)
   renderPage('search');
+  
+  // 2. Set up hover-prefetch on nav items
+  setupPrefetch();
+  
+  // 3. Pre-warm critical data in parallel (silent, in background)
+  Promise.all([
+    apiGetSmart('getInventory'),
+    apiGetSmart('getCustomers'),
+    apiGetSmart('getSales'),
+    apiGetSmart('getSettings').catch(() => null)
+  ]).then(([inv, cust, sales, settings]) => {
+    S.inventory = inv;
+    S.customers = cust;
+    S.sales = sales;
+    if (settings) S.settings = settings;
+    console.log('✅ Initial data prewarmed');
+  });
+  
+  // 4. Idle prefetch — load secondary data when browser is idle
+  setTimeout(idlePrefetch, 2000);
+  
+  // 5. Check pre-order badge
   checkPendingPreorders();
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
