@@ -1266,107 +1266,80 @@ function searchAll(query) {
   const q = query.toLowerCase().trim();
   if (!q) return { customers: [], sales: [], products: [] };
   
-  // Split query into individual words/tokens (any whitespace)
-  // E.g., "Argentina S Player Home" → ["argentina", "s", "player", "home"]
-  const tokens = q.split(/\s+/).filter(t => t.length > 0);
-  const qDigits = q.replace(/\D/g, ''); // just digits for phone matching
+  const qDigits = q.replace(/\D/g, '');
+  const queryLetterCount = (q.match(/[a-z]/gi) || []).length;
   
-  // ============================================================
-  // FLEXIBLE MATCHER — every token must appear somewhere in the haystack
-  // Order doesn't matter, partial matches work
-  // ============================================================
+  // CRITICAL: Only treat as phone search if query is pure digits (no letters)
+  // This prevents "2xl", "2024 edition" from matching phone numbers
+  const isPhoneLikeQuery = qDigits.length >= 3 && queryLetterCount === 0;
+  
+  // Split query into tokens for word-flexible search
+  const tokens = q.split(/\s+/).filter(t => t.length > 0);
+  
+  // Helper: check if ALL tokens are found in haystack
   const matchesAllTokens = (haystack) => {
     if (!haystack) return false;
-    const hay = String(haystack).toLowerCase();
-    return tokens.every(token => hay.includes(token));
+    const lower = haystack.toLowerCase();
+    return tokens.every(token => lower.includes(token));
   };
   
   // ============================================================
-  // FLEXIBLE PHONE MATCHER — matches any digit substring
-  // E.g., search "01577" or "7730" or "2424" all find "01577302424"
-  // ============================================================
-  const matchesPhone = (phone) => {
-    if (!qDigits || !phone) return false;
-    const phoneDigits = String(phone).replace(/\D/g, '');
-    return phoneDigits.includes(qDigits);
-  };
-  
-  // ============================================================
-  // SEARCH CUSTOMERS
+  // CUSTOMERS — Phone search ONLY if query is pure digits
   // ============================================================
   const customers = (S.customers || []).filter(cu => {
-    // Combine all searchable fields into one haystack
-    const fullText = `${cu.Name || ''} ${cu.Email || ''} ${cu.Address || ''} ${cu.Phone || ''}`;
-    const nameAddressMatch = matchesAllTokens(fullText);
-    const phoneMatch = matchesPhone(cu.Phone);
-    return nameAddressMatch || phoneMatch;
+    // Phone search: ONLY if user is searching with digits (no letters)
+    if (isPhoneLikeQuery) {
+      const phoneDigits = (cu.Phone || '').replace(/\D/g, '');
+      if (phoneDigits.includes(qDigits)) return true;
+    }
+    
+    // Name search: ALL tokens must appear in name
+    if (matchesAllTokens(cu.Name)) return true;
+    
+    // Email search
+    if ((cu.Email || '').toLowerCase().includes(q)) return true;
+    
+    return false;
   });
   
   // ============================================================
-  // SEARCH SALES
+  // SALES — Phone search ONLY if query is pure digits
   // ============================================================
   const sales = (S.sales || []).filter(s => {
-    const fullText = `${s.InvoiceNo || ''} ${s.CustomerName || ''} ${s.CustomerPhone || ''} ${s.Status || ''} ${s.Notes || ''}`;
-    const textMatch = matchesAllTokens(fullText);
-    const phoneMatch = matchesPhone(s.CustomerPhone);
-    return textMatch || phoneMatch;
+    // Invoice number: substring match (e.g. "FF-1024", "1024")
+    if ((s.InvoiceNo || '').toLowerCase().includes(q)) return true;
+    
+    // Phone search ONLY on pure digit queries
+    if (isPhoneLikeQuery) {
+      const phoneDigits = (s.CustomerPhone || '').replace(/\D/g, '');
+      if (phoneDigits.includes(qDigits)) return true;
+    }
+    
+    // Customer name on sale
+    if (matchesAllTokens(s.CustomerName)) return true;
+    
+    return false;
   });
   
   // ============================================================
-  // SEARCH PRODUCTS — most flexible, all fields combined
+  // PRODUCTS — Flexible multi-field token search
   // ============================================================
   const products = (S.inventory || []).filter(p => {
-    // Combine ALL product fields so search works in any order
-    const fullText = `${p.ProductName || ''} ${p.Club_Country || ''} ${p.Edition || ''} ${p.Type || ''} ${p.Size || ''} ${p.ID || ''} ${p.Color || ''} ${p.Supplier || ''}`;
-    return matchesAllTokens(fullText);
-  });
-  
-  // ============================================================
-  // SCORING — sort by relevance (exact phrase match first, then more relevance)
-  // ============================================================
-  const scoreItem = (item, fields) => {
-    const fullText = fields.map(f => String(item[f] || '')).join(' ').toLowerCase();
-    let score = 0;
+    const combined = [
+      p.ProductName || '',
+      p.Club_Country || '',
+      p.Type || '',
+      p.Edition || '',
+      p.Size || '',
+      p.ID || '',
+      p.Color || ''
+    ].join(' ').toLowerCase();
     
-    // Exact full query match = highest score
-    if (fullText.includes(q)) score += 1000;
-    
-    // Count how many tokens are at word boundaries (start of words)
-    tokens.forEach(token => {
-      const regex = new RegExp(`\\b${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
-      if (regex.test(fullText)) score += 10;
-      else if (fullText.includes(token)) score += 1;
-    });
-    
-    return score;
-  };
-  
-  // Sort customers by relevance
-  customers.sort((a, b) => {
-    const scoreA = scoreItem(a, ['Name', 'Phone', 'Email']) + (matchesPhone(a.Phone) ? 50 : 0);
-    const scoreB = scoreItem(b, ['Name', 'Phone', 'Email']) + (matchesPhone(b.Phone) ? 50 : 0);
-    return scoreB - scoreA;
-  });
-  
-  // Sort sales by relevance + date (newer first when tied)
-  sales.sort((a, b) => {
-    const scoreA = scoreItem(a, ['InvoiceNo', 'CustomerName', 'CustomerPhone']);
-    const scoreB = scoreItem(b, ['InvoiceNo', 'CustomerName', 'CustomerPhone']);
-    if (scoreB !== scoreA) return scoreB - scoreA;
-    return new Date(b.Date) - new Date(a.Date);
-  });
-  
-  // Sort products by relevance + stock (in-stock first when tied)
-  products.sort((a, b) => {
-    const scoreA = scoreItem(a, ['ProductName', 'Club_Country', 'Edition', 'Type', 'Size', 'ID']);
-    const scoreB = scoreItem(b, ['ProductName', 'Club_Country', 'Edition', 'Type', 'Size', 'ID']);
-    if (scoreB !== scoreA) return scoreB - scoreA;
-    return (Number(b.Stock) || 0) - (Number(a.Stock) || 0);
+    return tokens.every(token => combined.includes(token));
   });
   
   return { customers, sales, products };
 }
-
 // ============================================================
 // FLEXIBLE SEARCH HELPER — Reusable across all pages
 // Supports:
@@ -1511,8 +1484,20 @@ function highlightMatch(text, query) {
   const tokens = query.toLowerCase().trim().split(/\s+/).filter(t => t.length > 0);
   const qDigits = query.replace(/\D/g, '');
   
+  // ============================================================
+  // CRITICAL: Only treat as phone search if query is MOSTLY digits
+  // This prevents "2xl", "3xl", "2024 edition" from triggering phone highlights
+  // ============================================================
+  const queryLetterCount = (query.match(/[a-z]/gi) || []).length;
+  const queryDigitCount = qDigits.length;
+  
+  // It's a "phone-like" query ONLY if:
+  // - Has at least 3 digits AND
+  // - Has no letters (pure digit search like "01577" or "7730")
+  //   OR the digits massively outnumber letters (e.g. "+880 1577" still counts)
+  const isPhoneLikeQuery = queryDigitCount >= 3 && queryLetterCount === 0;
+  
   // Build a list of all matches with their positions
-  // We work on the lowercase version to find positions, but slice from the original
   const lowerSafe = safe.toLowerCase();
   const matches = []; // {start, end, type: 'text' | 'phone'}
   
@@ -1531,11 +1516,9 @@ function highlightMatch(text, query) {
       const idx = lowerSafe.indexOf(token, searchFrom);
       if (idx === -1) break;
       
-      // For single letters: check word boundaries
       if (useWordBoundary) {
         const charBefore = idx > 0 ? lowerSafe[idx - 1] : ' ';
         const charAfter = idx + token.length < lowerSafe.length ? lowerSafe[idx + token.length] : ' ';
-        // A word boundary = non-alphanumeric character
         const isBoundaryBefore = !/[a-z0-9]/.test(charBefore);
         const isBoundaryAfter = !/[a-z0-9]/.test(charAfter);
         
@@ -1543,7 +1526,6 @@ function highlightMatch(text, query) {
           matches.push({ start: idx, end: idx + token.length, type: 'text' });
         }
       } else {
-        // For multi-char tokens, match anywhere
         matches.push({ start: idx, end: idx + token.length, type: 'text' });
       }
       
@@ -1552,10 +1534,9 @@ function highlightMatch(text, query) {
   });
   
   // ============================================================
-  // 2. Find phone digit pattern matches (require min 3 digits)
+  // 2. Find phone digit pattern matches — ONLY if query is phone-like
   // ============================================================
-  if (qDigits.length >= 3) {
-    // Build a pattern that allows separators between digits
+  if (isPhoneLikeQuery) {
     const digitChars = qDigits.split('');
     let searchFrom = 0;
     
@@ -1565,7 +1546,6 @@ function highlightMatch(text, query) {
       let i = searchFrom;
       let digitIdx = 0;
       
-      // Try to find the digit sequence starting at position i
       while (i < safe.length && digitIdx < digitChars.length) {
         const ch = safe[i];
         if (ch === digitChars[digitIdx]) {
@@ -1574,10 +1554,8 @@ function highlightMatch(text, query) {
           matchEnd = i + 1;
           i++;
         } else if (matchStart !== -1 && /[-\s().+]/.test(ch)) {
-          // Skip separator chars
           i++;
         } else {
-          // No match — reset
           matchStart = -1;
           digitIdx = 0;
           i++;
@@ -1594,13 +1572,10 @@ function highlightMatch(text, query) {
     }
   }
   
-  // ============================================================
-  // 3. If no matches, return original safe text
-  // ============================================================
   if (matches.length === 0) return safe;
   
   // ============================================================
-  // 4. Merge overlapping matches and sort
+  // 4. Merge overlapping matches
   // ============================================================
   matches.sort((a, b) => a.start - b.start || b.end - a.end);
   const merged = [];
@@ -1608,7 +1583,6 @@ function highlightMatch(text, query) {
     const last = merged[merged.length - 1];
     if (last && m.start <= last.end) {
       last.end = Math.max(last.end, m.end);
-      // Phone color takes priority if both types match same range
       if (m.type === 'phone') last.type = 'phone';
     } else {
       merged.push({ ...m });
@@ -1616,28 +1590,21 @@ function highlightMatch(text, query) {
   }
   
   // ============================================================
-  // 5. Build the highlighted output
+  // 5. Build highlighted output
   // ============================================================
   let result = '';
   let pos = 0;
   
   for (const m of merged) {
-    // Add the text before the match
     result += safe.substring(pos, m.start);
-    
-    // Add the highlighted match
     const bgColor = m.type === 'phone' 
-      ? 'rgba(16,185,129,.3)'  // green for phone
-      : 'rgba(59,130,246,.3)'; // blue for text
-    
+      ? 'rgba(16,185,129,.3)'
+      : 'rgba(59,130,246,.3)';
     result += `<mark style="background:${bgColor};color:var(--text);padding:0 2px;border-radius:2px;font-weight:600">${safe.substring(m.start, m.end)}</mark>`;
-    
     pos = m.end;
   }
   
-  // Add any remaining text
   result += safe.substring(pos);
-  
   return result;
 }
 
