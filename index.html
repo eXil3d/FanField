@@ -2204,6 +2204,11 @@ async function openInventoryInsights() {
   
   const deadStockValue = deadStock.reduce((sum, item) => sum + item.capitalTied, 0);
   
+  // Store globally so the PDF/CSV download functions can access them
+  window._deadStockData = deadStock;
+  window._deadStockValue = deadStockValue;
+  window._deadStockDays = DEAD_STOCK_DAYS;
+  
   let m = document.getElementById('invInsightsModal');
   if (m) m.remove();
   
@@ -2315,11 +2320,19 @@ async function openInventoryInsights() {
         
         <!-- DEAD STOCK TAB -->
         <div class="ins-content" id="ins-dead" style="display:none">
-          <div style="background:rgba(107,114,128,.08);padding:14px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12.5px;color:var(--text-sec)">
-            <i class="fas fa-snowflake" style="color:var(--text-muted);font-size:14px"></i>
-            <strong style="font-size:13px">Dead Stock</strong> — products with 1+ units that have had no activity (no sales, no stock updates) in the last <strong>${DEAD_STOCK_DAYS}+ days</strong>.<br>
-            <span style="display:inline-block;margin-top:8px;color:var(--warning);font-size:14px;font-weight:700">💰 Capital tied up: ${c}${deadStockValue.toLocaleString()}</span>
-            ${deadStock.length > 0 ? `<span style="margin-left:16px;color:var(--text-muted);font-size:12px">• <strong style="color:var(--text)">${deadStock.length}</strong> item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
+          <div style="background:rgba(107,114,128,.08);padding:14px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12.5px;color:var(--text-sec);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <div>
+              <i class="fas fa-snowflake" style="color:var(--text-muted);font-size:14px"></i>
+              <strong style="font-size:13px">Dead Stock</strong> — products with 1+ units that have had no activity (no sales, no stock updates) in the last <strong>${DEAD_STOCK_DAYS}+ days</strong>.<br>
+              <span style="display:inline-block;margin-top:8px;color:var(--warning);font-size:14px;font-weight:700">💰 Capital tied up: ${c}${deadStockValue.toLocaleString()}</span>
+              ${deadStock.length > 0 ? `<span style="margin-left:16px;color:var(--text-muted);font-size:12px">• <strong style="color:var(--text)">${deadStock.length}</strong> item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
+            </div>
+            ${deadStock.length > 0 ? `
+              <div class="btn-group" style="flex-shrink:0">
+                <button class="btn btn-primary btn-sm" onclick="downloadDeadStockPDF()" title="Download as PDF"><i class="fas fa-file-pdf"></i> PDF</button>
+                <button class="btn btn-outline btn-sm" onclick="downloadDeadStockCSV()" title="Download as CSV"><i class="fas fa-file-csv"></i> CSV</button>
+              </div>
+            ` : ''}
           </div>
           
           <div class="tbl-wrap"><table>
@@ -4004,6 +4017,319 @@ async function downloadInvoiceAsPDF(invoiceNo) {
     toast('Failed to generate PDF: ' + err.message, 'error');
   }
 }
+
+// ============================================================
+// DOWNLOAD DEAD STOCK REPORT AS PDF
+// ============================================================
+async function downloadDeadStockPDF() {
+  const data = window._deadStockData || [];
+  const totalValue = window._deadStockValue || 0;
+  const days = window._deadStockDays || 15;
+  
+  if (!data.length) { toast('No dead stock data to export', 'warning'); return; }
+  
+  toast('Generating PDF...', 'info');
+  
+  try {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const c = C();
+    const businessName = S.settings.businessName || 'Fan Field';
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 12;
+    let y = margin;
+    
+    // ===== HEADER =====
+    pdf.setFillColor(59, 130, 246); // Primary blue
+    pdf.rect(0, 0, pageWidth, 30, 'F');
+    
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(18);
+    pdf.text('DEAD STOCK REPORT', margin, 13);
+    
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(businessName, margin, 20);
+    pdf.text(`Generated: ${today}`, pageWidth - margin, 20, { align: 'right' });
+    pdf.text(`Inactive for ${days}+ days`, pageWidth - margin, 26, { align: 'right' });
+    
+    y = 40;
+    
+    // ===== SUMMARY BOX =====
+    pdf.setFillColor(245, 158, 11, 0.1); // light yellow
+    pdf.setDrawColor(245, 158, 11);
+    pdf.setLineWidth(0.5);
+    pdf.roundedRect(margin, y, pageWidth - margin * 2, 22, 2, 2, 'FD');
+    
+    pdf.setTextColor(50, 50, 50);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('SUMMARY', margin + 4, y + 6);
+    
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.text(`Total Dead Stock Items: ${data.length}`, margin + 4, y + 12);
+    
+    const totalUnits = data.reduce((s, i) => s + Number(i.Stock || 0), 0);
+    pdf.text(`Total Units: ${totalUnits}`, margin + 70, y + 12);
+    
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(245, 158, 11);
+    pdf.text(`Capital Tied Up: ${c}${totalValue.toLocaleString()}`, margin + 4, y + 18);
+    
+    pdf.setTextColor(50, 50, 50);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Avg per item: ${c}${Math.round(totalValue / data.length).toLocaleString()}`, margin + 70, y + 18);
+    
+    y += 28;
+    
+    // ===== TABLE HEADER =====
+    pdf.setFillColor(45, 55, 72); // dark gray
+    pdf.rect(margin, y, pageWidth - margin * 2, 7, 'F');
+    
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(8);
+    
+    // Column positions
+    const colX = {
+      num: margin + 2,
+      product: margin + 10,
+      id: margin + 85,
+      stock: margin + 115,
+      cost: margin + 130,
+      capital: margin + 150,
+      days: margin + 172
+    };
+    
+    pdf.text('#', colX.num, y + 4.8);
+    pdf.text('PRODUCT', colX.product, y + 4.8);
+    pdf.text('ID', colX.id, y + 4.8);
+    pdf.text('STK', colX.stock, y + 4.8);
+    pdf.text('COST', colX.cost, y + 4.8);
+    pdf.text('CAPITAL', colX.capital, y + 4.8);
+    pdf.text('DAYS', colX.days, y + 4.8);
+    
+    y += 7;
+    
+    // ===== TABLE ROWS =====
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8);
+    pdf.setTextColor(40, 40, 40);
+    
+    data.forEach((item, idx) => {
+      // Page break if needed
+      if (y > pageHeight - 25) {
+        // Footer for current page
+        pdf.setFontSize(7);
+        pdf.setTextColor(120, 120, 120);
+        pdf.text(`Page ${pdf.internal.getNumberOfPages()}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+        
+        // New page
+        pdf.addPage();
+        y = margin;
+        
+        // Re-draw header on new page
+        pdf.setFillColor(45, 55, 72);
+        pdf.rect(margin, y, pageWidth - margin * 2, 7, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(8);
+        pdf.text('#', colX.num, y + 4.8);
+        pdf.text('PRODUCT', colX.product, y + 4.8);
+        pdf.text('ID', colX.id, y + 4.8);
+        pdf.text('STK', colX.stock, y + 4.8);
+        pdf.text('COST', colX.cost, y + 4.8);
+        pdf.text('CAPITAL', colX.capital, y + 4.8);
+        pdf.text('DAYS', colX.days, y + 4.8);
+        y += 7;
+        
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(8);
+        pdf.setTextColor(40, 40, 40);
+      }
+      
+      // Alternate row background
+      if (idx % 2 === 0) {
+        pdf.setFillColor(248, 250, 252);
+        pdf.rect(margin, y, pageWidth - margin * 2, 6, 'F');
+      }
+      
+      // Urgency color
+      const d = item.daysSinceActivity;
+      let urgColor;
+      if (d >= 90) urgColor = [220, 38, 38];      // red
+      else if (d >= 60) urgColor = [245, 158, 11]; // orange
+      else if (d >= 30) urgColor = [59, 130, 246]; // blue
+      else urgColor = [100, 116, 139];             // gray
+      
+      pdf.setTextColor(40, 40, 40);
+      pdf.text(String(idx + 1), colX.num, y + 4.2);
+      
+      // Product name (truncate if too long)
+      const productName = (item.ProductName || '').substring(0, 36);
+      pdf.text(productName, colX.product, y + 4.2);
+      
+      // Size below product name in light text
+      if (item.Size) {
+        pdf.setFontSize(6);
+        pdf.setTextColor(120, 120, 120);
+        pdf.text(`Size: ${item.Size}`, colX.product, y + 5.8);
+        pdf.setFontSize(8);
+        pdf.setTextColor(40, 40, 40);
+      }
+      
+      // Product ID (truncate)
+      pdf.text((item.ID || '').substring(0, 16), colX.id, y + 4.2);
+      
+      // Stock
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(String(item.Stock), colX.stock, y + 4.2);
+      pdf.setFont('helvetica', 'normal');
+      
+      // Cost
+      pdf.text(Number(item.CostPrice).toLocaleString(), colX.cost, y + 4.2);
+      
+      // Capital (highlighted)
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(245, 158, 11);
+      pdf.text(Number(item.capitalTied).toLocaleString(), colX.capital, y + 4.2);
+      pdf.setFont('helvetica', 'normal');
+      
+      // Days (color-coded by urgency)
+      pdf.setTextColor(urgColor[0], urgColor[1], urgColor[2]);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(`${d}d`, colX.days, y + 4.2);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setTextColor(40, 40, 40);
+      
+      y += 6;
+    });
+    
+    // ===== FOOTER ON LAST PAGE =====
+    y += 4;
+    pdf.setDrawColor(200, 200, 200);
+    pdf.setLineWidth(0.3);
+    pdf.line(margin, y, pageWidth - margin, y);
+    y += 5;
+    
+    pdf.setFontSize(8);
+    pdf.setTextColor(80, 80, 80);
+    pdf.setFont('helvetica', 'italic');
+    pdf.text('Recommended actions:', margin, y);
+    y += 4;
+    pdf.setFont('helvetica', 'normal');
+    pdf.text('• Run promotions or bundle deals on critical/high urgency items', margin, y); y += 4;
+    pdf.text('• Consider liquidating items inactive for 90+ days', margin, y); y += 4;
+    pdf.text('• Review pricing — items may be overpriced compared to demand', margin, y); y += 4;
+    pdf.text('• Cross-sell with popular items to clear stock', margin, y);
+    
+    // Page numbers on all pages
+    const totalPages = pdf.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      pdf.setPage(i);
+      pdf.setFontSize(7);
+      pdf.setTextColor(120, 120, 120);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+      pdf.text(`${businessName} • Dead Stock Report • ${today}`, margin, pageHeight - 6);
+    }
+    
+    // Save the PDF
+    const filename = `DeadStock_Report_${new Date().toISOString().slice(0, 10)}.pdf`;
+    pdf.save(filename);
+    
+    toast('✓ PDF downloaded successfully!', 'success');
+  } catch (err) {
+    console.error('PDF generation failed:', err);
+    toast('Failed to generate PDF: ' + err.message, 'error');
+  }
+}
+
+// ============================================================
+// DOWNLOAD DEAD STOCK REPORT AS CSV
+// ============================================================
+function downloadDeadStockCSV() {
+  const data = window._deadStockData || [];
+  if (!data.length) { toast('No dead stock data to export', 'warning'); return; }
+  
+  const c = C();
+  
+  // CSV headers
+  const headers = [
+    '#', 'Product Name', 'Product ID', 'Club/Country', 'Edition', 'Type', 'Size',
+    'Stock', 'Cost Price', 'Sell Price', 'Capital Tied Up', 'Days Inactive', 'Urgency'
+  ];
+  
+  // Helper to escape CSV field
+  const csvEsc = (val) => {
+    const s = String(val || '');
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  };
+  
+  // Build rows
+  const rows = data.map((item, idx) => {
+    const d = item.daysSinceActivity;
+    let urgency;
+    if (d >= 90) urgency = 'CRITICAL';
+    else if (d >= 60) urgency = 'HIGH';
+    else if (d >= 30) urgency = 'MEDIUM';
+    else urgency = 'LOW';
+    
+    return [
+      idx + 1,
+      csvEsc(item.ProductName),
+      csvEsc(item.ID),
+      csvEsc(item.Club_Country),
+      csvEsc(item.Edition),
+      csvEsc(item.Type),
+      csvEsc(item.Size),
+      item.Stock,
+      Number(item.CostPrice) || 0,
+      Number(item.SellPrice) || 0,
+      item.capitalTied,
+      d,
+      urgency
+    ].join(',');
+  });
+  
+  // Build CSV content with BOM for proper Excel UTF-8 support
+  const totalValue = window._deadStockValue || 0;
+  const totalUnits = data.reduce((s, i) => s + Number(i.Stock || 0), 0);
+  
+  const csv = '\uFEFF' + [
+    `# Dead Stock Report`,
+    `# Generated: ${new Date().toLocaleString()}`,
+    `# Business: ${S.settings.businessName || 'Fan Field'}`,
+    `# Total items: ${data.length}`,
+    `# Total units: ${totalUnits}`,
+    `# Capital tied up: ${c}${totalValue.toLocaleString()}`,
+    ``,
+    headers.join(','),
+    ...rows
+  ].join('\n');
+  
+  // Download
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `DeadStock_Report_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  toast('✓ CSV downloaded!', 'success');
+}
+  
 // ============================================================
 // SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column)
 // ============================================================
