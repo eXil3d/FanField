@@ -969,10 +969,21 @@ async function renderSearchPage(area) {
         </div>
       </div>
       
-      <div id="bigSearchResults"></div>
+      <div id="bigSearchResults" style="text-align:left"></div>
       
-      <div style="margin-top:30px;text-align:center;color:var(--text-muted);font-size:11px">
-        <i class="fas fa-keyboard"></i> Press <kbd>Ctrl+K</kbd> anywhere to focus the topbar search
+      <!-- Quick Action Buttons -->
+      <div id="quickActions" style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
+        <button class="btn btn-success" onclick="nav('pos')"><i class="fas fa-cash-register"></i> Create Sale</button>
+        <button class="btn btn-warning" onclick="openPreorderModal()"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
+        <button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i> Add Customer</button>
+        <button class="btn btn-outline" onclick="nav('inventory')"><i class="fas fa-boxes-stacked"></i> Browse Inventory</button>
+      </div>
+      
+      <div style="margin-top:30px;color:var(--text-muted);font-size:11px">
+        <i class="fas fa-lightbulb" style="color:var(--warning)"></i> 
+        <strong>Tip:</strong> Type a phone number, customer name, invoice number, or product name to find anything fast
+        <br>
+        <i class="fas fa-keyboard" style="margin-top:8px;display:inline-block"></i> Press <kbd style="padding:2px 6px;background:var(--bg-2);border:1px solid var(--border);border-radius:4px;font-family:monospace">Ctrl+K</kbd> anywhere to jump to search
       </div>
     </div>
   `;
@@ -1248,29 +1259,36 @@ function performGlobalSearch(query) {
 }
 
 function searchAll(query) {
-  const q = query.toLowerCase();
-  const c = C();
+  const q = query.toLowerCase().trim();
+  const qDigits = q.replace(/\D/g, '');
   
-  // Search customers
-  const customers = (S.customers || []).filter(cu => 
-    (cu.Name || '').toLowerCase().includes(q) ||
-    (cu.Phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '')) ||
-    (cu.Email || '').toLowerCase().includes(q)
-  ).slice(0, 5);
+  // Search customers — by name, phone, email
+  const customers = (S.customers || []).filter(cu => {
+    if (!q) return false;
+    const nameMatch = (cu.Name || '').toLowerCase().includes(q);
+    const phoneMatch = qDigits && (cu.Phone || '').replace(/\D/g, '').includes(qDigits);
+    const emailMatch = (cu.Email || '').toLowerCase().includes(q);
+    return nameMatch || phoneMatch || emailMatch;
+  });
   
-  // Search sales
-  const sales = (S.sales || []).filter(s => 
-    (s.InvoiceNo || '').toLowerCase().includes(q) ||
-    (s.CustomerName || '').toLowerCase().includes(q) ||
-    (s.CustomerPhone || '').replace(/\D/g, '').includes(q.replace(/\D/g, ''))
-  ).slice(0, 5);
+  // Search sales — by invoice no, customer name, customer phone
+  const sales = (S.sales || []).filter(s => {
+    if (!q) return false;
+    const invMatch = (s.InvoiceNo || '').toLowerCase().includes(q);
+    const nameMatch = (s.CustomerName || '').toLowerCase().includes(q);
+    const phoneMatch = qDigits && (s.CustomerPhone || '').replace(/\D/g, '').includes(qDigits);
+    return invMatch || nameMatch || phoneMatch;
+  });
   
-  // Search products
-  const products = (S.inventory || []).filter(p => 
-    (p.ProductName || '').toLowerCase().includes(q) ||
-    (p.Club_Country || '').toLowerCase().includes(q) ||
-    (p.ID || '').toLowerCase().includes(q)
-  ).slice(0, 5);
+  // Search products — by name, club, ID, type, edition
+  const products = (S.inventory || []).filter(p => {
+    if (!q) return false;
+    return (p.ProductName || '').toLowerCase().includes(q) ||
+           (p.Club_Country || '').toLowerCase().includes(q) ||
+           (p.ID || '').toLowerCase().includes(q) ||
+           (p.Type || '').toLowerCase().includes(q) ||
+           (p.Edition || '').toLowerCase().includes(q);
+  });
   
   return { customers, sales, products };
 }
@@ -1281,12 +1299,10 @@ function renderSearchResultsHTML(results, query, isLarge) {
   const total = customers.length + sales.length + products.length;
   
   if (total === 0) {
-    return `<div style="padding:20px;text-align:center;color:var(--text-muted)">
-      <i class="fas fa-search" style="font-size:22px;opacity:.4;margin-bottom:8px"></i><br>
-      <div style="margin-bottom:12px">No results for "<strong>${esc(query)}</strong>"</div>
-      <button class="btn btn-warning btn-sm" onclick="closeGlobalSearch();openPreorderModalPrefilled('${esc(query)}')">
-        <i class="fas fa-clipboard-list"></i> Add to Wishlist
-      </button>
+    return `<div style="padding:30px 20px;text-align:center;color:var(--text-muted)">
+      <i class="fas fa-search" style="font-size:24px;opacity:.4;margin-bottom:10px"></i><br>
+      No results for "<strong>${esc(query)}</strong>"<br>
+      <small style="margin-top:8px;display:block">Try searching by customer name, phone number, invoice (e.g. FF-1024), or product name</small>
     </div>`;
   }
   
@@ -1295,34 +1311,47 @@ function renderSearchResultsHTML(results, query, isLarge) {
   
   let html = '';
   
+  // ============================================================
+  // CUSTOMERS — show stats inline
+  // ============================================================
   if (customers.length) {
     html += `<div style="${titleStyle}"><i class="fas fa-users" style="color:var(--purple);margin-right:4px"></i> Customers (${customers.length})</div>`;
-    customers.forEach(cu => {
-      html += `<div style="${cardStyle};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+    customers.slice(0, isLarge ? 20 : 5).forEach(cu => {
+      const orders = Number(cu.TotalPurchases) || 0;
+      const spent = Number(cu.TotalSpent) || 0;
+      const pending = Number(cu.PendingAmount) || 0;
+      html += `<div onclick="${isLarge ? `showCustomerDetails('${cu.ID}')` : `closeGlobalSearch();showCustomerDetails('${cu.ID}')`}" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="cursor:pointer;flex:1" onclick="closeGlobalSearch();viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')">
+          <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(cu.Name, query)}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${highlightMatch(cu.Phone || '', query)} ${cu.Email ? ' • ' + esc(cu.Email) : ''}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+              <i class="fas fa-phone" style="font-size:9px"></i> ${highlightMatch(formatPhoneBD(cu.Phone || '-'), query)}
+              ${cu.Email ? ` • ${esc(cu.Email)}` : ''}
+            </div>
           </div>
-          <div style="display:flex;gap:4px;align-items:center">
-            <button class="btn btn-success btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="New Sale"><i class="fas fa-cash-register"></i></button>
-            <button class="btn btn-warning btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();addWishlistForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="Wishlist"><i class="fas fa-clipboard-list"></i></button>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:10px;color:var(--text-muted)"><i class="fas fa-receipt"></i> ${orders} orders</div>
+            <div style="font-size:12px;font-weight:700;color:var(--secondary)">${c}${spent.toLocaleString()}</div>
+            ${pending > 0 ? `<div style="font-size:10px;color:var(--danger);font-weight:600">Due: ${c}${pending.toLocaleString()}</div>` : ''}
           </div>
         </div>
       </div>`;
     });
   }
   
+  // ============================================================
+  // INVOICES — show status & amounts
+  // ============================================================
   if (sales.length) {
     html += `<div style="${titleStyle}"><i class="fas fa-receipt" style="color:var(--primary);margin-right:4px"></i> Invoices (${sales.length})</div>`;
-    sales.forEach(s => {
+    sales.slice(0, isLarge ? 20 : 5).forEach(s => {
       html += `<div onclick="closeGlobalSearch();viewInvoice('${s.InvoiceNo}')" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div>
+          <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(s.InvoiceNo, query)}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(s.CustomerName || 'Walk-in')} • ${fmtD(s.Date)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${highlightMatch(s.CustomerName || 'Walk-in', query)} • ${fmtD(s.Date)}</div>
           </div>
-          <div style="text-align:right">
+          <div style="text-align:right;flex-shrink:0">
             <div style="font-size:12px;font-weight:700">${c}${Number(s.FinalAmount).toLocaleString()}</div>
             <div style="margin-top:2px">${statusBadge(s.Status)}</div>
           </div>
@@ -1331,20 +1360,24 @@ function renderSearchResultsHTML(results, query, isLarge) {
     });
   }
   
+  // ============================================================
+  // PRODUCTS — show stock, price, club
+  // ============================================================
   if (products.length) {
     html += `<div style="${titleStyle}"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</div>`;
-    products.forEach(p => {
+    products.slice(0, isLarge ? 20 : 5).forEach(p => {
       const stk = Number(p.Stock) || 0;
-      html += `<div style="${cardStyle};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
+      html += `<div onclick="${isLarge ? `showProductDetails('${p.ID}')` : `closeGlobalSearch();showProductDetails('${p.ID}')`}" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-          <div style="cursor:pointer;flex:1" onclick="closeGlobalSearch();nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)">
+          <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(p.ProductName, query)}</div>
-            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(p.ID)} • Stock: ${stk} • ${c}${Number(p.SellPrice).toLocaleString()}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+              ${esc(p.Club_Country || '')} • ${esc(p.Size || '')} • ${esc(p.ID)}
+            </div>
           </div>
-          <div style="display:flex;gap:4px;align-items:center">
-            ${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? '<span class="badge badge-w">Low</span>' : '<span class="badge badge-s">OK</span>'}
-            ${stk > 0 ? `<button class="btn btn-success btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();quickAddToPOS('${p.ID}')" title="Quick Sell"><i class="fas fa-cash-register"></i></button>` : ''}
-            <button class="btn btn-warning btn-sm" style="padding:4px 8px" onclick="event.stopPropagation();closeGlobalSearch();openPreorderModalForProduct('${esc(p.ProductName)}','${esc(p.Size||'')}')" title="Add to Wishlist"><i class="fas fa-clipboard-list"></i></button>
+          <div style="text-align:right;flex-shrink:0">
+            <div style="font-size:12px;font-weight:700">${c}${Number(p.SellPrice).toLocaleString()}</div>
+            <div style="margin-top:2px">${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? `<span class="badge badge-w">${stk} left</span>` : `<span class="badge badge-s">${stk} in stock</span>`}</div>
           </div>
         </div>
       </div>`;
@@ -1353,7 +1386,6 @@ function renderSearchResultsHTML(results, query, isLarge) {
   
   return html;
 }
-
 function highlightMatch(text, query) {
   if (!text) return '';
   const safe = esc(text);
@@ -1378,7 +1410,315 @@ document.addEventListener('keydown', e => {
     closeGlobalSearch();
   }
 });
+
+// ============================================================
+// CUSTOMER DETAILS — Full history + quick actions
+// ============================================================
+async function showCustomerDetails(custId) {
+  closeGlobalSearch();
+  const cu = S.customers.find(c => c.ID === custId);
+  if (!cu) { toast('Customer not found', 'error'); return; }
   
+  // Get customer's sales
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  const customerSales = S.sales.filter(s => s.CustomerID === custId).sort((a, b) => new Date(b.Date) - new Date(a.Date));
+  
+  const c = C();
+  const totalOrders = customerSales.length;
+  const totalSpent = customerSales.reduce((s, sale) => s + (Number(sale.FinalAmount) || 0), 0);
+  const totalPending = customerSales.reduce((s, sale) => s + (Number(sale.DueAmount) || 0), 0);
+  const lastOrder = customerSales[0];
+  const daysSinceLastOrder = lastOrder ? Math.floor((Date.now() - new Date(lastOrder.Date).getTime()) / (1000 * 60 * 60 * 24)) : null;
+  
+  // Get pre-orders for this customer
+  if (!S.preorders) S.preorders = await apiGet('getPreorders');
+  const activePreorders = (S.preorders || []).filter(p => p.CustomerID === custId && p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
+  
+  let m = document.getElementById('custDetailsModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="custDetailsModal"><div class="modal" style="max-width:900px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-user-circle" style="color:var(--purple);margin-right:6px"></i>${esc(cu.Name)}</h3>
+        <button class="modal-close" onclick="closeModal('custDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Quick Stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
+          <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--purple)">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Orders</div>
+            <div style="font-size:20px;font-weight:800">${totalOrders}</div>
+          </div>
+          <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--secondary)">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Spent</div>
+            <div style="font-size:20px;font-weight:800;color:var(--secondary)">${c}${totalSpent.toLocaleString()}</div>
+          </div>
+          <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid ${totalPending > 0 ? 'var(--danger)' : 'var(--border)'}">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Outstanding</div>
+            <div style="font-size:20px;font-weight:800;color:${totalPending > 0 ? 'var(--danger)' : 'var(--text-muted)'}">${c}${totalPending.toLocaleString()}</div>
+          </div>
+          <div style="padding:12px;background:var(--bg);border-radius:8px;border-left:3px solid var(--warning)">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Last Order</div>
+            <div style="font-size:14px;font-weight:700">${daysSinceLastOrder !== null ? `${daysSinceLastOrder}d ago` : 'Never'}</div>
+          </div>
+        </div>
+        
+        <!-- Contact Info -->
+        <div style="padding:12px;background:var(--surface);border-radius:8px;margin-bottom:16px;font-size:12px">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px">
+            <div><i class="fas fa-phone" style="color:var(--secondary);width:14px"></i> <strong>${esc(formatPhoneBD(cu.Phone || '-'))}</strong></div>
+            ${cu.Email ? `<div><i class="fas fa-envelope" style="color:var(--primary);width:14px"></i> ${esc(cu.Email)}</div>` : ''}
+            ${cu.Address ? `<div style="grid-column:1/-1"><i class="fas fa-location-dot" style="color:var(--danger);width:14px"></i> ${esc(cu.Address)}</div>` : ''}
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <button class="btn btn-success btn-sm" onclick="closeModal('custDetailsModal');createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-cash-register"></i> New Sale</button>
+          <button class="btn btn-warning btn-sm" onclick="closeModal('custDetailsModal');openPreorderModalForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
+          ${cu.Phone ? `<button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone)}')" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i> WhatsApp</button>` : ''}
+          ${totalPending > 0 ? `<button class="btn btn-danger btn-sm" onclick="closeModal('custDetailsModal');sendPaymentReminder('${esc(cu.Name)}','${esc(cu.Phone||'')}',${totalPending})"><i class="fas fa-money-bill"></i> Payment Reminder</button>` : ''}
+          <button class="btn btn-outline btn-sm" onclick="closeModal('custDetailsModal');viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')"><i class="fas fa-book"></i> Full Ledger</button>
+        </div>
+        
+        ${activePreorders.length > 0 ? `
+          <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--warning);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-clipboard-list"></i> Active Wishlist (${activePreorders.length})</h4>
+          <div class="tbl-wrap" style="margin-bottom:16px">
+            <table>
+              <thead><tr><th>Date</th><th>Product</th><th>Size</th><th>Qty</th><th>Status</th></tr></thead>
+              <tbody>
+                ${activePreorders.map(p => `<tr>
+                  <td><small>${fmtD(p.Date)}</small></td>
+                  <td><strong>${esc(p.ProductName)}</strong></td>
+                  <td>${esc(p.Size || '-')}</td>
+                  <td>${p.Quantity || 1}</td>
+                  <td>${preorderStatusBadge(p.Status)}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+        
+        <!-- Order History -->
+        <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--text-sec);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-history"></i> Order History (${customerSales.length})</h4>
+        <div class="tbl-wrap">
+          ${customerSales.length ? `<table>
+            <thead><tr><th>Date</th><th>Invoice</th><th>Total</th><th>Paid</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              ${customerSales.map(s => `<tr>
+                <td><small>${fmtD(s.Date)}</small></td>
+                <td><strong>${s.InvoiceNo}</strong></td>
+                <td>${c}${Number(s.FinalAmount).toLocaleString()}</td>
+                <td>${c}${Number(s.PaidAmount).toLocaleString()}</td>
+                <td style="color:${Number(s.DueAmount) > 0 ? 'var(--danger)' : 'var(--text-muted)'};font-weight:600">${c}${Number(s.DueAmount).toLocaleString()}</td>
+                <td>${statusBadge(s.Status)}</td>
+                <td><button class="btn btn-outline btn-sm" onclick="closeModal('custDetailsModal');viewInvoice('${s.InvoiceNo}')"><i class="fas fa-eye"></i></button></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>` : '<div style="padding:20px;text-align:center;color:var(--text-muted)">No orders yet</div>'}
+        </div>
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('custDetailsModal')">Close</button>
+      </div>
+    </div></div>
+  `);
+  openModal('custDetailsModal');
+}
+
+// ============================================================
+// PRODUCT DETAILS — Stock info + quick actions
+// ============================================================
+async function showProductDetails(productId) {
+  closeGlobalSearch();
+  const p = S.inventory.find(i => i.ID === productId);
+  if (!p) { toast('Product not found', 'error'); return; }
+  
+  // Get sales for this product
+  const salesItems = await apiGet('getSalesItems');
+  const productSales = salesItems.filter(si => si.ProductID === productId);
+  const totalSold = productSales.reduce((s, si) => s + (Number(si.Quantity) || 0), 0);
+  const totalRevenue = productSales.reduce((s, si) => s + (Number(si.LineTotal) || 0), 0);
+  
+  // Recent sales for this product
+  if (!S.sales.length) S.sales = await apiGet('getSales');
+  const recentInvoices = [...new Set(productSales.slice(-10).map(si => si.InvoiceNo))]
+    .map(inv => S.sales.find(s => s.InvoiceNo === inv))
+    .filter(s => s)
+    .sort((a, b) => new Date(b.Date) - new Date(a.Date))
+    .slice(0, 10);
+  
+  const c = C();
+  const stock = Number(p.Stock) || 0;
+  const minStock = Number(p.MinStock) || 5;
+  const stockStatus = stock === 0 ? { text: 'OUT OF STOCK', color: 'var(--danger)', icon: 'fa-circle-xmark' } 
+    : stock <= minStock ? { text: 'LOW STOCK', color: 'var(--warning)', icon: 'fa-triangle-exclamation' }
+    : { text: 'IN STOCK', color: 'var(--secondary)', icon: 'fa-check-circle' };
+  
+  const margin = Number(p.SellPrice) - Number(p.CostPrice);
+  const marginPct = Number(p.SellPrice) > 0 ? ((margin / Number(p.SellPrice)) * 100).toFixed(1) : 0;
+  
+  let m = document.getElementById('prodDetailsModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="prodDetailsModal"><div class="modal" style="max-width:800px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-shirt" style="color:var(--secondary);margin-right:6px"></i>${esc(p.ProductName)}</h3>
+        <button class="modal-close" onclick="closeModal('prodDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Stock Status Banner -->
+        <div style="padding:16px;background:rgba(${stock === 0 ? '239,68,68' : stock <= minStock ? '245,158,11' : '16,185,129'},.08);border-radius:10px;border-left:4px solid ${stockStatus.color};margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:${stockStatus.color};font-weight:700"><i class="fas ${stockStatus.icon}"></i> ${stockStatus.text}</div>
+            <div style="font-size:32px;font-weight:900;margin-top:4px">${stock} <span style="font-size:14px;color:var(--text-muted);font-weight:500">units</span></div>
+            <div style="font-size:11px;color:var(--text-muted)">Min stock alert: ${minStock}</div>
+          </div>
+          <button class="btn btn-success" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${stock})"><i class="fas fa-cubes"></i> Update Stock</button>
+        </div>
+        
+        <!-- Product Info Grid -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Product ID</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.ID)}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Club / Country</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.Club_Country || '-')}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Edition</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.Edition || '-')}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Type / Size</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.Type || '-')} / ${esc(p.Size || '-')}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Cost Price</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px;color:var(--warning)">${c}${Number(p.CostPrice).toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Sell Price</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px;color:var(--secondary)">${c}${Number(p.SellPrice).toLocaleString()}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Margin</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px;color:${marginPct > 30 ? 'var(--secondary)' : marginPct > 15 ? 'var(--warning)' : 'var(--danger)'}">${c}${margin.toLocaleString()} (${marginPct}%)</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Supplier</div>
+            <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.Supplier || '-')}</div>
+          </div>
+        </div>
+        
+        <!-- Sales Performance -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+          <div style="padding:12px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(139,92,246,.05));border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Total Sold</div>
+            <div style="font-size:22px;font-weight:800;color:var(--purple);margin-top:4px">${totalSold}</div>
+            <div style="font-size:10px;color:var(--text-muted)">units</div>
+          </div>
+          <div style="padding:12px;background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(16,185,129,.05));border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Revenue</div>
+            <div style="font-size:18px;font-weight:800;color:var(--secondary);margin-top:4px">${c}${totalRevenue.toLocaleString()}</div>
+          </div>
+          <div style="padding:12px;background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(59,130,246,.05));border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Stock Value</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:4px">${c}${(stock * Number(p.SellPrice)).toLocaleString()}</div>
+          </div>
+        </div>
+        
+        <!-- Action Buttons -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+          <button class="btn btn-success btn-sm" onclick="closeModal('prodDetailsModal');addProductToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Add to Sale</button>
+          <button class="btn btn-warning btn-sm" onclick="closeModal('prodDetailsModal');openWishlistForProduct('${p.ID}','${esc(p.ProductName)}','${esc(p.Size||'')}')"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openProductModal('${p.ID}')"><i class="fas fa-pen"></i> Edit Product</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${stock})"><i class="fas fa-cubes"></i> Adjust Stock</button>
+        </div>
+        
+        ${recentInvoices.length ? `
+          <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--text-sec);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-history"></i> Recent Sales</h4>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Date</th><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                ${recentInvoices.map(s => `<tr>
+                  <td><small>${fmtD(s.Date)}</small></td>
+                  <td><strong>${s.InvoiceNo}</strong></td>
+                  <td>${esc(s.CustomerName || 'Walk-in')}</td>
+                  <td>${c}${Number(s.FinalAmount).toLocaleString()}</td>
+                  <td>${statusBadge(s.Status)}</td>
+                  <td><button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');viewInvoice('${s.InvoiceNo}')"><i class="fas fa-eye"></i></button></td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('prodDetailsModal')">Close</button>
+      </div>
+    </div></div>
+  `);
+  openModal('prodDetailsModal');
+}
+
+// ============================================================
+// QUICK ACTIONS - Add to Wishlist / Add to POS
+// ============================================================
+function openWishlistForProduct(productId, productName, size) {
+  // Open the preorder modal pre-filled with the product
+  openPreorderModal();
+  setTimeout(() => {
+    document.getElementById('poProduct').value = productName;
+    if (size) document.getElementById('poSize').value = size;
+    document.getElementById('poName').focus();
+  }, 100);
+}
+
+function openPreorderModalForCustomer(custId, custName, custPhone) {
+  // Open preorder modal pre-filled with the customer
+  openPreorderModal();
+  setTimeout(() => {
+    const sel = document.getElementById('poCustomer');
+    sel.value = custId;
+    document.getElementById('poName').value = custName;
+    document.getElementById('poPhone').value = formatPhoneBD(custPhone || '');
+    document.getElementById('poProduct').focus();
+  }, 100);
+}
+
+function addProductToPOS(productId) {
+  nav('pos');
+  setTimeout(() => {
+    addPOSRow();
+    const rows = document.querySelectorAll('#posItems tr');
+    const lastRow = rows[rows.length - 1];
+    const sel = lastRow.querySelector('.pos-prod');
+    sel.value = productId;
+    onPOSProdChange(sel);
+    toast('Product added to sale!', 'success');
+  }, 400);
+}
+
+function sendPaymentReminder(name, phone, amount) {
+  const cleanPhone = unformatPhone(phone);
+  if (!cleanPhone) { toast('No phone number available', 'warning'); return; }
+  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
+  const c = C();
+  const businessName = S.settings.businessName || 'Fan Field';
+  const message = encodeURIComponent(`Hi ${name},\n\nThis is a friendly reminder from ${businessName}. You have an outstanding balance of ${c}${amount.toLocaleString()}.\n\nPlease let us know when you can settle this.\n\nThank you! 🙏`);
+  window.open(`https://wa.me/${waPhone}?text=${message}`, '_blank');
+}
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -4381,7 +4721,7 @@ async function renderCustomers(area) {
                 <td><div class="btn-group">
                   <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="New Sale"><i class="fas fa-cash-register"></i></button>
                   <button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="Send WhatsApp"><i class="fab fa-whatsapp"></i></button>
-                  <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="History"><i class="fas fa-history"></i></button>
+                  <button class="btn btn-outline btn-sm" onclick="showCustomerDetails('${cu.ID}')" title="View Details"><i class="fas fa-eye"></i></button>
                 </div></td>
               </tr>`;
             }).join('')}</tbody>
@@ -4537,6 +4877,7 @@ async function delCust(id) {
   const r = await apiPost('deleteCustomer', {ID: id});
   if (r.success) { toast('Deleted'); renderPage('customers'); }
 }
+
 
 
 // ============================================================
