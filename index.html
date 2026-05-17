@@ -1367,6 +1367,42 @@ function searchAll(query) {
   return { customers, sales, products };
 }
 
+// ============================================================
+// FLEXIBLE SEARCH HELPER — Reusable across all pages
+// Supports:
+// • Multi-token, any-order matching ("Argentina S Player" = "Player Argentina S")
+// • Partial phone digit matching ("7730" finds "015-7730-2424")
+// • Case-insensitive
+// ============================================================
+function flexMatch(query, fields, phoneFields = []) {
+  // fields: array of strings to search in (combined into haystack)
+  // phoneFields: array of strings to specifically match as phone digits
+  
+  const q = String(query || '').toLowerCase().trim();
+  if (!q) return true; // empty query matches everything
+  
+  const tokens = q.split(/\s+/).filter(t => t.length > 0);
+  const qDigits = q.replace(/\D/g, '');
+  
+  // Combine all text fields into one haystack
+  const haystack = fields.filter(f => f != null).map(f => String(f)).join(' ').toLowerCase();
+  
+  // Check if every token appears in haystack
+  const textMatch = tokens.every(token => haystack.includes(token));
+  
+  // Check phone field matching (if query has digits)
+  let phoneMatch = false;
+  if (qDigits.length >= 2 && phoneFields.length > 0) {
+    phoneMatch = phoneFields.some(phone => {
+      if (!phone) return false;
+      const phoneDigits = String(phone).replace(/\D/g, '');
+      return phoneDigits.includes(qDigits);
+    });
+  }
+  
+  return textMatch || phoneMatch;
+}
+
 function renderSearchResultsHTML(results, query, isLarge) {
   const c = C();
   const { customers, sales, products } = results;
@@ -1885,7 +1921,7 @@ async function renderInventory(area){
   // Reset to smart sort by default every time inventory loads
   invSortCol='smart';invSortDir='asc';
   area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
-    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Search products, clubs, IDs..." oninput="filterInv()"></div>
+    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Flexible search: 'Argentina S Player' or 'Real Madrid M'..." oninput="filterInv()"></div>
     <select class="fc" style="width:auto;min-width:100px" id="invCat" onchange="filterInv()"><option value="">All Clubs</option>${cats.map(c=>`<option>${c}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:90px" id="invEd" onchange="filterInv()"><option value="">All Editions</option>${eds.map(e=>`<option>${e}</option>`).join('')}</select>
     <select class="fc" style="width:auto;min-width:80px" id="invType" onchange="filterInv()"><option value="">All Types</option>${types.map(t=>`<option>${t}</option>`).join('')}</select>
@@ -1900,17 +1936,30 @@ async function renderInventory(area){
   filterInv();
 }
 function filterInv(){
-  const srch=(document.getElementById('invSrch')?.value||'').toLowerCase();
-  const cat=document.getElementById('invCat')?.value||'';
-  const ed=document.getElementById('invEd')?.value||'';
-  const type=document.getElementById('invType')?.value||'';
-  const size=document.getElementById('invSize')?.value||'';
-  const stk=document.getElementById('invStock')?.value||'';
-  let data=S.inventory.filter(i=>{
-    const ms=!srch||(i.ProductName||'').toLowerCase().includes(srch)||(i.Club_Country||'').toLowerCase().includes(srch)||(i.ID||'').toLowerCase().includes(srch);
-    const mc=!cat||i.Club_Country===cat;const me=!ed||i.Edition===ed;const mt=!type||i.Type===type;const mz=!size||i.Size===size;
-    let mst=true;if(stk==='low')mst=Number(i.Stock)>0&&Number(i.Stock)<=Number(i.MinStock||5);else if(stk==='out')mst=Number(i.Stock)===0;else if(stk==='ok')mst=Number(i.Stock)>Number(i.MinStock||5);
-    return ms&&mc&&me&&mt&&mz&&mst;
+  const srch = document.getElementById('invSrch')?.value || '';
+  const cat = document.getElementById('invCat')?.value || '';
+  const ed = document.getElementById('invEd')?.value || '';
+  const type = document.getElementById('invType')?.value || '';
+  const size = document.getElementById('invSize')?.value || '';
+  const stk = document.getElementById('invStock')?.value || '';
+  
+  let data = S.inventory.filter(i => {
+    // FLEXIBLE SEARCH — any word order, all product fields
+    const ms = !srch || flexMatch(srch, [
+      i.ProductName, i.Club_Country, i.Edition, i.Type, i.Size, i.ID, i.Color, i.Supplier
+    ]);
+    
+    const mc = !cat || i.Club_Country === cat;
+    const me = !ed || i.Edition === ed;
+    const mt = !type || i.Type === type;
+    const mz = !size || i.Size === size;
+    
+    let mst = true;
+    if (stk === 'low') mst = Number(i.Stock) > 0 && Number(i.Stock) <= Number(i.MinStock || 5);
+    else if (stk === 'out') mst = Number(i.Stock) === 0;
+    else if (stk === 'ok') mst = Number(i.Stock) > Number(i.MinStock || 5);
+    
+    return ms && mc && me && mt && mz && mst;
   });
   
   // Default sort = SMART (groups by Club → Type → Edition → Size). Column clicks override.
@@ -4862,10 +4911,12 @@ function sendVIPMessage(name, phone) {
 
 function filterCust() {
   const srch = (document.getElementById('cSrch')?.value || '').toLowerCase();
-  const data = S.customers.filter(c => !srch || 
-    (c.Name || '').toLowerCase().includes(srch) || 
-    (c.Phone || '').includes(srch) ||
-    (c.Email || '').toLowerCase().includes(srch));
+  const data = S.customers.filter(c => 
+    flexMatch(srch, 
+      [c.Name, c.Email, c.Address, c.Phone],  // text fields
+      [c.Phone]                                 // phone fields
+    )
+  );
   const c = C();
   
   document.getElementById('cTbl').innerHTML = data.length ? `
@@ -5023,6 +5074,7 @@ async function renderPreorders(area) {
       <div class="card-hdr">
         <h3><i class="fas fa-clipboard-list" style="color:var(--warning);margin-right:6px"></i>Pre-Order Requests</h3>
         <div class="btn-group">
+          <div class="search-box"><i class="fas fa-search"></i><input type="text" id="poSrch" placeholder="Search customer, product, phone..." oninput="filterPreorders()"></div>
           <select class="fc btn-sm" style="width:auto" id="poFilter" onchange="filterPreorders()">
             <option value="active">Active Only</option>
             <option value="all">All</option>
@@ -5041,10 +5093,18 @@ async function renderPreorders(area) {
 
 function filterPreorders() {
   const filter = document.getElementById('poFilter')?.value || 'active';
+  const srch = document.getElementById('poSrch')?.value || '';
+  
   let data = S.preorders || [];
   if (filter === 'active') data = data.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
   else if (filter === 'fulfilled') data = data.filter(p => p.Status === 'Fulfilled');
   else if (filter === 'cancelled') data = data.filter(p => p.Status === 'Cancelled');
+  
+  // Flexible search
+  data = data.filter(p => flexMatch(srch, 
+    [p.CustomerName, p.CustomerPhone, p.ProductName, p.Size, p.Status, p.Notes],
+    [p.CustomerPhone]
+  ));
   
   const sorted = [...data].sort((a, b) => new Date(b.Date) - new Date(a.Date));
   const c = C();
@@ -5296,12 +5356,12 @@ async function renderStockHistory(area) {
 }
 
 function filterStockHistory() {
-  const srch = (document.getElementById('shSrch')?.value || '').toLowerCase();
+  const srch = document.getElementById('shSrch')?.value || '';
   const action = document.getElementById('shAction')?.value || '';
   const period = document.getElementById('shPeriod')?.value || 'all';
   
   let data = (S.stockLog || []).filter(log => {
-    const ms = !srch || (log.ProductName || '').toLowerCase().includes(srch) || (log.Action || '').toLowerCase().includes(srch) || (log.ProductID || '').toLowerCase().includes(srch);
+    const ms = flexMatch(srch, [log.ProductName, log.Action, log.ProductID, log.Reference, log.Notes]);
     const ma = !action || (log.Action || '').includes(action);
     return ms && ma;
   });
@@ -5568,16 +5628,13 @@ async function renderAdjustments(area) {
 
 function filterAdjustments() {
   const all = window._allAdjustments || [];
-  const srch = (document.getElementById('adjSrch')?.value || '').toLowerCase();
+  const srch = document.getElementById('adjSrch')?.value || '';
   const type = document.getElementById('adjType')?.value || '';
   const period = document.getElementById('adjPeriod')?.value || 'all';
   const c = C();
   
   let data = all.filter(a => {
-    const ms = !srch || 
-      (a.invoiceNo || '').toLowerCase().includes(srch) ||
-      (a.reason || '').toLowerCase().includes(srch) ||
-      (a.customerName || '').toLowerCase().includes(srch);
+    const ms = flexMatch(srch, [a.invoiceNo, a.reason, a.customerName, a.type]);
     const mt = !type || a.type === type;
     return ms && mt;
   });
