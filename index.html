@@ -2150,11 +2150,62 @@ async function openInventoryInsights() {
   });
   
   // ============================================================
-  // 5. Capital tied up (dead stock = no sales + high stock)
+  // 5. Dead Stock — TWO conditions trigger dead stock status:
+  //    (A) Product has 1+ units AND was added 10+ days ago
+  //    (B) Product has 1+ units AND hasn't been updated/sold in 15+ days
+  // Either condition flags it as dead stock.
   // ============================================================
-  const deadStock = [...movers].filter(m => Number(m.Stock) >= 1 && m.unitsSold === 0)
-    .sort((a, b) => (Number(b.Stock) * Number(b.CostPrice)) - (Number(a.Stock) * Number(a.CostPrice)))
-    .slice(0, 10);
+  const DEAD_STOCK_AGE_DAYS = 10;      // Added 10+ days ago
+  const DEAD_STOCK_STALE_DAYS = 15;    // No update/sale in 15+ days
+  const now = Date.now();
+  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+  
+  const deadStock = [...movers].filter(m => {
+    const stock = Number(m.Stock) || 0;
+    if (stock < 1) return false;  // Must have at least 1 unit
+    
+    // Parse DateAdded
+    const dateAddedStr = m.DateAdded || m.CreatedAt || '';
+    const dateAdded = dateAddedStr ? new Date(dateAddedStr).getTime() : NaN;
+    
+    // Parse LastUpdated
+    const lastUpdatedStr = m.LastUpdated || m.DateAdded || m.CreatedAt || '';
+    const lastUpdated = lastUpdatedStr ? new Date(lastUpdatedStr).getTime() : NaN;
+    
+    // Skip if no valid dates
+    if (isNaN(dateAdded) && isNaN(lastUpdated)) return false;
+    
+    const daysSinceAdded = !isNaN(dateAdded) ? Math.floor((now - dateAdded) / MS_PER_DAY) : 0;
+    const daysSinceUpdate = !isNaN(lastUpdated) ? Math.floor((now - lastUpdated) / MS_PER_DAY) : 0;
+    
+    // Trigger if EITHER condition is true
+    const conditionA = !isNaN(dateAdded) && daysSinceAdded >= DEAD_STOCK_AGE_DAYS;
+    const conditionB = !isNaN(lastUpdated) && daysSinceUpdate >= DEAD_STOCK_STALE_DAYS;
+    
+    return conditionA || conditionB;
+  })
+  .map(m => {
+    const dateAddedStr = m.DateAdded || m.CreatedAt || '';
+    const lastUpdatedStr = m.LastUpdated || m.DateAdded || m.CreatedAt || '';
+    const dateAdded = dateAddedStr ? new Date(dateAddedStr).getTime() : NaN;
+    const lastUpdated = lastUpdatedStr ? new Date(lastUpdatedStr).getTime() : NaN;
+    
+    const daysSinceAdded = !isNaN(dateAdded) ? Math.floor((now - dateAdded) / MS_PER_DAY) : null;
+    const daysSinceUpdate = !isNaN(lastUpdated) ? Math.floor((now - lastUpdated) / MS_PER_DAY) : null;
+    
+    // Tag the reason this product was flagged
+    const reasons = [];
+    if (daysSinceAdded !== null && daysSinceAdded >= DEAD_STOCK_AGE_DAYS) reasons.push('aged');
+    if (daysSinceUpdate !== null && daysSinceUpdate >= DEAD_STOCK_STALE_DAYS) reasons.push('stale');
+    
+    return { ...m, daysSinceAdded, daysSinceUpdate, deadReasons: reasons };
+  })
+  .sort((a, b) => {
+    // Sort by capital tied up DESC
+    return (Number(b.Stock) * Number(b.CostPrice)) - (Number(a.Stock) * Number(a.CostPrice));
+  })
+  .slice(0, 30); // Show top 30 dead stock items
+  
   const deadStockValue = deadStock.reduce((s, m) => s + (Number(m.Stock) * Number(m.CostPrice)), 0);
   
   let m = document.getElementById('invInsightsModal');
@@ -2270,23 +2321,64 @@ async function openInventoryInsights() {
         <div class="ins-content" id="ins-dead" style="display:none">
           <div style="background:rgba(107,114,128,.08);padding:12px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
             <i class="fas fa-snowflake" style="color:var(--text-muted)"></i>
-            <strong>Dead stock:</strong> Products with 1+ units that haven't sold yet. Consider promotions or discounts.<br>
-            <strong style="color:var(--warning)">Capital tied up: ${c}${deadStockValue.toLocaleString()}</strong>
+            <strong>Dead stock criteria:</strong> Products with <strong>1+ units</strong> meeting EITHER condition:<br>
+            <span style="display:inline-block;margin:4px 0;padding:2px 8px;background:rgba(245,158,11,.15);border-radius:4px;color:var(--warning)">📅 <strong>Aged:</strong> Added ${DEAD_STOCK_AGE_DAYS}+ days ago</span>
+            <span style="display:inline-block;margin:4px 0 4px 6px;padding:2px 8px;background:rgba(239,68,68,.15);border-radius:4px;color:var(--danger)">💤 <strong>Stale:</strong> No update/sale in ${DEAD_STOCK_STALE_DAYS}+ days</span>
+            <br>
+            <strong style="color:var(--warning);font-size:13px;margin-top:6px;display:inline-block">💰 Capital tied up: ${c}${deadStockValue.toLocaleString()}</strong>
+            ${deadStock.length > 0 ? `<span style="margin-left:14px;color:var(--text-muted)">• ${deadStock.length} item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
           </div>
           <div class="tbl-wrap"><table>
-            <thead><tr><th>#</th><th>Product</th><th>Stock</th><th>Cost Value</th><th>Days Listed</th></tr></thead>
+            <thead><tr>
+              <th>#</th>
+              <th>Product</th>
+              <th>Stock</th>
+              <th>Capital Tied</th>
+              <th>Age (Added)</th>
+              <th>Last Activity</th>
+              <th>Why Flagged</th>
+              <th>Urgency</th>
+              <th>Actions</th>
+            </tr></thead>
             <tbody>
               ${deadStock.length ? deadStock.map((m, idx) => {
-                const created = new Date(m.CreatedAt || m.DateAdded || Date.now());
-                const daysAgo = Math.floor((Date.now() - created.getTime()) / (1000 * 60 * 60 * 24));
+                const capital = Number(m.Stock) * Number(m.CostPrice);
+                const dAdded = m.daysSinceAdded;
+                const dUpdate = m.daysSinceUpdate;
+                
+                // Use the worst (highest) days for urgency calculation
+                const worstDays = Math.max(dAdded || 0, dUpdate || 0);
+                
+                let urgency, urgClass;
+                if (worstDays >= 60) { urgency = 'CRITICAL'; urgClass = 'badge-d'; }
+                else if (worstDays >= 30) { urgency = 'HIGH'; urgClass = 'badge-w'; }
+                else if (worstDays >= 20) { urgency = 'MEDIUM'; urgClass = 'badge-i'; }
+                else { urgency = 'LOW'; urgClass = 'badge-p'; }
+                
+                // Build "why flagged" badges
+                const reasonBadges = [];
+                if (m.deadReasons.includes('aged')) {
+                  reasonBadges.push(`<span class="badge badge-w" style="font-size:9px">📅 Aged</span>`);
+                }
+                if (m.deadReasons.includes('stale')) {
+                  reasonBadges.push(`<span class="badge badge-d" style="font-size:9px">💤 Stale</span>`);
+                }
+                
                 return `<tr>
                   <td>${idx + 1}</td>
-                  <td><strong>${esc(m.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(m.ID)}</small></td>
+                  <td><strong>${esc(m.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(m.ID)} • ${esc(m.Size || '-')}</small></td>
                   <td><strong>${m.Stock}</strong></td>
-                  <td>${c}${(Number(m.Stock) * Number(m.CostPrice)).toLocaleString()}</td>
-                  <td>${isNaN(daysAgo) ? '-' : daysAgo + 'd'}</td>
+                  <td><strong style="color:var(--warning)">${c}${capital.toLocaleString()}</strong></td>
+                  <td>${dAdded !== null ? `<strong>${dAdded}d</strong>` : '<span style="color:var(--text-muted)">-</span>'}</td>
+                  <td>${dUpdate !== null ? `<strong>${dUpdate}d ago</strong>` : '<span style="color:var(--text-muted)">-</span>'}</td>
+                  <td>${reasonBadges.join(' ')}</td>
+                  <td><span class="badge ${urgClass}">${urgency}</span></td>
+                  <td><div class="btn-group">
+                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');showProductDetails('${m.ID}')" title="View Details"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');openProductModal('${m.ID}')" title="Edit Price"><i class="fas fa-tag"></i></button>
+                  </div></td>
                 </tr>`;
-              }).join('') : '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--secondary)"><i class="fas fa-check-circle"></i> No dead stock — everything is moving!</td></tr>'}
+              }).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--secondary)"><i class="fas fa-check-circle" style="font-size:24px;margin-bottom:6px;display:block"></i> No dead stock — everything is moving!<br><small style="color:var(--text-muted)">Items with 1+ units that are 10+ days old or haven\'t moved in 15+ days will appear here.</small></td></tr>'}
             </tbody>
           </table></div>
         </div>
@@ -3648,7 +3740,7 @@ function showInvoice(invoiceNo, sd, items) {
       <div class="btn-group">
         <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
         <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
-        <button class="btn btn-success btn-sm" onclick="shareInvoiceAsImage('${esc(sd.CustomerPhone||'')}','${invoiceNo}')" title="Share via WhatsApp/Messenger as image"><i class="fas fa-share-nodes"></i>Share</button>
+        <button class="btn btn-success btn-sm" onclick="copyInvoiceImageToClipboard('${invoiceNo}')" id="copyInvBtn"><i class="fas fa-copy"></i>Copy Image</button>
         <button class="btn btn-primary btn-sm" onclick="downloadInvoiceAsPDF('${invoiceNo}')"><i class="fas fa-download"></i>PDF</button>
         <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
         <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
@@ -3661,7 +3753,6 @@ function showInvoice(invoiceNo, sd, items) {
   window._invFullHTML = fullHTML;
   window._invCurrentMode = 'compact';
   window._invCurrentInvoiceNo = invoiceNo;
-  window._invCurrentPhone = sd.CustomerPhone || '';
   openModal('invoiceModal');
 }
 
@@ -3737,7 +3828,7 @@ async function viewInvoice(invoiceNo) {
       <div class="btn-group">
         <button class="btn btn-outline btn-sm" id="btnCompact" onclick="switchInvoiceView('compact')" style="border-color:var(--primary);color:var(--primary)">📱 Compact</button>
         <button class="btn btn-outline btn-sm" id="btnFull" onclick="switchInvoiceView('full')">🖨 Full</button>
-        <button class="btn btn-success btn-sm" onclick="shareInvoiceAsImage('${esc(sale.CustomerPhone||'')}','${invoiceNo}')" title="Share via WhatsApp/Messenger as image"><i class="fas fa-share-nodes"></i>Share</button>
+        <button class="btn btn-success btn-sm" onclick="copyInvoiceImageToClipboard('${invoiceNo}')" id="copyInvBtn"><i class="fas fa-copy"></i>Copy Image</button>
         <button class="btn btn-primary btn-sm" onclick="downloadInvoiceAsPDF('${invoiceNo}')"><i class="fas fa-download"></i>PDF</button>
         <button class="btn btn-primary btn-sm" onclick="printInvoice()"><i class="fas fa-print"></i>Print</button>
         <button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button>
@@ -3750,9 +3841,9 @@ async function viewInvoice(invoiceNo) {
   window._invFullHTML = fullHTML;
   window._invCurrentMode = 'compact';
   window._invCurrentInvoiceNo = invoiceNo;
-  window._invCurrentPhone = sale.CustomerPhone || '';
   openModal('invoiceModal');
 }
+
 function switchInvoiceView(mode) {
   const body = document.getElementById('invModalBody');
   if (!body) return;
@@ -3785,130 +3876,98 @@ function printInvoice() {
 }
 
 // ============================================================
-// SHARE INVOICE AS IMAGE — WhatsApp / Messenger / Any
+// COPY INVOICE AS IMAGE → CLIPBOARD (Desktop + Mobile)
 // ============================================================
-async function shareInvoiceAsImage(phone, invoiceNo) {
+async function copyInvoiceImageToClipboard(invoiceNo) {
   const content = document.getElementById('invPrint');
-  if (!content) { toast('Nothing to share', 'error'); return; }
+  if (!content) { toast('Nothing to copy', 'error'); return; }
   
-  toast('Generating image...', 'info');
+  const btn = document.getElementById('copyInvBtn');
+  const originalHTML = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...'; }
   
   try {
-    // Use html2canvas to capture invoice
+    // Generate high-res canvas from invoice
     const canvas = await html2canvas(content, {
       backgroundColor: '#ffffff',
-      scale: 2, // higher resolution
+      scale: 2,
       logging: false,
       useCORS: true
     });
     
-    // Convert to blob
-    canvas.toBlob(async (blob) => {
-      if (!blob) { toast('Failed to generate image', 'error'); return; }
-      
+    // Convert canvas to blob (PNG image)
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) throw new Error('Failed to create image blob');
+    
+    // ============================================================
+    // MOBILE: Use Web Share API (most reliable on phones)
+    // ============================================================
+    const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+    
+    if (isMobile && navigator.canShare) {
       const file = new File([blob], `Invoice_${invoiceNo}.png`, { type: 'image/png' });
       
-      // Try native share API first (mobile)
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      if (navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({
             files: [file],
-            title: `Invoice ${invoiceNo}`,
-            text: `Your invoice from ${S.settings.businessName || 'Fan Field'}`
+            title: `Invoice ${invoiceNo}`
           });
-          toast('Shared!', 'success');
+          if (btn) { btn.innerHTML = '<i class="fas fa-check"></i> Shared!'; setTimeout(() => { btn.innerHTML = originalHTML; btn.disabled = false; }, 2000); }
           return;
         } catch (err) {
-          if (err.name !== 'AbortError') console.error(err);
+          if (err.name === 'AbortError') {
+            // User cancelled — restore button silently
+            if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
+            return;
+          }
+          // Fall through to clipboard
         }
       }
-      
-      // Fallback: download + show share options modal
-      showShareOptionsModal(blob, phone, invoiceNo);
-    }, 'image/png');
+    }
+    
+    // ============================================================
+    // DESKTOP: Use Clipboard API to copy image directly
+    // ============================================================
+    if (navigator.clipboard && window.ClipboardItem) {
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        toast('✓ Invoice image copied to clipboard! Paste it anywhere (Ctrl+V)', 'success');
+        if (btn) {
+          btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+          btn.style.background = 'var(--secondary)';
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.style.background = '';
+            btn.disabled = false;
+          }, 2500);
+        }
+        return;
+      } catch (clipErr) {
+        console.warn('Clipboard write failed:', clipErr);
+      }
+    }
+    
+    // ============================================================
+    // FALLBACK: Download the image so user can attach it
+    // ============================================================
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Invoice_${invoiceNo}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Image downloaded (clipboard not supported in this browser)', 'info');
+    if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
     
   } catch (err) {
-    console.error(err);
+    console.error('Copy failed:', err);
     toast('Failed to generate image: ' + err.message, 'error');
-  }
-}
-
-function showShareOptionsModal(blob, phone, invoiceNo) {
-  const url = URL.createObjectURL(blob);
-  const cleanPhone = unformatPhone(phone || '');
-  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
-  const message = encodeURIComponent(`Hi! Here's your invoice ${invoiceNo} from ${S.settings.businessName || 'Fan Field'}. Thank you for shopping with us! 🎽`);
-  
-  let m = document.getElementById('shareModal');
-  if (m) m.remove();
-  
-  document.body.insertAdjacentHTML('beforeend', `
-    <div class="modal-overlay active" id="shareModal" style="z-index:3000">
-      <div class="modal" style="max-width:520px">
-        <div class="modal-hdr">
-          <h3><i class="fas fa-share-nodes" style="color:var(--secondary);margin-right:6px"></i>Share Invoice ${invoiceNo}</h3>
-          <button class="modal-close" onclick="closeShareModal('${url}')">&times;</button>
-        </div>
-        <div class="modal-body">
-          <div style="text-align:center;margin-bottom:18px">
-            <img src="${url}" alt="Invoice preview" style="max-width:100%;max-height:300px;border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-md)">
-          </div>
-          
-          <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:16px;font-size:12px;color:var(--text-sec)">
-            <i class="fas fa-info-circle" style="color:var(--secondary)"></i>
-            <strong>Step 1:</strong> Click "Download" to save image • <strong>Step 2:</strong> Click an app below to open chat • <strong>Step 3:</strong> Attach the downloaded image
-          </div>
-          
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px">
-            <button class="btn btn-primary" onclick="downloadShareImage('${url}','${invoiceNo}')" style="background:linear-gradient(135deg,#3b82f6,#2563eb)">
-              <i class="fas fa-download"></i> Download Image
-            </button>
-            ${cleanPhone ? `
-              <a href="https://wa.me/${waPhone}?text=${message}" target="_blank" class="btn" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
-                <i class="fab fa-whatsapp"></i> WhatsApp
-              </a>
-            ` : `
-              <a href="https://web.whatsapp.com" target="_blank" class="btn" style="background:linear-gradient(135deg,#25d366,#128c7e);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
-                <i class="fab fa-whatsapp"></i> WhatsApp Web
-              </a>
-            `}
-            <a href="https://www.messenger.com" target="_blank" class="btn" style="background:linear-gradient(135deg,#0084ff,#0066cc);color:#fff;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:12.5px;font-weight:600">
-              <i class="fab fa-facebook-messenger"></i> Messenger
-            </a>
-            <button class="btn btn-outline" onclick="copyImageToClipboard('${url}')">
-              <i class="fas fa-copy"></i> Copy Image
-            </button>
-          </div>
-        </div>
-        <div class="modal-foot">
-          <button class="btn btn-outline" onclick="closeShareModal('${url}')">Close</button>
-        </div>
-      </div>
-    </div>
-  `);
-}
-
-function closeShareModal(url) {
-  document.getElementById('shareModal')?.remove();
-  if (url) URL.revokeObjectURL(url);
-}
-
-function downloadShareImage(url, invoiceNo) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `Invoice_${invoiceNo}.png`;
-  a.click();
-  toast('Image downloaded! Now attach it in your chat app.', 'success');
-}
-
-async function copyImageToClipboard(url) {
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-    toast('Image copied to clipboard! Paste in any chat.', 'success');
-  } catch (err) {
-    toast('Copy failed. Use Download instead.', 'error');
+    if (btn) { btn.innerHTML = originalHTML; btn.disabled = false; }
   }
 }
 
