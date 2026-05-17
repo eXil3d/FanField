@@ -2149,64 +2149,60 @@ async function openInventoryInsights() {
     byEdition[ed].retailValue += (Number(i.Stock) || 0) * (Number(i.SellPrice) || 0);
   });
   
+ // ============================================================
+  // 5. Dead Stock — Simple & Reliable
+  // A product is "dead stock" if:
+  //   ✓ Has 1+ units in stock
+  //   ✓ No activity (no sales, no stock changes) in last 15 days
+  // 
+  // We use LastUpdated column which auto-updates on:
+  //   - Any sale (decreases stock)
+  //   - Manual stock adjustment
+  //   - Any product edit
   // ============================================================
-  // 5. Dead Stock — TWO conditions trigger dead stock status:
-  //    (A) Product has 1+ units AND was added 10+ days ago
-  //    (B) Product has 1+ units AND hasn't been updated/sold in 15+ days
-  // Either condition flags it as dead stock.
-  // ============================================================
-  const DEAD_STOCK_AGE_DAYS = 10;      // Added 10+ days ago
-  const DEAD_STOCK_STALE_DAYS = 15;    // No update/sale in 15+ days
-  const now = Date.now();
-  const MS_PER_DAY = 1000 * 60 * 60 * 24;
+  const DEAD_STOCK_DAYS = 11;
+  const todayMs = Date.now();
+  const ONE_DAY_MS = 86400000; // 1000 * 60 * 60 * 24
   
-  const deadStock = [...movers].filter(m => {
-    const stock = Number(m.Stock) || 0;
-    if (stock < 1) return false;  // Must have at least 1 unit
-    
-    // Parse DateAdded
-    const dateAddedStr = m.DateAdded || m.CreatedAt || '';
-    const dateAdded = dateAddedStr ? new Date(dateAddedStr).getTime() : NaN;
-    
-    // Parse LastUpdated
-    const lastUpdatedStr = m.LastUpdated || m.DateAdded || m.CreatedAt || '';
-    const lastUpdated = lastUpdatedStr ? new Date(lastUpdatedStr).getTime() : NaN;
-    
-    // Skip if no valid dates
-    if (isNaN(dateAdded) && isNaN(lastUpdated)) return false;
-    
-    const daysSinceAdded = !isNaN(dateAdded) ? Math.floor((now - dateAdded) / MS_PER_DAY) : 0;
-    const daysSinceUpdate = !isNaN(lastUpdated) ? Math.floor((now - lastUpdated) / MS_PER_DAY) : 0;
-    
-    // Trigger if EITHER condition is true
-    const conditionA = !isNaN(dateAdded) && daysSinceAdded >= DEAD_STOCK_AGE_DAYS;
-    const conditionB = !isNaN(lastUpdated) && daysSinceUpdate >= DEAD_STOCK_STALE_DAYS;
-    
-    return conditionA || conditionB;
-  })
-  .map(m => {
-    const dateAddedStr = m.DateAdded || m.CreatedAt || '';
-    const lastUpdatedStr = m.LastUpdated || m.DateAdded || m.CreatedAt || '';
-    const dateAdded = dateAddedStr ? new Date(dateAddedStr).getTime() : NaN;
-    const lastUpdated = lastUpdatedStr ? new Date(lastUpdatedStr).getTime() : NaN;
-    
-    const daysSinceAdded = !isNaN(dateAdded) ? Math.floor((now - dateAdded) / MS_PER_DAY) : null;
-    const daysSinceUpdate = !isNaN(lastUpdated) ? Math.floor((now - lastUpdated) / MS_PER_DAY) : null;
-    
-    // Tag the reason this product was flagged
-    const reasons = [];
-    if (daysSinceAdded !== null && daysSinceAdded >= DEAD_STOCK_AGE_DAYS) reasons.push('aged');
-    if (daysSinceUpdate !== null && daysSinceUpdate >= DEAD_STOCK_STALE_DAYS) reasons.push('stale');
-    
-    return { ...m, daysSinceAdded, daysSinceUpdate, deadReasons: reasons };
-  })
-  .sort((a, b) => {
-    // Sort by capital tied up DESC
-    return (Number(b.Stock) * Number(b.CostPrice)) - (Number(a.Stock) * Number(a.CostPrice));
-  })
-  .slice(0, 30); // Show top 30 dead stock items
+  const deadStock = S.inventory
+    .filter(item => {
+      // Must have at least 1 unit in stock
+      const stock = Number(item.Stock) || 0;
+      if (stock < 1) return false;
+      
+      // Get the LastUpdated date (fall back to DateAdded if missing)
+      const lastActivityDate = item.LastUpdated || item.DateAdded;
+      if (!lastActivityDate) return false;
+      
+      // Parse the date safely
+      const lastActivityMs = new Date(lastActivityDate).getTime();
+      if (isNaN(lastActivityMs)) return false;
+      
+      // Calculate days since last activity
+      const daysSinceActivity = Math.floor((todayMs - lastActivityMs) / ONE_DAY_MS);
+      
+      // Flag if no activity for 15+ days
+      return daysSinceActivity >= DEAD_STOCK_DAYS;
+    })
+    .map(item => {
+      const lastActivityDate = item.LastUpdated || item.DateAdded;
+      const lastActivityMs = new Date(lastActivityDate).getTime();
+      const daysSinceActivity = Math.floor((todayMs - lastActivityMs) / ONE_DAY_MS);
+      
+      const stock = Number(item.Stock) || 0;
+      const cost = Number(item.CostPrice) || 0;
+      const capital = stock * cost;
+      
+      return {
+        ...item,
+        daysSinceActivity,
+        capitalTied: capital
+      };
+    })
+    .sort((a, b) => b.capitalTied - a.capitalTied) // Highest capital first
+    .slice(0, 50); // Show top 50 dead stock items
   
-  const deadStockValue = deadStock.reduce((s, m) => s + (Number(m.Stock) * Number(m.CostPrice)), 0);
+  const deadStockValue = deadStock.reduce((sum, item) => sum + item.capitalTied, 0);
   
   let m = document.getElementById('invInsightsModal');
   if (m) m.remove();
@@ -2319,66 +2315,63 @@ async function openInventoryInsights() {
         
         <!-- DEAD STOCK TAB -->
         <div class="ins-content" id="ins-dead" style="display:none">
-          <div style="background:rgba(107,114,128,.08);padding:12px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
-            <i class="fas fa-snowflake" style="color:var(--text-muted)"></i>
-            <strong>Dead stock criteria:</strong> Products with <strong>1+ units</strong> meeting EITHER condition:<br>
-            <span style="display:inline-block;margin:4px 0;padding:2px 8px;background:rgba(245,158,11,.15);border-radius:4px;color:var(--warning)">📅 <strong>Aged:</strong> Added ${DEAD_STOCK_AGE_DAYS}+ days ago</span>
-            <span style="display:inline-block;margin:4px 0 4px 6px;padding:2px 8px;background:rgba(239,68,68,.15);border-radius:4px;color:var(--danger)">💤 <strong>Stale:</strong> No update/sale in ${DEAD_STOCK_STALE_DAYS}+ days</span>
-            <br>
-            <strong style="color:var(--warning);font-size:13px;margin-top:6px;display:inline-block">💰 Capital tied up: ${c}${deadStockValue.toLocaleString()}</strong>
-            ${deadStock.length > 0 ? `<span style="margin-left:14px;color:var(--text-muted)">• ${deadStock.length} item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
+          <div style="background:rgba(107,114,128,.08);padding:14px;border-radius:8px;border-left:3px solid var(--text-muted);margin-bottom:14px;font-size:12.5px;color:var(--text-sec)">
+            <i class="fas fa-snowflake" style="color:var(--text-muted);font-size:14px"></i>
+            <strong style="font-size:13px">Dead Stock</strong> — products with 1+ units that have had no activity (no sales, no stock updates) in the last <strong>${DEAD_STOCK_DAYS}+ days</strong>.<br>
+            <span style="display:inline-block;margin-top:8px;color:var(--warning);font-size:14px;font-weight:700">💰 Capital tied up: ${c}${deadStockValue.toLocaleString()}</span>
+            ${deadStock.length > 0 ? `<span style="margin-left:16px;color:var(--text-muted);font-size:12px">• <strong style="color:var(--text)">${deadStock.length}</strong> item${deadStock.length !== 1 ? 's' : ''} flagged</span>` : ''}
           </div>
+          
           <div class="tbl-wrap"><table>
             <thead><tr>
               <th>#</th>
               <th>Product</th>
               <th>Stock</th>
+              <th>Cost / Unit</th>
               <th>Capital Tied</th>
-              <th>Age (Added)</th>
-              <th>Last Activity</th>
-              <th>Why Flagged</th>
+              <th>Days Inactive</th>
               <th>Urgency</th>
               <th>Actions</th>
             </tr></thead>
             <tbody>
-              ${deadStock.length ? deadStock.map((m, idx) => {
-                const capital = Number(m.Stock) * Number(m.CostPrice);
-                const dAdded = m.daysSinceAdded;
-                const dUpdate = m.daysSinceUpdate;
+              ${deadStock.length ? deadStock.map((item, idx) => {
+                const days = item.daysSinceActivity;
                 
-                // Use the worst (highest) days for urgency calculation
-                const worstDays = Math.max(dAdded || 0, dUpdate || 0);
-                
-                let urgency, urgClass;
-                if (worstDays >= 60) { urgency = 'CRITICAL'; urgClass = 'badge-d'; }
-                else if (worstDays >= 30) { urgency = 'HIGH'; urgClass = 'badge-w'; }
-                else if (worstDays >= 20) { urgency = 'MEDIUM'; urgClass = 'badge-i'; }
-                else { urgency = 'LOW'; urgClass = 'badge-p'; }
-                
-                // Build "why flagged" badges
-                const reasonBadges = [];
-                if (m.deadReasons.includes('aged')) {
-                  reasonBadges.push(`<span class="badge badge-w" style="font-size:9px">📅 Aged</span>`);
-                }
-                if (m.deadReasons.includes('stale')) {
-                  reasonBadges.push(`<span class="badge badge-d" style="font-size:9px">💤 Stale</span>`);
+                // Urgency tiers based on how long it's been inactive
+                let urgency, urgClass, urgIcon;
+                if (days >= 90) {
+                  urgency = 'CRITICAL'; urgClass = 'badge-d'; urgIcon = '🔴';
+                } else if (days >= 60) {
+                  urgency = 'HIGH'; urgClass = 'badge-w'; urgIcon = '🟠';
+                } else if (days >= 30) {
+                  urgency = 'MEDIUM'; urgClass = 'badge-i'; urgIcon = '🟡';
+                } else {
+                  urgency = 'LOW'; urgClass = 'badge-p'; urgIcon = '🔵';
                 }
                 
                 return `<tr>
-                  <td>${idx + 1}</td>
-                  <td><strong>${esc(m.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(m.ID)} • ${esc(m.Size || '-')}</small></td>
-                  <td><strong>${m.Stock}</strong></td>
-                  <td><strong style="color:var(--warning)">${c}${capital.toLocaleString()}</strong></td>
-                  <td>${dAdded !== null ? `<strong>${dAdded}d</strong>` : '<span style="color:var(--text-muted)">-</span>'}</td>
-                  <td>${dUpdate !== null ? `<strong>${dUpdate}d ago</strong>` : '<span style="color:var(--text-muted)">-</span>'}</td>
-                  <td>${reasonBadges.join(' ')}</td>
-                  <td><span class="badge ${urgClass}">${urgency}</span></td>
+                  <td><strong>${idx + 1}</strong></td>
+                  <td>
+                    <strong>${esc(item.ProductName)}</strong><br>
+                    <small style="color:var(--text-muted)">${esc(item.ID)} • ${esc(item.Size || '-')} • ${esc(item.Club_Country || '')}</small>
+                  </td>
+                  <td><strong>${item.Stock}</strong></td>
+                  <td>${c}${Number(item.CostPrice).toLocaleString()}</td>
+                  <td><strong style="color:var(--warning)">${c}${item.capitalTied.toLocaleString()}</strong></td>
+                  <td><strong>${days}d</strong><br><small style="color:var(--text-muted)">no activity</small></td>
+                  <td>${urgIcon} <span class="badge ${urgClass}">${urgency}</span></td>
                   <td><div class="btn-group">
-                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');showProductDetails('${m.ID}')" title="View Details"><i class="fas fa-eye"></i></button>
-                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');openProductModal('${m.ID}')" title="Edit Price"><i class="fas fa-tag"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');showProductDetails('${item.ID}')" title="View Details"><i class="fas fa-eye"></i></button>
+                    <button class="btn btn-outline btn-sm" onclick="closeModal('invInsightsModal');openProductModal('${item.ID}')" title="Edit Product"><i class="fas fa-pen"></i></button>
                   </div></td>
                 </tr>`;
-              }).join('') : '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--secondary)"><i class="fas fa-check-circle" style="font-size:24px;margin-bottom:6px;display:block"></i> No dead stock — everything is moving!<br><small style="color:var(--text-muted)">Items with 1+ units that are 10+ days old or haven\'t moved in 15+ days will appear here.</small></td></tr>'}
+              }).join('') : `
+                <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--secondary)">
+                  <i class="fas fa-check-circle" style="font-size:32px;margin-bottom:10px;display:block;opacity:.6"></i>
+                  <strong>No dead stock — everything is moving! 🎉</strong><br>
+                  <small style="color:var(--text-muted);margin-top:4px;display:inline-block">Products with 1+ units that have had no activity for ${DEAD_STOCK_DAYS}+ days will appear here.</small>
+                </td></tr>
+              `}
             </tbody>
           </table></div>
         </div>
