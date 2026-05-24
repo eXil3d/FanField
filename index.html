@@ -4187,7 +4187,31 @@ function addPOSRow() {
     <td><select class="pos-prod" onchange="onPOSProdChange(this)">
       <option value="">Select</option>
       <option value="__CUSTOMIZATION__" data-price="0" data-cost="0" data-name="Bring-your-own jersey customization" data-club="" data-ed="" data-type="Service" data-size="" data-stock="">Bring-your-own jersey customization (Service)</option>
-      ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
+      ${sortedProducts.map(p => {
+
+  const booked = Number(p.BookedQty) || 0;
+
+  const available = (Number(p.Stock) || 0) - booked;
+
+  return `
+    <option
+      value="${p.ID}"
+      data-price="${p.SellPrice}"
+      data-cost="${p.CostPrice}"
+      data-name="${esc(p.ProductName)}"
+      data-club="${p.Club_Country}"
+      data-ed="${p.Edition}"
+      data-type="${p.Type}"
+      data-size="${p.Size}"
+      data-stock="${available}"
+      ${available === 0 ? 'disabled' : ''}
+    >
+      ${esc(p.ProductName)}
+      [${available} avail${booked > 0 ? ', ' + booked + ' booked' : ''}]
+    </option>
+  `;
+
+}).join('')}
     </select></td>
     <td class="custom-col" ${hideStyle}><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
     <td class="custom-col" ${hideStyle}><input class="pos-nameprint" placeholder="Name/number" oninput="calcPOSTotal()"></td>
@@ -7205,6 +7229,23 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.sales = await apiGet('getSales');
   renderPage('search');
   checkPendingPreorders();
+  // On page load, check for active bookings
+setTimeout(() => {
+
+  checkActiveBookings();
+
+  checkPendingPreorders();
+
+  // Refresh every 5 minutes
+  setInterval(() => {
+
+    checkActiveBookings();
+
+    checkPendingPreorders();
+
+  }, 5 * 60 * 1000);
+
+}, 1000);
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
 </script>
