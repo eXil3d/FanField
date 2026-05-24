@@ -641,6 +641,7 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
       <div class="nav-item" data-page="customers"><i class="fas fa-users"></i>Customers</div>
       <div class="nav-item" data-page="preorders"><i class="fas fa-clipboard-list"></i>Pre-Orders<span class="nav-badge" id="preorderBadge" style="display:none">0</span></div>
       <div class="nav-item" data-page="bookings"><i class="fas fa-bookmark"></i>Bookings<span class="nav-badge" id="bookingBadge" style="display:none;background:var(--secondary)">0</span></div>
+      <div class="nav-item" data-page="neworder"><i class="fas fa-cart-plus"></i>New Order</div>
       <div class="nav-item" data-page="payments"><i class="fas fa-money-bill-wave"></i>Pending Payments<span class="nav-badge" id="pendBadge" style="display:none">0</span></div>
     </div>
     <div class="nav-section">
@@ -793,7 +794,7 @@ const _origNav = nav;
 nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
   
 // NAV
-const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],bookings: ['Bookings', 'Reserved stock for customers — pickup or cancel'],preorders:['Pre-Orders','Track customer requests for out-of-stock items'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
+const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],neworder: ['New Customer Order', 'Auto-splits items into bookings (in stock) + wishlist (out of stock)'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],bookings: ['Bookings', 'Reserved stock for customers — pickup or cancel'],preorders:['Pre-Orders','Track customer requests for out-of-stock items'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
 function nav(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -817,7 +818,7 @@ async function renderPage(page){
   const area=document.getElementById('contentArea');
   area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
   try{switch(page){
-    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;case 'bookings': await renderBookings(area); break;
+    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case 'neworder': await renderNewOrder(area); break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;case 'bookings': await renderBookings(area); break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
 // ============================================================
@@ -1418,6 +1419,483 @@ function renderSearchResultsHTML(results, query, isLarge) {
   
   let html = '';
 
+// ============================================================
+// NEW ORDER PAGE — Smart Order Entry
+// ============================================================
+async function renderNewOrder(area) {
+  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  
+  area.innerHTML = `
+    <div style="background:linear-gradient(135deg,var(--primary),var(--secondary));padding:20px;border-radius:12px;color:#fff;margin-bottom:20px">
+      <h2 style="margin:0;font-size:18px;font-weight:800"><i class="fas fa-magic" style="margin-right:8px"></i>Smart Order Entry</h2>
+      <p style="margin:6px 0 0;font-size:12.5px;opacity:.95">
+        Add items the customer wants. System auto-splits:
+        <strong>In stock → Booking</strong> 
+        <i class="fas fa-arrow-right" style="margin:0 6px;font-size:10px"></i> 
+        <strong>Out of stock → Wishlist</strong>
+        <i class="fas fa-arrow-right" style="margin:0 6px;font-size:10px"></i> 
+        Everything linked under one Order ID.
+      </p>
+    </div>
+    
+    <!-- Customer Section -->
+    <div class="card">
+      <div class="card-hdr"><h3><i class="fas fa-user"></i>Customer Info</h3></div>
+      <div class="card-body">
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Select Customer</label>
+            <select class="fc" id="ordCustomer" onchange="onOrderCustChange()">
+              <option value="">Walk-in / Type below</option>
+              ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c => 
+                `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}">${esc(c.Name)} (${c.Phone||''})</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Customer Name *</label>
+            <input class="fc" id="ordCustName" placeholder="e.g., Karim Ahmed">
+          </div>
+          <div class="form-group">
+            <label>Phone</label>
+            <input class="fc" id="ordCustPhone" placeholder="017-XXXX-XXXX">
+          </div>
+          <div class="form-group">
+            <label>Booking Expires In</label>
+            <select class="fc" id="ordExpiryDays">
+              <option value="3">3 days</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Order Notes</label>
+            <input class="fc" id="ordNotes" placeholder="e.g., Will pickup Friday">
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Items Section -->
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-list"></i>Order Items</h3>
+        <div class="btn-group">
+          <button class="btn btn-outline btn-sm" onclick="addOrderItem('catalog')"><i class="fas fa-tshirt"></i> Add From Catalog</button>
+          <button class="btn btn-outline btn-sm" onclick="addOrderItem('custom')" style="border-color:var(--warning);color:var(--warning)"><i class="fas fa-pen"></i> Add Custom (Not in Catalog)</button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="ordItemsList" style="display:flex;flex-direction:column;gap:10px">
+          <div style="text-align:center;padding:40px;color:var(--text-muted)" id="ordEmptyState">
+            <i class="fas fa-cart-plus" style="font-size:36px;opacity:.4;margin-bottom:10px"></i>
+            <div>No items added yet</div>
+            <small>Click "Add From Catalog" to start</small>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Preview Section (live) -->
+    <div class="card" id="ordPreviewCard" style="display:none">
+      <div class="card-hdr">
+        <h3><i class="fas fa-eye"></i>Order Preview</h3>
+      </div>
+      <div class="card-body" id="ordPreview"></div>
+    </div>
+    
+    <!-- Submit -->
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:14px;padding-bottom:30px">
+      <button class="btn btn-outline" onclick="resetOrderForm()"><i class="fas fa-undo"></i> Reset</button>
+      <button class="btn btn-success btn-lg" onclick="submitSmartOrder()" id="ordSubmitBtn" disabled>
+        <i class="fas fa-magic"></i> Process Order
+      </button>
+    </div>
+  `;
+  
+  // Init order state
+  window._orderItems = [];
+  setTimeout(() => bindPhoneFormatter('ordCustPhone'), 50);
+}
+
+function onOrderCustChange() {
+  const sel = document.getElementById('ordCustomer');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.value) {
+    document.getElementById('ordCustName').value = opt.dataset.name || '';
+    document.getElementById('ordCustPhone').value = formatPhoneBD(opt.dataset.phone || '');
+  }
+}
+
+let _orderItemCounter = 0;
+
+function addOrderItem(mode) {
+  _orderItemCounter++;
+  const itemId = 'oi_' + _orderItemCounter;
+  
+  // Hide empty state
+  const empty = document.getElementById('ordEmptyState');
+  if (empty) empty.style.display = 'none';
+  
+  const list = document.getElementById('ordItemsList');
+  const isCustom = mode === 'custom';
+  
+  // Get available products (with availability info)
+  const products = smartSort(S.inventory);
+  
+  const itemHTML = `
+    <div class="order-item-row" id="${itemId}" data-mode="${mode}" style="background:var(--bg);padding:12px;border-radius:8px;border:1px solid var(--border);border-left:3px solid ${isCustom ? 'var(--warning)' : 'var(--primary)'}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:${isCustom ? 'var(--warning)' : 'var(--primary)'}">
+          <i class="fas ${isCustom ? 'fa-pen' : 'fa-tshirt'}"></i> ${isCustom ? 'Custom Item (Not in Catalog)' : 'From Catalog'}
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="removeOrderItem('${itemId}')" style="padding:4px 8px">
+          <i class="fas fa-trash"></i>
+        </button>
+      </div>
+      
+      ${isCustom ? `
+        <!-- Custom item form -->
+        <div class="fg" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+          <div class="form-group">
+            <label>Product Description *</label>
+            <input class="fc oi-name" placeholder="e.g., Argentina Away 2025" oninput="updateOrderPreview()">
+          </div>
+          <div class="form-group">
+            <label>Size</label>
+            <input class="fc oi-size" placeholder="e.g., XL" oninput="updateOrderPreview()">
+          </div>
+          <div class="form-group">
+            <label>Quantity</label>
+            <input class="fc oi-qty" type="number" value="1" min="1" oninput="updateOrderPreview()">
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <select class="fc oi-priority">
+              <option value="High">High</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Notes</label>
+            <input class="fc oi-notes" placeholder="Any specific details (color, edition, etc.)">
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:11px;color:var(--warning)">
+          <i class="fas fa-info-circle"></i> This item is not in your catalog — will go directly to <strong>Wishlist</strong>
+        </div>
+      ` : `
+        <!-- Catalog product selector -->
+        <div class="fg" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Product *</label>
+            <select class="fc oi-product" onchange="onOrderProductChange('${itemId}')">
+              <option value="">Select product</option>
+              ${products.map(p => {
+                const booked = Number(p.BookedQty) || 0;
+                const available = (Number(p.Stock) || 0) - booked;
+                return `<option value="${p.ID}" data-name="${esc(p.ProductName)}" data-size="${p.Size||''}" data-stock="${p.Stock}" data-available="${available}" data-price="${p.SellPrice||0}">${esc(p.ProductName)} ${p.Size ? '['+p.Size+']' : ''} — ${available} available</option>`;
+              }).join('')}
+            </select>
+            <div class="oi-info" style="margin-top:6px;font-size:11px;display:none"></div>
+          </div>
+          <div class="form-group">
+            <label>Quantity Wanted *</label>
+            <input class="fc oi-qty" type="number" value="1" min="1" oninput="updateOrderPreview()">
+          </div>
+        </div>
+      `}
+    </div>
+  `;
+  
+  list.insertAdjacentHTML('beforeend', itemHTML);
+  updateOrderPreview();
+}
+
+function onOrderProductChange(itemId) {
+  const row = document.getElementById(itemId);
+  if (!row) return;
+  const sel = row.querySelector('.oi-product');
+  const info = row.querySelector('.oi-info');
+  const opt = sel.selectedOptions[0];
+  
+  if (opt && opt.value) {
+    const available = Number(opt.dataset.available);
+    const total = Number(opt.dataset.stock);
+    if (available <= 0) {
+      info.style.display = 'block';
+      info.innerHTML = `<i class="fas fa-exclamation-triangle" style="color:var(--danger)"></i> <strong style="color:var(--danger)">Out of stock</strong> — will go to wishlist`;
+    } else if (available <= 2) {
+      info.style.display = 'block';
+      info.innerHTML = `<i class="fas fa-exclamation" style="color:var(--warning)"></i> Only <strong>${available}</strong> available (low stock)`;
+    } else {
+      info.style.display = 'block';
+      info.innerHTML = `<i class="fas fa-check-circle" style="color:var(--secondary)"></i> <strong>${available}</strong> available • Total stock: ${total}`;
+    }
+  } else {
+    info.style.display = 'none';
+  }
+  updateOrderPreview();
+}
+
+function removeOrderItem(itemId) {
+  const el = document.getElementById(itemId);
+  if (el) el.remove();
+  const list = document.getElementById('ordItemsList');
+  if (list && !list.querySelector('.order-item-row')) {
+    const empty = document.getElementById('ordEmptyState');
+    if (empty) empty.style.display = '';
+  }
+  updateOrderPreview();
+}
+
+function gatherOrderItems() {
+  const rows = document.querySelectorAll('.order-item-row');
+  const items = [];
+  rows.forEach(row => {
+    const isCustom = row.dataset.mode === 'custom';
+    if (isCustom) {
+      const name = row.querySelector('.oi-name')?.value.trim();
+      if (!name) return;
+      items.push({
+        IsCustom: true,
+        ProductName: name,
+        Size: row.querySelector('.oi-size')?.value.trim() || '',
+        Quantity: Number(row.querySelector('.oi-qty')?.value) || 1,
+        Priority: row.querySelector('.oi-priority')?.value || 'Medium',
+        Notes: row.querySelector('.oi-notes')?.value.trim() || ''
+      });
+    } else {
+      const sel = row.querySelector('.oi-product');
+      if (!sel || !sel.value) return;
+      const opt = sel.selectedOptions[0];
+      items.push({
+        IsCustom: false,
+        ProductID: sel.value,
+        ProductName: opt.dataset.name,
+        Size: opt.dataset.size,
+        Available: Number(opt.dataset.available),
+        Price: Number(opt.dataset.price),
+        Quantity: Number(row.querySelector('.oi-qty')?.value) || 1
+      });
+    }
+  });
+  return items;
+}
+
+function updateOrderPreview() {
+  const items = gatherOrderItems();
+  const previewCard = document.getElementById('ordPreviewCard');
+  const submitBtn = document.getElementById('ordSubmitBtn');
+  
+  if (!items.length) {
+    previewCard.style.display = 'none';
+    submitBtn.disabled = true;
+    return;
+  }
+  
+  // Categorize items (simulating backend logic)
+  const willBook = [];
+  const willWishlist = [];
+  
+  // Track running availability (in case multiple of same product)
+  const usedAvailability = {};
+  
+  items.forEach(item => {
+    if (item.IsCustom) {
+      willWishlist.push({ ...item, reason: 'Custom item (not in catalog)' });
+      return;
+    }
+    
+    const used = usedAvailability[item.ProductID] || 0;
+    const stillAvailable = item.Available - used;
+    
+    if (stillAvailable >= item.Quantity) {
+      willBook.push({ ...item, bookQty: item.Quantity });
+      usedAvailability[item.ProductID] = used + item.Quantity;
+    } else if (stillAvailable > 0) {
+      willBook.push({ ...item, bookQty: stillAvailable, partial: true });
+      willWishlist.push({ ...item, wishlistQty: item.Quantity - stillAvailable, reason: `Only ${stillAvailable} available (${item.Quantity - stillAvailable} short)` });
+      usedAvailability[item.ProductID] = item.Available;
+    } else {
+      willWishlist.push({ ...item, wishlistQty: item.Quantity, reason: 'Out of stock' });
+    }
+  });
+  
+  const c = C();
+  const totalBookValue = willBook.reduce((s, i) => s + (i.Price || 0) * (i.bookQty || 0), 0);
+  
+  previewCard.style.display = '';
+  document.getElementById('ordPreview').innerHTML = `
+    <div class="stats-grid" style="margin-bottom:14px">
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon green"><i class="fas fa-bookmark"></i></div></div>
+        <div class="stat-val">${willBook.length}</div>
+        <div class="stat-label">Will Be Booked</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon orange"><i class="fas fa-heart"></i></div></div>
+        <div class="stat-val">${willWishlist.length}</div>
+        <div class="stat-label">Will Go To Wishlist</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-hdr"><div class="stat-icon blue"><i class="fas fa-coins"></i></div></div>
+        <div class="stat-val">${c}${totalBookValue.toLocaleString()}</div>
+        <div class="stat-label">Bookings Value</div>
+      </div>
+    </div>
+    
+    ${willBook.length ? `
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--secondary);margin-bottom:8px">
+          <i class="fas fa-bookmark"></i> Bookings (${willBook.length})
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${willBook.map(b => `
+            <div style="background:rgba(16,185,129,.08);padding:8px 12px;border-radius:6px;border-left:3px solid var(--secondary);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+              <div>
+                <strong>${esc(b.ProductName)}</strong> ${b.Size ? `<small style="color:var(--text-muted)">[${esc(b.Size)}]</small>` : ''}
+                ${b.partial ? `<span class="badge badge-w" style="margin-left:6px">Partial: ${b.bookQty} of ${b.Quantity}</span>` : ''}
+              </div>
+              <strong>${b.bookQty} unit(s)</strong>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${willWishlist.length ? `
+      <div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--warning);margin-bottom:8px">
+          <i class="fas fa-heart"></i> Wishlist (${willWishlist.length})
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${willWishlist.map(w => `
+            <div style="background:rgba(245,158,11,.08);padding:8px 12px;border-radius:6px;border-left:3px solid var(--warning);display:flex;justify-content:space-between;align-items:center;font-size:12px">
+              <div>
+                <strong>${esc(w.ProductName)}</strong> ${w.Size ? `<small style="color:var(--text-muted)">[${esc(w.Size)}]</small>` : ''}
+                <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px"><i class="fas fa-info-circle"></i> ${esc(w.reason)}</div>
+              </div>
+              <strong>${w.wishlistQty || w.Quantity} unit(s)</strong>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${willBook.length && willWishlist.length ? `
+      <div style="margin-top:14px;padding:10px 12px;background:rgba(99,102,241,.08);border-radius:8px;border-left:3px solid var(--primary);font-size:11.5px;color:var(--text-sec)">
+        <i class="fas fa-link" style="color:var(--primary)"></i>
+        <strong>Smart Link:</strong> All ${willBook.length + willWishlist.length} items will share one Order ID so you can track the full order across bookings AND wishlist.
+      </div>
+    ` : ''}
+  `;
+  
+  submitBtn.disabled = false;
+}
+
+async function submitSmartOrder() {
+  const custName = document.getElementById('ordCustName').value.trim();
+  if (!custName) { toast('Customer name required', 'error'); return; }
+  
+  const items = gatherOrderItems();
+  if (!items.length) { toast('Add at least one item', 'error'); return; }
+  
+  const payload = {
+    CustomerID: document.getElementById('ordCustomer').value || '',
+    CustomerName: custName,
+    CustomerPhone: document.getElementById('ordCustPhone').value.trim(),
+    ExpiryDays: Number(document.getElementById('ordExpiryDays').value) || 7,
+    Notes: document.getElementById('ordNotes').value.trim(),
+    CreatedBy: S.currentUser || 'System',
+    Items: items
+  };
+  
+  const btn = document.getElementById('ordSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Processing...';
+  
+  const r = await apiPost('createSmartOrder', payload);
+  
+  if (r.success) {
+    showOrderResultModal(r);
+    resetOrderForm();
+  } else {
+    toast(r.error || 'Failed to create order', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-magic"></i> Process Order';
+  }
+}
+
+function showOrderResultModal(r) {
+  let m = document.getElementById('orderResultModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="orderResultModal"><div class="modal" style="max-width:600px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-check-circle" style="color:var(--secondary);margin-right:6px"></i>Order Created Successfully</h3>
+        <button class="modal-close" onclick="closeModal('orderResultModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="text-align:center;padding:14px;background:linear-gradient(135deg,rgba(16,185,129,.1),rgba(99,102,241,.1));border-radius:10px;margin-bottom:14px">
+          <div style="font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Order ID</div>
+          <div style="font-size:18px;font-weight:800;color:var(--primary);font-family:monospace;margin-top:4px">${r.orderId}</div>
+        </div>
+        
+        <div class="stats-grid" style="margin-bottom:14px">
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--secondary)">${r.bookingsCreated}</div>
+            <div class="stat-label">Bookings Created</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-val" style="color:var(--warning)">${r.wishlistCreated}</div>
+            <div class="stat-label">Wishlist Items</div>
+          </div>
+        </div>
+        
+        ${r.errors && r.errors.length ? `
+          <div style="background:rgba(239,68,68,.08);padding:10px;border-radius:6px;border-left:3px solid var(--danger);margin-bottom:10px">
+            <strong style="color:var(--danger);font-size:11px">⚠ Some items had errors:</strong>
+            <ul style="margin:6px 0 0 18px;font-size:11px;color:var(--text-sec)">
+              ${r.errors.map(e => `<li>${esc(e)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        
+        <p style="font-size:12px;color:var(--text-sec);margin-top:10px">
+          ${r.message}. You can view the complete order anytime by searching this Order ID.
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('orderResultModal')">Close</button>
+        ${r.bookingsCreated > 0 ? `<button class="btn btn-primary" onclick="closeModal('orderResultModal');nav('bookings')"><i class="fas fa-bookmark"></i> View Bookings</button>` : ''}
+        ${r.wishlistCreated > 0 ? `<button class="btn btn-warning" onclick="closeModal('orderResultModal');nav('wishlist')"><i class="fas fa-heart"></i> View Wishlist</button>` : ''}
+      </div>
+    </div></div>
+  `);
+  openModal('orderResultModal');
+}
+
+function resetOrderForm() {
+  document.getElementById('ordCustomer').value = '';
+  document.getElementById('ordCustName').value = '';
+  document.getElementById('ordCustPhone').value = '';
+  document.getElementById('ordNotes').value = '';
+  document.getElementById('ordItemsList').innerHTML = `
+    <div style="text-align:center;padding:40px;color:var(--text-muted)" id="ordEmptyState">
+      <i class="fas fa-cart-plus" style="font-size:36px;opacity:.4;margin-bottom:10px"></i>
+      <div>No items added yet</div>
+      <small>Click "Add From Catalog" to start</small>
+    </div>`;
+  document.getElementById('ordPreviewCard').style.display = 'none';
+  document.getElementById('ordSubmitBtn').disabled = true;
+  document.getElementById('ordSubmitBtn').innerHTML = '<i class="fas fa-magic"></i> Process Order';
+}
+  
 // ============================================================
 // MODIFY BOOKING QUANTITY — Partial cancel or add more
 // ============================================================
@@ -2207,6 +2685,7 @@ function sendPaymentReminder(name, phone, amount) {
 async function renderBookings(area) {
   const bookings = await apiGet('getBookings');
   S.bookings = bookings || [];
+  if (!S.wishlist || !S.wishlist.length) S.wishlist = await apiGet('getWishlist');
   if (!S.customers.length) S.customers = await apiGet('getCustomers');
   if (!S.inventory.length) S.inventory = await apiGet('getInventory');
   
@@ -2277,6 +2756,13 @@ async function renderBookings(area) {
   filterBookings();
 }
 
+function getLinkedWishlistBadge(orderId) {
+  if (!orderId || !S.wishlist) return '';
+  const linkedWl = S.wishlist.filter(w => w.LinkedOrderID === orderId && w.Status === 'Active');
+  if (!linkedWl.length) return '';
+  return `<br><span class="badge" style="background:rgba(245,158,11,.15);color:var(--warning);font-size:9px;padding:2px 6px;margin-top:3px"><i class="fas fa-heart" style="font-size:8px"></i> ${linkedWl.length} wishlist</span>`;
+}
+  
 function filterBookings() {
   const filter = document.getElementById('bkFilter')?.value || 'active';
   const srch = document.getElementById('bkSrch')?.value || '';
@@ -2304,7 +2790,7 @@ function filterBookings() {
   
   el.innerHTML = `<table>
     <thead><tr>
-      <th>Booked On</th><th>Customer</th><th>Phone</th><th>Product</th>
+      <th>Booked On</th><th>Order</th><th>Customer</th><th>Phone</th><th>Product</th>
       <th>Qty</th><th>Expires</th><th>Status</th><th>Notes</th><th>Actions</th>
     </tr></thead>
     <tbody>${sorted.map(b => {
@@ -2328,7 +2814,8 @@ function filterBookings() {
       
       return `<tr style="${b.Status !== 'Active' ? 'opacity:.6' : ''}">
         <td><small>${fmtD(b.Date)}</small></td>
-        <td><strong>${esc(b.CustomerName || 'Unknown')}</strong></td>
+<td>${b.OrderID ? `<button class="btn btn-outline btn-sm" onclick="showOrderDetails('${b.OrderID}')" title="View full order" style="font-family:monospace;font-size:10px;padding:3px 7px">${b.OrderID.substr(-6)}</button>${getLinkedWishlistBadge(b.OrderID)}` : '<small style="color:var(--text-muted)">-</small>'}</td>
+<td><strong>${esc(b.CustomerName || 'Unknown')}</strong></td>
         <td>${esc(formatPhoneBD(b.CustomerPhone || '-'))}</td>
         <td><strong>${esc(b.ProductName)}</strong>${b.Size ? `<br><small style="color:var(--text-muted)">Size: ${esc(b.Size)}</small>` : ''}</td>
         <td><strong style="color:var(--secondary);font-size:14px">${b.Quantity}</strong></td>
@@ -2339,6 +2826,7 @@ function filterBookings() {
           ${b.Status === 'Active' ? `
   <button class="btn btn-success btn-sm" onclick="convertBookingToSale('${b.ID}','${esc(b.CustomerName)}','${b.CustomerPhone||''}','${b.ProductID}','${b.Quantity}')" title="Customer arrived — convert to sale"><i class="fas fa-cash-register"></i></button>
   <button class="btn btn-warning btn-sm" onclick="openModifyBookingModal('${b.ID}')" title="Modify quantity (partial cancel / add more)" style="border-color:var(--warning);color:#fff"><i class="fas fa-pen-to-square"></i></button>
+  <button class="btn btn-outline btn-sm" onclick="openAddWishlistToBookingModal('${b.ID}','${esc(b.CustomerName)}')" title="Customer wants an item not in stock — add to wishlist" style="border-color:var(--warning);color:var(--warning)"><i class="fas fa-heart-circle-plus"></i></button>
   <button class="btn btn-outline btn-sm" onclick="extendBooking('${b.ID}','${esc(b.CustomerName)}')" title="Extend by 7 days"><i class="fas fa-calendar-plus"></i></button>
   ${b.CustomerPhone ? `<button class="btn btn-outline btn-sm" onclick="notifyBooking('${esc(b.CustomerName)}','${b.CustomerPhone}','${esc(b.ProductName)}')" title="WhatsApp" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i></button>` : ''}
   <button class="btn btn-danger btn-sm" onclick="cancelBooking('${b.ID}')" title="Cancel entire booking"><i class="fas fa-times"></i></button>
@@ -2603,7 +3091,311 @@ async function checkActiveBookings() {
     }
   } catch (e) {}
 }
+
+// ============================================================
+// SHOW ORDER DETAILS — Full view of bookings + wishlist for one order
+// ============================================================
+async function showOrderDetails(orderId) {
+  let m = document.getElementById('orderDetailsModal');
+  if (m) m.remove();
   
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="orderDetailsModal"><div class="modal" style="max-width:750px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-link" style="color:var(--primary);margin-right:6px"></i>Order Details</h3>
+        <button class="modal-close" onclick="closeModal('orderDetailsModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="orderDetailsBody">
+        <div style="text-align:center;padding:30px;color:var(--text-muted)">
+          <div class="spinner" style="margin:0 auto 10px"></div>Loading order...
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('orderDetailsModal')">Close</button>
+      </div>
+    </div></div>
+  `);
+  openModal('orderDetailsModal');
+  
+  const r = await apiGet('getOrderDetails', { OrderID: orderId });
+  if (!r.success) {
+    document.getElementById('orderDetailsBody').innerHTML = `<div style="text-align:center;color:var(--danger)">Error: ${r.error || 'Failed to load'}</div>`;
+    return;
+  }
+  
+  const c = C();
+  
+  document.getElementById('orderDetailsBody').innerHTML = `
+    <!-- Order Header -->
+    <div style="background:linear-gradient(135deg,rgba(99,102,241,.1),rgba(16,185,129,.1));padding:14px;border-radius:10px;margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Order ID</div>
+          <div style="font-family:monospace;font-size:13px;font-weight:700">${r.orderId}</div>
+        </div>
+        ${r.customer ? `
+          <div style="text-align:right">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Customer</div>
+            <div style="font-weight:700">${esc(r.customer.name)}</div>
+            ${r.customer.phone ? `<div style="font-size:11px;color:var(--text-muted)">${esc(formatPhoneBD(r.customer.phone))}</div>` : ''}
+          </div>
+        ` : ''}
+      </div>
+    </div>
+    
+    <!-- Stats -->
+    <div class="stats-grid" style="margin-bottom:14px">
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--secondary)">${r.stats.activeBookings}</div>
+        <div class="stat-label">Active Bookings</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--info)">${r.stats.fulfilledBookings}</div>
+        <div class="stat-label">Fulfilled</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" style="color:var(--warning)">${r.stats.activeWishlist}</div>
+        <div class="stat-label">Wishlist Items</div>
+      </div>
+    </div>
+    
+    <!-- Bookings -->
+    ${r.bookings.length ? `
+      <div style="margin-bottom:14px">
+        <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--secondary);margin-bottom:8px">
+          <i class="fas fa-bookmark"></i> Bookings (${r.bookings.length})
+        </h4>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${r.bookings.map(b => `
+            <div style="background:var(--bg);padding:10px 12px;border-radius:6px;border-left:3px solid ${b.Status === 'Active' ? 'var(--secondary)' : b.Status === 'Fulfilled' ? 'var(--info)' : 'var(--text-muted)'};display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px">
+              <div style="flex:1">
+                <strong>${esc(b.ProductName)}</strong> ${b.Size ? `<small style="color:var(--text-muted)">[${esc(b.Size)}]</small>` : ''}
+                <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">
+                  Qty: ${b.Quantity} • Expires: ${fmtD(b.ExpiryDate)} • ${bookingStatusBadge(b.Status)}
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    <!-- Wishlist -->
+    ${r.wishlist.length ? `
+      <div>
+        <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--warning);margin-bottom:8px">
+          <i class="fas fa-heart"></i> Wishlist (${r.wishlist.length})
+        </h4>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          ${r.wishlist.map(w => `
+            <div style="background:var(--bg);padding:10px 12px;border-radius:6px;border-left:3px solid ${w.Status === 'Active' ? 'var(--warning)' : 'var(--text-muted)'};font-size:12px">
+              <strong>${esc(w.ProductName)}</strong> ${w.Size ? `<small style="color:var(--text-muted)">[${esc(w.Size)}]</small>` : ''}
+              <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">
+                Priority: ${w.Priority || 'Medium'} • Status: ${esc(w.Status)}
+                ${w.Notes ? `<br>Notes: ${esc(w.Notes)}` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${r.stats.isComplete ? `
+      <div style="margin-top:14px;padding:10px;background:rgba(16,185,129,.1);border-radius:8px;text-align:center;color:var(--secondary);font-size:12px;font-weight:600">
+        <i class="fas fa-check-circle"></i> This order is complete
+      </div>
+    ` : ''}
+  `;
+}
+
+// ============================================================
+// ADD WISHLIST ITEM TO EXISTING BOOKING
+// Use when customer adds an item later that's not in stock
+// ============================================================
+function openAddWishlistToBookingModal(bookingId, customerName) {
+  let m = document.getElementById('addWlToBookingModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="addWlToBookingModal"><div class="modal" style="max-width:600px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-heart-circle-plus" style="color:var(--warning);margin-right:6px"></i>Add Wishlist Item to Booking</h3>
+        <button class="modal-close" onclick="closeModal('addWlToBookingModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(245,158,11,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--warning)"></i>
+          Adding a wishlist item to <strong>${esc(customerName)}'s</strong> booking. Use this when the customer wants something we don't currently have in stock.
+        </div>
+        
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Product Name *</label>
+            <input class="fc" id="wlbProductName" placeholder="e.g., Brazil Away 2026">
+          </div>
+          <div class="form-group">
+            <label>Club/Country</label>
+            <input class="fc" id="wlbClub" placeholder="e.g., Brazil">
+          </div>
+          <div class="form-group">
+            <label>Type</label>
+            <input class="fc" id="wlbType" placeholder="e.g., Away Kit">
+          </div>
+          <div class="form-group">
+            <label>Edition</label>
+            <input class="fc" id="wlbEdition" placeholder="e.g., Fan Version 2026">
+          </div>
+          <div class="form-group">
+            <label>Size</label>
+            <input class="fc" id="wlbSize" placeholder="e.g., L">
+          </div>
+          <div class="form-group">
+            <label>Color</label>
+            <input class="fc" id="wlbColor" placeholder="e.g., Yellow">
+          </div>
+          <div class="form-group">
+            <label>Priority</label>
+            <select class="fc" id="wlbPriority">
+              <option value="High" selected>High (part of active booking)</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
+            </select>
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Notes</label>
+            <textarea class="fc" id="wlbNotes" rows="2" placeholder="Any specific details..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('addWlToBookingModal')">Cancel</button>
+        <button class="btn btn-warning" onclick="submitAddWishlistToBooking('${bookingId}')"><i class="fas fa-heart-circle-plus"></i> Add to Wishlist</button>
+      </div>
+    </div></div>
+  `);
+  openModal('addWlToBookingModal');
+}
+
+async function submitAddWishlistToBooking(bookingId) {
+  const productName = document.getElementById('wlbProductName').value.trim();
+  if (!productName) { toast('Product name required', 'error'); return; }
+  
+  const data = {
+    BookingID: bookingId,
+    ProductName: productName,
+    Club_Country: document.getElementById('wlbClub').value.trim(),
+    Type: document.getElementById('wlbType').value.trim(),
+    Edition: document.getElementById('wlbEdition').value.trim(),
+    Size: document.getElementById('wlbSize').value.trim(),
+    Color: document.getElementById('wlbColor').value.trim(),
+    Priority: document.getElementById('wlbPriority').value,
+    Notes: document.getElementById('wlbNotes').value.trim()
+  };
+  
+  const r = await apiPost('addWishlistToBooking', data);
+  if (r.success) {
+    toast(`✓ Added "${productName}" to wishlist, linked to booking`, 'success');
+    closeModal('addWlToBookingModal');
+    S.wishlist = []; // force refresh
+    renderPage('bookings');
+  } else {
+    toast(r.error || 'Failed to add', 'error');
+  }
+}
+
+// ============================================================
+// CONVERT WISHLIST/PREORDER → BOOKING when stock arrives
+// ============================================================
+function openConvertWishlistModal(wishlistId, productName, size) {
+  // Find matching products in inventory with available stock
+  const matches = S.inventory.filter(p => {
+    const nameMatch = (p.ProductName || '').toLowerCase().includes(productName.toLowerCase()) || 
+                      productName.toLowerCase().includes((p.ProductName || '').toLowerCase());
+    const sizeMatch = !size || (p.Size || '').toLowerCase() === size.toLowerCase();
+    const available = (Number(p.Stock) || 0) - (Number(p.BookedQty) || 0);
+    return nameMatch && sizeMatch && available > 0;
+  });
+  
+  let m = document.getElementById('convertWlModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="convertWlModal"><div class="modal" style="max-width:560px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-bookmark" style="color:var(--secondary);margin-right:6px"></i>Convert Pre-Order to Booking</h3>
+        <button class="modal-close" onclick="closeModal('convertWlModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(16,185,129,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--secondary)"></i>
+          Pre-order item: <strong>${esc(productName)}</strong> ${size ? `[${esc(size)}]` : ''}<br>
+          ${matches.length 
+            ? `Found <strong>${matches.length}</strong> matching product(s) with available stock.` 
+            : `<strong style="color:var(--danger)">No matching products with available stock found.</strong> Add stock to inventory first.`}
+        </div>
+        ${matches.length ? `
+          <div class="fg">
+            <div class="form-group" style="grid-column:1/-1">
+              <label>Select Matching Product *</label>
+              <select class="fc" id="cwlProduct">
+                ${matches.map(p => {
+                  const available = (Number(p.Stock) || 0) - (Number(p.BookedQty) || 0);
+                  return `<option value="${p.ID}" data-available="${available}">${esc(p.ProductName)} ${p.Size ? '['+p.Size+']' : ''} — ${available} available</option>`;
+                }).join('')}
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Quantity</label>
+              <input class="fc" id="cwlQty" type="number" value="1" min="1">
+            </div>
+            <div class="form-group">
+              <label>Expires In</label>
+              <select class="fc" id="cwlExpiry">
+                <option value="7" selected>7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </div>
+          </div>
+        ` : `
+          <p style="text-align:center;color:var(--text-muted);font-size:12px;padding:14px 0">
+            Once you receive the requested stock, add it to your inventory then return here to convert.
+          </p>
+        `}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('convertWlModal')">Cancel</button>
+        ${matches.length ? `<button class="btn btn-success" onclick="submitConvertWishlist('${wishlistId}')"><i class="fas fa-check"></i> Convert to Booking</button>` : ''}
+      </div>
+    </div></div>
+  `);
+  openModal('convertWlModal');
+}
+
+async function submitConvertWishlist(wishlistId) {
+  const productId = document.getElementById('cwlProduct').value;
+  const qty = Number(document.getElementById('cwlQty').value) || 1;
+  const expiry = Number(document.getElementById('cwlExpiry').value) || 7;
+  
+  if (!productId) { toast('Select a product', 'error'); return; }
+  
+  const r = await apiPost('convertWishlistToBooking', {
+    WishlistID: wishlistId,
+    ProductID: productId,
+    Quantity: qty,
+    ExpiryDays: expiry
+  });
+  
+  if (r.success) {
+    toast(`✓ Converted! Booking ${r.bookingId || 'created'} successfully.`, 'success');
+    closeModal('convertWlModal');
+    S.inventory = []; // force refresh
+    renderPage('preorders');
+  } else {
+    toast(r.error || 'Failed to convert', 'error');
+  }
+}
+
 // ============================================================
 // DASHBOARD
 // ============================================================
@@ -6660,6 +7452,7 @@ async function renderPreorders(area) {
   const preorders = await apiGet('getPreorders');
   S.preorders = preorders || [];
   if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
   
   const c = C();
   const pending = S.preorders.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
@@ -6729,6 +7522,18 @@ function filterPreorders() {
     return;
   }
   
+  // ✨ Helper: check if matching stock exists for a preorder
+  const hasMatchingStock = (productName, size) => {
+    if (!productName || !S.inventory || !S.inventory.length) return false;
+    return S.inventory.some(p => {
+      const nameMatch = (p.ProductName || '').toLowerCase().includes(productName.toLowerCase()) || 
+                        productName.toLowerCase().includes((p.ProductName || '').toLowerCase());
+      const sizeMatch = !size || (p.Size || '').toLowerCase() === size.toLowerCase();
+      const available = (Number(p.Stock) || 0) - (Number(p.BookedQty) || 0);
+      return nameMatch && sizeMatch && available > 0;
+    });
+  };
+  
   el.innerHTML = `<table>
     <thead><tr>
       <th>Date</th><th>Customer</th><th>Phone</th><th>Product Wanted</th>
@@ -6737,17 +7542,27 @@ function filterPreorders() {
     <tbody>${sorted.map(p => {
       const isFulfilled = p.Status === 'Fulfilled';
       const isCancelled = p.Status === 'Cancelled';
+      const isActive = !isFulfilled && !isCancelled;
+      const stockAvailable = isActive && hasMatchingStock(p.ProductName, p.Size);
+      
       return `<tr style="${isFulfilled || isCancelled ? 'opacity:.6' : ''}">
         <td><small>${fmtD(p.Date)}</small></td>
-        <td><strong>${esc(p.CustomerName)}</strong></td>
+        <td>
+          <strong>${esc(p.CustomerName)}</strong>
+          ${p.LinkedBookingID ? `<br><button class="btn btn-outline btn-sm" onclick="showOrderDetails('${p.LinkedOrderID || ''}')" style="font-size:9.5px;padding:2px 7px;color:var(--primary);border-color:var(--primary);margin-top:3px"><i class="fas fa-link"></i> Linked to booking</button>` : ''}
+        </td>
         <td>${esc(formatPhoneBD(p.CustomerPhone || ''))}</td>
-        <td><strong>${esc(p.ProductName)}</strong></td>
+        <td>
+          <strong>${esc(p.ProductName)}</strong>
+          ${stockAvailable ? '<br><span class="badge badge-s" style="font-size:9px;padding:2px 6px;margin-top:3px"><i class="fas fa-check-circle" style="font-size:8px"></i> In Stock Now!</span>' : ''}
+        </td>
         <td>${esc(p.Size || '-')}</td>
         <td>${p.Quantity || 1}</td>
         <td style="font-size:11px;max-width:200px">${esc(p.Notes || '-')}</td>
         <td>${preorderStatusBadge(p.Status)}</td>
         <td><div class="btn-group">
-          ${!isFulfilled && !isCancelled ? `
+          ${isActive ? `
+            ${stockAvailable ? `<button class="btn btn-success btn-sm" onclick="openConvertWishlistModal('${p.ID}','${esc(p.ProductName)}','${esc(p.Size||'')}')" title="Stock arrived — convert to booking" style="background:linear-gradient(135deg,var(--secondary),var(--secondary-dark))"><i class="fas fa-bookmark"></i></button>` : ''}
             <button class="btn btn-success btn-sm" onclick="fulfillPreorder('${p.ID}','${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Mark fulfilled & notify customer"><i class="fas fa-check"></i></button>
             <button class="btn btn-outline btn-sm" onclick="notifyPreorder('${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Send WhatsApp"><i class="fab fa-whatsapp"></i></button>
             <button class="btn btn-warning btn-sm" onclick="cancelPreorder('${p.ID}')" title="Cancel"><i class="fas fa-ban"></i></button>
