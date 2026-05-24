@@ -2445,9 +2445,58 @@ function filterInv(){
   
   let data = S.inventory.filter(i => {
     // FLEXIBLE SEARCH — any word order, all product fields
-    const ms = !srch || flexMatch(srch, [
-      i.ProductName, i.Club_Country, i.Edition, i.Type, i.Size, i.ID, i.Color, i.Supplier
-    ]);
+    let ms = true;
+
+if (srch) {
+
+  const tokens = srch
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  const productSize = (i.Size || '')
+    .toLowerCase()
+    .trim();
+
+  const combinedNonSize = [
+    i.ProductName || '',
+    i.Club_Country || '',
+    i.Type || '',
+    i.Edition || '',
+    i.ID || '',
+    i.Color || '',
+    i.Supplier || ''
+  ].join(' ').toLowerCase();
+
+  const knownSizes = [
+    'xs',
+    's',
+    'm',
+    'l',
+    'xl',
+    '2xl',
+    '3xl',
+    '4xl',
+    '5xl',
+    'xxl',
+    'xxxl'
+  ];
+
+  ms = tokens.every(token => {
+
+    const lowerToken = token.toLowerCase();
+
+    // Exact size matching
+    if (knownSizes.includes(lowerToken)) {
+      return productSize === lowerToken;
+    }
+
+    // Normal matching
+    return combinedNonSize.includes(lowerToken);
+
+  });
+
+}
     
     const mc = !cat || i.Club_Country === cat;
     const me = !ed || i.Edition === ed;
