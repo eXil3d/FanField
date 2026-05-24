@@ -1417,6 +1417,246 @@ function renderSearchResultsHTML(results, query, isLarge) {
   const titleStyle = isLarge ? 'font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:14px 16px 6px' : 'font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);padding:10px 14px 4px';
   
   let html = '';
+
+// ============================================================
+// MODIFY BOOKING QUANTITY — Partial cancel or add more
+// ============================================================
+function openModifyBookingModal(bookingId) {
+  const booking = S.bookings.find(b => b.ID === bookingId);
+  if (!booking) { toast('Booking not found', 'error'); return; }
+  if (booking.Status !== 'Active') { toast('Only active bookings can be modified', 'warning'); return; }
+  
+  // Find available stock for this product
+  const product = S.inventory.find(p => p.ID === booking.ProductID);
+  const totalStock = product ? (Number(product.Stock) || 0) : 0;
+  
+  // Calculate max possible: total stock minus what OTHERS have booked
+  const bookedByOthers = S.bookings
+    .filter(b => b.Status === 'Active' && b.ProductID === booking.ProductID && b.ID !== bookingId)
+    .reduce((sum, b) => sum + (Number(b.Quantity) || 0), 0);
+  const maxPossible = totalStock - bookedByOthers;
+  const currentQty = Number(booking.Quantity) || 0;
+  
+  let m = document.getElementById('modifyBookingModal');
+  if (m) m.remove();
+  
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="modifyBookingModal"><div class="modal" style="max-width:600px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-pen-to-square" style="color:var(--warning);margin-right:6px"></i>Modify Booking</h3>
+        <button class="modal-close" onclick="closeModal('modifyBookingModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- Current Booking Info -->
+        <div style="background:var(--bg);padding:14px;border-radius:8px;border:1px solid var(--border);margin-bottom:16px">
+          <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+            <i class="fas fa-bookmark" style="color:var(--secondary);margin-right:5px"></i>Current Booking
+          </h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px">
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Customer</div>
+              <div style="font-weight:700">${esc(booking.CustomerName || 'Unknown')}</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Product</div>
+              <div style="font-weight:700">${esc(booking.ProductName)}</div>
+              ${booking.Size ? `<div style="font-size:10.5px;color:var(--text-muted);margin-top:2px">Size: ${esc(booking.Size)}</div>` : ''}
+            </div>
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Currently Booked</div>
+              <div style="font-weight:700;font-size:18px;color:var(--secondary)">${currentQty} units</div>
+            </div>
+            <div>
+              <div style="color:var(--text-muted);font-size:10.5px;margin-bottom:3px">Max Possible</div>
+              <div style="font-weight:700;font-size:18px">${maxPossible} units</div>
+              <div style="font-size:9.5px;color:var(--text-muted)">${bookedByOthers > 0 ? bookedByOthers + ' booked by others' : 'Full stock available'}</div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Quick Action Buttons -->
+        <div style="margin-bottom:14px">
+          <label style="display:block;font-size:11.5px;font-weight:600;color:var(--text-sec);margin-bottom:6px">Quick Actions</label>
+          <div class="btn-group" style="gap:6px">
+            ${currentQty > 1 ? `<button class="btn btn-warning btn-sm" onclick="setModifyQty(${currentQty - 1})"><i class="fas fa-minus"></i> Remove 1</button>` : ''}
+            ${maxPossible > currentQty ? `<button class="btn btn-success btn-sm" onclick="setModifyQty(${currentQty + 1})"><i class="fas fa-plus"></i> Add 1</button>` : ''}
+            ${currentQty > 1 ? `<button class="btn btn-danger btn-sm" onclick="setModifyQty(0)"><i class="fas fa-times"></i> Cancel All</button>` : ''}
+          </div>
+        </div>
+        
+        <!-- Manual Quantity Input -->
+        <div class="fg">
+          <div class="form-group">
+            <label>New Quantity *</label>
+            <input type="number" class="fc" id="modNewQty" value="${currentQty}" min="0" max="${maxPossible}" 
+              oninput="previewModification(${currentQty})" style="font-size:18px;font-weight:700;padding:14px">
+            <small style="display:block;margin-top:4px;color:var(--text-muted);font-size:10.5px">
+              Enter 0 to fully cancel • Max: ${maxPossible}
+            </small>
+          </div>
+          
+          <div class="form-group">
+            <label>Reason for Change</label>
+            <select class="fc" id="modReason">
+              <option value="">-- Select reason --</option>
+              <option value="Customer changed mind">Customer changed mind</option>
+              <option value="Customer wants fewer items">Customer wants fewer items</option>
+              <option value="Customer wants more items">Customer wants more items</option>
+              <option value="Found in another size">Found in another size</option>
+              <option value="Budget constraint">Budget constraint</option>
+              <option value="Other">Other (specify below)</option>
+            </select>
+          </div>
+          
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Additional Notes</label>
+            <input class="fc" id="modNotes" placeholder="Optional — extra context for record">
+          </div>
+        </div>
+        
+        <!-- Live Preview -->
+        <div id="modPreviewBox" style="margin-top:14px;padding:14px;background:var(--bg);border-radius:8px;border:2px dashed var(--border);font-size:12px;display:none">
+          <h4 style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted);margin-bottom:10px">
+            <i class="fas fa-eye" style="margin-right:5px"></i>Preview Result
+          </h4>
+          <div id="modPreview"></div>
+        </div>
+        
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('modifyBookingModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="submitModifyBooking('${booking.ID}',${currentQty})" id="modSubmitBtn">
+          <i class="fas fa-check"></i>Apply Changes
+        </button>
+      </div>
+    </div></div>
+  `);
+  
+  openModal('modifyBookingModal');
+  setTimeout(() => previewModification(currentQty), 50);
+}
+
+function setModifyQty(newQty) {
+  const input = document.getElementById('modNewQty');
+  if (input) {
+    input.value = newQty;
+    previewModification(Number(input.dataset.original) || Number(input.defaultValue));
+  }
+}
+
+function previewModification(currentQty) {
+  const newQty = Number(document.getElementById('modNewQty').value);
+  const previewBox = document.getElementById('modPreviewBox');
+  const previewEl = document.getElementById('modPreview');
+  const submitBtn = document.getElementById('modSubmitBtn');
+  
+  if (isNaN(newQty) || newQty < 0) {
+    previewBox.style.display = 'block';
+    previewEl.innerHTML = `<div style="color:var(--danger);text-align:center"><i class="fas fa-exclamation-triangle"></i> Invalid quantity</div>`;
+    submitBtn.disabled = true;
+    return;
+  }
+  
+  if (newQty === currentQty) {
+    previewBox.style.display = 'block';
+    previewEl.innerHTML = `<div style="color:var(--text-muted);text-align:center"><i class="fas fa-equals"></i> No change — same as current</div>`;
+    submitBtn.disabled = true;
+    return;
+  }
+  
+  submitBtn.disabled = false;
+  const diff = newQty - currentQty;
+  
+  let actionLabel, actionColor, actionIcon, stockChange;
+  
+  if (newQty === 0) {
+    actionLabel = 'BOOKING FULLY CANCELLED';
+    actionColor = 'var(--danger)';
+    actionIcon = 'fa-times-circle';
+    stockChange = `+${currentQty} units released back to stock`;
+  } else if (diff < 0) {
+    actionLabel = 'PARTIAL CANCEL';
+    actionColor = 'var(--warning)';
+    actionIcon = 'fa-minus-circle';
+    stockChange = `+${Math.abs(diff)} units released back to stock`;
+  } else {
+    actionLabel = 'INCREASE BOOKING';
+    actionColor = 'var(--secondary)';
+    actionIcon = 'fa-plus-circle';
+    stockChange = `−${diff} extra units reserved`;
+  }
+  
+  previewBox.style.display = 'block';
+  previewEl.innerHTML = `
+    <div style="text-align:center;padding:8px">
+      <i class="fas ${actionIcon}" style="color:${actionColor};font-size:24px;margin-bottom:6px"></i>
+      <div style="font-size:13px;font-weight:700;color:${actionColor};letter-spacing:1px;margin-bottom:8px">${actionLabel}</div>
+      <div style="display:flex;justify-content:center;align-items:center;gap:14px;font-size:14px;font-weight:700;margin-bottom:8px">
+        <div>
+          <span style="color:var(--text-muted);font-size:10px;text-transform:uppercase;display:block">Before</span>
+          <span style="font-size:22px">${currentQty}</span>
+        </div>
+        <i class="fas fa-arrow-right" style="color:${actionColor}"></i>
+        <div>
+          <span style="color:var(--text-muted);font-size:10px;text-transform:uppercase;display:block">After</span>
+          <span style="font-size:22px;color:${actionColor}">${newQty}</span>
+        </div>
+      </div>
+      <div style="font-size:11.5px;color:var(--text-sec);background:${diff > 0 ? 'rgba(239,68,68,.08)' : 'rgba(16,185,129,.08)'};padding:6px 10px;border-radius:6px;display:inline-block">
+        ${stockChange}
+      </div>
+    </div>
+  `;
+}
+
+async function submitModifyBooking(bookingId, currentQty) {
+  const newQty = Number(document.getElementById('modNewQty').value);
+  const reasonSel = document.getElementById('modReason').value;
+  const extraNotes = document.getElementById('modNotes').value.trim();
+  
+  if (isNaN(newQty) || newQty < 0) { toast('Enter a valid quantity', 'error'); return; }
+  if (newQty === currentQty) { toast('Quantity unchanged — nothing to update', 'warning'); return; }
+  
+  const reason = [reasonSel, extraNotes].filter(Boolean).join(' — ') || 'Customer requested change';
+  
+  // Confirmation
+  let confirmMsg;
+  if (newQty === 0) {
+    confirmMsg = `⚠️ Cancel the entire booking?\n\nAll ${currentQty} unit(s) will be released back to available stock.\n\nReason: ${reason}\n\nContinue?`;
+  } else if (newQty < currentQty) {
+    confirmMsg = `Reduce booking from ${currentQty} to ${newQty}?\n\n${currentQty - newQty} unit(s) will be released back to stock.\n\nReason: ${reason}\n\nContinue?`;
+  } else {
+    confirmMsg = `Increase booking from ${currentQty} to ${newQty}?\n\n${newQty - currentQty} extra unit(s) will be reserved.\n\nReason: ${reason}\n\nContinue?`;
+  }
+  
+  if (!confirm(confirmMsg)) return;
+  
+  const btn = document.getElementById('modSubmitBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> Updating...';
+  }
+  
+  const r = await apiPost('modifyBookingQuantity', {
+    ID: bookingId,
+    NewQuantity: newQty,
+    Reason: reason
+  });
+  
+  if (r.success) {
+    toast(`✓ ${r.message}`, 'success');
+    closeModal('modifyBookingModal');
+    S.inventory = []; // force refresh
+    renderPage('bookings');
+  } else {
+    if (r.error) toast(r.error, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-check"></i>Apply Changes';
+    }
+  }
+}
   
   // ============================================================
   // CUSTOMERS — show stats inline
@@ -2097,11 +2337,12 @@ function filterBookings() {
         <td style="font-size:11px;max-width:180px">${esc(b.Notes || '-')}</td>
         <td><div class="btn-group">
           ${b.Status === 'Active' ? `
-            <button class="btn btn-success btn-sm" onclick="convertBookingToSale('${b.ID}','${esc(b.CustomerName)}','${b.CustomerPhone||''}','${b.ProductID}','${b.Quantity}')" title="Customer arrived — convert to sale"><i class="fas fa-cash-register"></i></button>
-            <button class="btn btn-outline btn-sm" onclick="extendBooking('${b.ID}','${esc(b.CustomerName)}')" title="Extend by 7 days"><i class="fas fa-calendar-plus"></i></button>
-            ${b.CustomerPhone ? `<button class="btn btn-outline btn-sm" onclick="notifyBooking('${esc(b.CustomerName)}','${b.CustomerPhone}','${esc(b.ProductName)}')" title="WhatsApp" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i></button>` : ''}
-            <button class="btn btn-danger btn-sm" onclick="cancelBooking('${b.ID}')" title="Cancel"><i class="fas fa-times"></i></button>
-          ` : ''}
+  <button class="btn btn-success btn-sm" onclick="convertBookingToSale('${b.ID}','${esc(b.CustomerName)}','${b.CustomerPhone||''}','${b.ProductID}','${b.Quantity}')" title="Customer arrived — convert to sale"><i class="fas fa-cash-register"></i></button>
+  <button class="btn btn-warning btn-sm" onclick="openModifyBookingModal('${b.ID}')" title="Modify quantity (partial cancel / add more)" style="border-color:var(--warning);color:#fff"><i class="fas fa-pen-to-square"></i></button>
+  <button class="btn btn-outline btn-sm" onclick="extendBooking('${b.ID}','${esc(b.CustomerName)}')" title="Extend by 7 days"><i class="fas fa-calendar-plus"></i></button>
+  ${b.CustomerPhone ? `<button class="btn btn-outline btn-sm" onclick="notifyBooking('${esc(b.CustomerName)}','${b.CustomerPhone}','${esc(b.ProductName)}')" title="WhatsApp" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i></button>` : ''}
+  <button class="btn btn-danger btn-sm" onclick="cancelBooking('${b.ID}')" title="Cancel entire booking"><i class="fas fa-times"></i></button>
+` : ''}
         </div></td>
       </tr>`;
     }).join('')}</tbody>
