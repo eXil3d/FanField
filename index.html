@@ -3471,7 +3471,6 @@ async function saveBatch() {
     renderPage('inventory');
   }
 }
-  async function saveBatch(){const ps=document.getElementById('bProd');const ss=document.getElementById('bSup');const r=await apiPost('addBatch',{ProductID:ps.value,ProductName:ps.selectedOptions[0]?.dataset.name||'',SupplierID:ss.value,SupplierName:ss.selectedOptions[0]?.dataset.name||'',Quantity:document.getElementById('bQty').value,CostPrice:document.getElementById('bCost').value});if(r.success){toast(`Batch added: ${r.batchProductId||'OK'}`);closeModal('batchModal');renderPage('inventory')}}
 
 // ============================================================
 // POS - NEW SALE (with delivery, voucher, notes on receipt)
