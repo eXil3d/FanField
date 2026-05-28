@@ -4331,194 +4331,52 @@ function updateDiscountSavingsDisplay(amount) {
 // ============================================================
 // QUICK ADD CUSTOMER FROM POS PAGE
 // ============================================================
-async function saveQuickCustomer() {
-  const name = document.getElementById('qcName')?.value?.trim() || '';
-  const phone = document.getElementById('qcPhone')?.value?.trim() || '';
-  const email = document.getElementById('qcEmail')?.value?.trim() || '';
-  const address = document.getElementById('qcAddr')?.value?.trim() || '';
-  const notes = document.getElementById('qcNotes')?.value?.trim() || '';
+function openQuickAddCustomerModal() {
+  let m = document.getElementById('quickCustModal');
+  if (m) m.remove();
   
-  if (!name) {
-    showToast('Customer name is required', 'error');
-    document.getElementById('qcName')?.focus();
-    return;
-  }
-  if (!phone) {
-    showToast('Phone number is required', 'error');
-    document.getElementById('qcPhone')?.focus();
-    return;
-  }
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="quickCustModal"><div class="modal" style="max-width:550px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-user-plus" style="color:var(--primary);margin-right:6px"></i>Quick Add Customer</h3>
+        <button class="modal-close" onclick="closeModal('quickCustModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(59,130,246,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--primary);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
+          <i class="fas fa-info-circle" style="color:var(--primary)"></i>
+          New customer will be auto-selected in the POS after saving.
+        </div>
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Name *</label>
+            <input class="fc" id="qcName" placeholder="Customer full name" autofocus>
+          </div>
+          <div class="form-group" style="position:relative">
+  <label>Phone <span id="qcPhoneStatus" style="font-size:10px;font-weight:500;color:var(--text-muted);margin-left:6px"></span></label>
+  <input class="fc" id="qcPhone" placeholder="Phone number" autocomplete="off" oninput="onQuickAddPhoneInput(this)">
+  <div id="qcPhoneWarning" style="display:none;margin-top:6px;padding:8px 10px;background:rgba(245,158,11,.1);border-left:3px solid var(--warning);border-radius:6px;font-size:11px;color:var(--warning)"></div>
+</div>
+          <div class="form-group">
+            <label>Email</label>
+            <input class="fc" id="qcEmail" placeholder="Email (optional)">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Address</label>
+            <input class="fc" id="qcAddr" placeholder="Address (optional)">
+          </div>
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Notes</label>
+            <input class="fc" id="qcNotes" placeholder="Optional notes">
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('quickCustModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveQuickCustomer()"><i class="fas fa-save"></i>Save & Select</button>
+      </div>
+    </div></div>`);
   
-  // Disable save button to prevent double-clicks
-  const saveBtn = document.querySelector('#quickCustModal .btn-primary');
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
-  }
-  
-  try {
-    const result = await apiPost('addCustomer', { 
-      name, 
-      phone, 
-      email, 
-      address, 
-      notes 
-    });
-    
-    if (result.success || result.id || result.customerId) {
-      const newCustomerId = result.id || result.customerId || result.customer_id;
-      const customerName = result.name || name;
-      const customerPhone = result.phone || phone;
-      
-      // ✅ Step 1: Refresh customers data from database
-      await refreshCustomersData();
-      
-      // ✅ Step 2: Update all customer dropdowns/lists
-      refreshAllCustomerUI();
-      
-      // ✅ Step 3: Auto-select in POS
-      selectCustomerInPOS(newCustomerId, customerName, customerPhone);
-      
-      // ✅ Step 4: Refresh customers page if visible
-      if (typeof renderCustomers === 'function') renderCustomers();
-      if (typeof renderCustomersTable === 'function') renderCustomersTable();
-      
-      // ✅ Step 5: Close modal
-      closeModal('quickCustModal');
-      
-      if (result.existing) {
-        showToast(`ℹ Customer already existed — selected "${customerName}"`, 'info');
-      } else {
-        showToast(`✓ Customer "${customerName}" added & selected`, 'success');
-      }
-    } else {
-      throw new Error(result.error || 'Failed to add customer');
-    }
-  } catch (err) {
-    console.error('saveQuickCustomer error:', err);
-    showToast('Error: ' + (err.message || String(err)), 'error');
-    
-    // Re-enable save button on error
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fas fa-save"></i>Save & Select';
-    }
-  }
-}
-
-// Reload customers from Supabase
-async function refreshCustomersData() {
-  try {
-    // Use the supabase client (assuming it's globally available based on your error log)
-    if (typeof supabaseFetch === 'function') {
-      // Direct supabase GET pattern matching your code
-      const data = await supabaseFetch('customers?select=*&order=name.asc');
-      if (Array.isArray(data)) {
-        customers = data;
-        return;
-      }
-    }
-    
-    // Fallback: try apiGet
-    if (typeof apiGet === 'function') {
-      const data = await apiGet('customers');
-      if (Array.isArray(data)) {
-        customers = data;
-        return;
-      }
-    }
-    
-    // Last resort: full data reload
-    if (typeof loadAllData === 'function') {
-      await loadAllData();
-    } else if (typeof loadData === 'function') {
-      await loadData();
-    } else if (typeof initData === 'function') {
-      await initData();
-    }
-  } catch (err) {
-    console.error('refreshCustomersData error:', err);
-  }
-}
-
-// Update all customer dropdowns/datalists on the page
-function refreshAllCustomerUI() {
-  if (!Array.isArray(customers)) return;
-  
-  // Common dropdown IDs in your app
-  const dropdownIds = [
-    'saleCustomer', 'saleCustomerId', 'saleCustomerSelect',
-    'posCustomer', 'posCustomerSelect',
-    'preorderCustomer', 'preorderCustomerSelect',
-    'paymentCustomer', 'paymentCustomerSelect',
-    'custSelect', 'customerSelect'
-  ];
-  
-  dropdownIds.forEach(id => {
-    const dd = document.getElementById(id);
-    if (!dd || dd.tagName !== 'SELECT') return;
-    
-    const currentValue = dd.value;
-    const placeholder = dd.querySelector('option[value=""]')?.textContent || 'Select customer...';
-    
-    dd.innerHTML = `<option value="">${placeholder}</option>` + 
-      customers.map(c => 
-        `<option value="${c.id}" data-name="${c.name || ''}" data-phone="${c.phone || ''}">${c.name || 'Unknown'} - ${c.phone || ''}</option>`
-      ).join('');
-    
-    if (currentValue) dd.value = currentValue;
-  });
-  
-  // Refresh datalists (autocomplete inputs)
-  const datalistIds = ['customersList', 'customerSuggestions', 'custList'];
-  datalistIds.forEach(id => {
-    const dl = document.getElementById(id);
-    if (!dl) return;
-    dl.innerHTML = customers.map(c => 
-      `<option value="${c.phone || ''}" data-name="${c.name || ''}" data-id="${c.id}">${c.name || ''}</option>`
-    ).join('');
-  });
-}
-
-// Auto-select customer in POS after add
-function selectCustomerInPOS(customerId, name, phone) {
-  // Set hidden ID field
-  const idFields = ['saleCustomerId', 'posCustomerId', 'currentCustomerId'];
-  idFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = customerId;
-  });
-  
-  // Set visible name field
-  const nameFields = ['saleCustomerName', 'posCustomerName', 'custName'];
-  nameFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = name;
-  });
-  
-  // Set visible phone field
-  const phoneFields = ['saleCustomerPhone', 'posCustomerPhone', 'custPhone'];
-  phoneFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = phone;
-  });
-  
-  // Try common dropdown selectors
-  ['saleCustomer', 'saleCustomerSelect', 'posCustomer'].forEach(id => {
-    const dd = document.getElementById(id);
-    if (dd) dd.value = customerId;
-  });
-  
-  // Trigger any custom customer-selected handlers
-  if (typeof onCustomerSelected === 'function') {
-    onCustomerSelected(customerId);
-  }
-  
-  // Update global current customer (common pattern)
-  if (typeof currentCustomer !== 'undefined') {
-    window.currentCustomer = { id: customerId, name, phone };
-  }
-}
+  openModal('quickCustModal');
   
   // Auto-focus on name field after modal opens
   setTimeout(() => {
