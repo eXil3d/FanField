@@ -260,185 +260,6 @@ body{
 .btn-lg{padding:12px 24px;font-size:13.5px}
 .btn-group{display:flex;gap:6px;flex-wrap:wrap}
 
-/* ============================================================
-   MANUAL DISCOUNT WIDGET
-   ============================================================ */
-.discount-widget {
-  background: linear-gradient(135deg, rgba(245,158,11,.08), rgba(236,72,153,.05));
-  border: 1px solid rgba(245,158,11,.25);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-  margin: 14px 0;
-}
-
-.discount-widget-hdr {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.discount-widget-hdr h4 {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: var(--warning);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.discount-type-toggle {
-  display: inline-flex;
-  background: var(--bg-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 2px;
-  gap: 2px;
-}
-
-.discount-type-toggle button {
-  padding: 5px 12px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border-radius: var(--radius-xs);
-  transition: var(--transition-fast);
-}
-
-.discount-type-toggle button.active {
-  background: var(--warning);
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(245,158,11,.4);
-}
-
-.discount-input-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.discount-input-wrap {
-  position: relative;
-}
-
-.discount-input-wrap input {
-  width: 100%;
-  padding: 10px 14px 10px 36px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 700;
-  transition: var(--transition-fast);
-}
-
-.discount-input-wrap input:focus {
-  outline: none;
-  border-color: var(--warning);
-  box-shadow: 0 0 0 3px rgba(245,158,11,.2);
-}
-
-.discount-input-wrap .symbol {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-weight: 700;
-  color: var(--warning);
-  font-size: 14px;
-  pointer-events: none;
-}
-
-.discount-quick-btns {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 10px;
-}
-
-.discount-quick-btn {
-  padding: 6px 12px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  color: var(--text-sec);
-  font-size: 11.5px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: var(--transition-fast);
-}
-
-.discount-quick-btn:hover {
-  border-color: var(--warning);
-  color: var(--warning);
-  background: rgba(245,158,11,.1);
-  transform: translateY(-1px);
-}
-
-.discount-quick-btn.active {
-  background: var(--warning);
-  color: #fff;
-  border-color: var(--warning);
-}
-
-.discount-reason-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--surface);
-  color: var(--text);
-  font-size: 12px;
-  margin-bottom: 8px;
-}
-
-.discount-savings-display {
-  background: rgba(16,185,129,.1);
-  border-left: 3px solid var(--secondary);
-  padding: 8px 12px;
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  color: var(--secondary);
-  font-weight: 600;
-  display: none;
-  align-items: center;
-  gap: 8px;
-}
-
-.discount-savings-display.show {
-  display: flex;
-}
-
-.discount-savings-display .savings-amount {
-  font-size: 14px;
-  font-weight: 800;
-}
-
-.discount-clear-btn {
-  background: none;
-  border: none;
-  color: var(--danger);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: var(--transition-fast);
-}
-
-.discount-clear-btn:hover {
-  background: var(--danger-light);
-}
-  
 /* Tables */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .tbl-wrap::-webkit-scrollbar{height:6px}
@@ -798,7 +619,6 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
 <body>
 <div class="toast-container" id="toastBox"></div>
 <div class="app">
-  <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="closeSidebar()"></div>
 <aside class="sidebar" id="sidebar">
   <div class="sb-header">
     <div class="sb-logo">
@@ -840,13 +660,7 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
 <main class="main">
   <div class="topbar">
     <div class="topbar-left">
-      <button class="menu-toggle" onclick="toggleSidebar()" aria-label="Toggle menu">
-  <div class="hamburger-lines">
-    <span></span>
-    <span></span>
-    <span></span>
-  </div>
-</button>
+      <button class="menu-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fas fa-bars"></i></button>
       <div class="page-title"><h2 id="pgTitle">Search</h2><p id="pgSub">Find anything fast</p></div>
     </div>
     <div class="topbar-center" style="flex:1;max-width:500px;margin:0 16px">
@@ -861,12 +675,6 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
       </div>
     </div>
     <div class="topbar-right">
-      <select id="dbModeSelect" onchange="setDBMode(this.value)" 
-    style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer;margin-right:8px">
-    <option value="auto">🔄 Auto</option>
-    <option value="supabase">⚡ Supabase</option>
-    <option value="google">📊 Sheets</option>
-  </select>
       <span class="sync-status" id="syncSt">Ready</span>
       <button class="btn-icon" onclick="refreshPage()"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
     </div>
@@ -885,13 +693,13 @@ const API_URL='https://script.google.com/macros/s/AKfycbwJXo9VOqP6x-PVoJA5h7kZm-
 const LOGO_URL='logo.jpg';
 const CLUBS_COUNTRIES=['Algeria','Argentina','Australia','Austria','Bangladesh','Belgium','Bolivia','Bosnia','Brazil','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','Ecuador','Egypt','England','Finland','France','Germany','Ghana','Greece','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kenya','Malaysia','Mexico','Morocco','Nepal','Netherlands','New Zealand','Nigeria','North Korea','Norway','Pakistan','Palestine','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sri Lanka','Sweden','Switzerland','Thailand','Tunisia','Turkey','UAE','Ukraine','Uruguay','USA','Venezuela','Vietnam','Wales','Arsenal','Aston Villa','AFC Bournemouth','Brentford','Brighton','Burnley','Chelsea','Crystal Palace','Everton','Fulham','Ipswich Town','Leicester City','Liverpool','Luton Town','Manchester City','Manchester United','Newcastle','Nottingham Forest','Sheffield United','Tottenham','West Ham','Wolverhampton','Atletico Madrid','Athletic Bilbao','Barcelona','Real Betis','Celta Vigo','Getafe','Girona','Granada','Las Palmas','Mallorca','Osasuna','Rayo Vallecano','Real Madrid','Real Sociedad','Sevilla','Valencia','Villarreal','AC Milan','AS Roma','Atalanta','Bologna','Cagliari','Empoli','Fiorentina','Frosinone','Genoa','Hellas Verona','Inter Milan','Juventus','Lazio','Lecce','Monza','Napoli','Salernitana','Sassuolo','Torino','Udinese','Augsburg','Bayer Leverkusen','Bayern Munich','Borussia Dortmund','Borussia Monchengladbach','Darmstadt','Eintracht Frankfurt','Freiburg','Heidenheim','Hoffenheim','Koln','Leipzig','Mainz','Stuttgart','Union Berlin','Werder Bremen','Wolfsburg','Brest','Clermont','Le Havre','Lens','Lille','Lorient','Lyon','Marseille','Metz','Monaco','Montpellier','Nantes','Nice','Paris Saint-Germain','Reims','Rennes','Strasbourg','Toulouse','Benfica','Braga','Porto','Sporting CP','Ajax','AZ Alkmaar','Feyenoord','PSV Eindhoven','Besiktas','Fenerbahce','Galatasaray','Trabzonspor','Al Ahli','Al Ettifaq','Al Hilal','Al Ittihad','Al Nassr','Boca Juniors','Corinthians','Flamengo','Palmeiras','River Plate','Santos','Sao Paulo','Atlanta United','Inter Miami','LA Galaxy','LAFC','Celtic','Rangers','Anderlecht','Club Brugge','Red Star Belgrade','Olympiacos','Panathinaikos','Dinamo Zagreb','Shakhtar Donetsk','Zenit','Other'];
 const EDITIONS=['Player Edition','Fan Edition','Special Edition','BD Premium'];
-const TYPES=['Home','Away','Third','Retro','GK','Terrace','Kith','Training Kit 2026','Training Kit 2024'];
+const TYPES=['Home','Away','Third','Retro','GK','Terrace','Training Kit 2026','Training Kit 2024'];
 const SIZES=['S','M','L','XL','2XL','3XL','4XL','5XL'];
 const PAY_METHODS=['Cash','bKash','Nagad','Card','Bank Transfer','Other'];
 const COURIER_SERVICES=['On Campus','Pathao','RedX','Steadfast','Sundarban Courier','Other'];
 const DELIVERY_STATUSES=['Processing','Shipped','In Transit','Delivered','Returned'];
 const SIZE_ORDER={'S':1,'M':2,'L':3,'XL':4,'2XL':5,'3XL':6,'4XL':7,'5XL':8};
-const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Kith':7,'Training Kit 2026':8,'Training Kit 2024':9};
+const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Training':7,'Training':8};
 const EDITION_ORDER={'Player Edition':1,'Fan Edition':2,'Special Edition':3,'BD Premium':4};
 
 let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],settings:{},dashboard:null,currency:'৳'};
@@ -899,461 +707,17 @@ let currentPage='inventory';
 let invSortCol='smart',invSortDir='asc';
 
 // API
-// ============================================================
-// API CONFIG — Supabase + Google Sheets dual backend
-// ============================================================
-const CONFIG = {
-  SUPABASE_URL: 'https://drywmyfmneoxvjiecvpf.supabase.co',   // ⬅️ REPLACE
-  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyeXdteWZtbmVveHZqaWVjdnBmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjI3MDQsImV4cCI6MjA5NTUzODcwNH0.XD-KdMT-vW9vbqCHTkqBCYDZcyfcJbseGufnHB6uEiM',                // ⬅️ REPLACE (use anon key, NOT service_role)
-  GOOGLE_SCRIPT_URL: API_URL,                          // uses your existing API_URL
-  MODE: localStorage.getItem('dbMode') || 'auto',      // 'auto' | 'supabase' | 'google'
-  TIMEOUT_MS: 8000,
-  AUTO_FAILOVER: true,
-  FAILURE_THRESHOLD: 3
-};
-
-let supabaseFailureCount = 0;
-let activeBackend = CONFIG.MODE === 'google' ? 'google' : 'supabase';
-
-function setDBMode(mode) {
-  CONFIG.MODE = mode;
-  localStorage.setItem('dbMode', mode);
-  activeBackend = mode === 'google' ? 'google' : 'supabase';
-  supabaseFailureCount = 0;
-  updateBackendIndicator();
-  toast(`Switched to ${mode.toUpperCase()} mode`, 'info');
-  refreshPage();
+async function apiGet(action,params={}){
+  setSS('Syncing...');const url=new URL(API_URL);url.searchParams.set('action',action);
+  for(const k in params)url.searchParams.set(k,params[k]);
+  try{const r=await fetch(url.toString());const d=await r.json();if(d.error){toast(d.error,'error');setSS('Error');return d;}setSS('Synced ✓');return d;}
+  catch(e){setSS('Offline');toast('Connection error','error');throw e;}
 }
-
-function updateBackendIndicator() {
-  const sel = document.getElementById('dbModeSelect');
-  if (sel) sel.value = CONFIG.MODE;
-}
-
-// ============================================================
-// Edge Function mapping (POST actions → Supabase functions)
-// ============================================================
-const EDGE_FN_MAP = {
-  // ===== Sales =====
-  'createSale': 'create-sale',
-  'addManualSale': 'add-manual-sale',
-  'updateSale': 'update-sale',
-  'updateSaleProfit': 'update-sale-profit',
-  'reverseSale': 'reverse-sale',
-  'partialReverseSale': 'partial-reverse-sale',
-  'adjustSaleAmount': 'adjust-sale-amount',
-  'exchangeAndReplace': 'exchange-and-replace',
-  'updateDeliveryStatus': 'update-delivery-status',
-  
-  // ===== Inventory =====
-  'addProduct': 'add-product',
-  'updateProduct': 'update-product',
-  'deleteProduct': 'delete-product',
-  'updateStock': 'update-stock',
-  'addStock': 'update-stock',
-  'addBatch': 'add-batch',
-  
-  // ===== Customers =====
-  'addCustomer': 'add-customer',
-  'updateCustomer': 'update-customer',
-  'deleteCustomer': 'delete-customer',
-  
-  // ===== Suppliers =====
-  'addSupplier': 'add-supplier',
-  'updateSupplier': 'update-supplier',
-  'deleteSupplier': 'delete-supplier',
-  'paySupplier': 'pay-supplier',
-  'addSupplierLedgerEntry': 'add-supplier-ledger-entry',
-  
-  // ===== Payments =====
-  'addPayment': 'add-payment',
-  
-  // ===== Expenses =====
-  'addExpense': 'add-expense',
-  'updateExpense': 'update-expense',
-  'deleteExpense': 'delete-expense',
-  
-  // ===== Affiliates =====
-  'addAffiliate': 'add-affiliate',
-  'updateAffiliate': 'update-affiliate',
-  'deleteAffiliate': 'delete-affiliate',
-  'payAffiliateCommission': 'pay-affiliate-commission',
-  'reverseAffiliatePayment': 'reverse-affiliate-payment',
-  
-  // ===== Vouchers =====
-  'addVoucher': 'add-voucher',
-  'updateVoucher': 'update-voucher',
-  'deleteVoucher': 'delete-voucher',
-  
-  // ===== Preorders =====
-  'addPreorder': 'add-preorder',
-  'updatePreorder': 'update-preorder',
-  'deletePreorder': 'delete-preorder',
-  
-  // ===== Settings & Maintenance =====
-  'updateSettings': 'update-settings',
-  'saveDeadStockSnapshot': 'save-dead-stock-snapshot',
-  'deleteDeadStockSnapshot': 'delete-dead-stock-snapshot',
-  'migratePhoneFormats': 'migrate-phone-formats',
-  
-  // ===== Generic (catch-all) =====
-  'updateRecord': 'update-record',
-  'deleteRecord': 'delete-record'
-};
-
-// ============================================================
-// GET action → Supabase table mapping
-// ============================================================
-const GET_TABLE_MAP = {
-  'getInventory': { table: 'inventory', order: 'last_updated.desc' },
-  'getCustomers': { table: 'customers', order: 'name.asc' },
-  'getSuppliers': { table: 'suppliers', order: 'name.asc' },
-  'getSales': { table: 'sales', order: 'date.desc' },
-  'getPayments': { table: 'payments', order: 'date.desc' },
-  'getExpenses': { table: 'expenses', order: 'date.desc' },
-  'getAffiliates': { table: 'affiliates' },
-  'getVouchers': { table: 'vouchers' },
-  'getDeliveries': { table: 'deliveries', order: 'date.desc' },
-  'getStockLog': { table: 'stock_log', order: 'date.desc' },
-  'getPreorders': { table: 'preorders', order: 'date.desc' },
-  'getAllBatches': { table: 'inventory_batches' },
-  'getSupplierLedger': { table: 'supplier_ledger', order: 'date.desc' },
-  'getDeadStockHistory': { table: 'dead_stock_history', order: 'snapshot_date.desc' },
-  'getAffiliateCommissions': { table: 'affiliate_commissions', order: 'date.desc' }
-};
-
-// ============================================================
-// Field name mapping: snake_case → PascalCase
-// ============================================================
-const FIELD_MAP = {
-  product_name: 'ProductName', club_country: 'Club_Country',
-  cost_price: 'CostPrice', sell_price: 'SellPrice', min_stock: 'MinStock',
-  supplier_id: 'SupplierID', supplier_name: 'SupplierName',
-  date_added: 'DateAdded', last_updated: 'LastUpdated',
-  invoice_no: 'InvoiceNo', customer_id: 'CustomerID',
-  customer_name: 'CustomerName', customer_phone: 'CustomerPhone',
-  total_amount: 'TotalAmount', final_amount: 'FinalAmount',
-  paid_amount: 'PaidAmount', due_amount: 'DueAmount',
-  payment_method: 'PaymentMethod', cost_total: 'CostTotal',
-  profit_override: 'ProfitOverride', delivery_type: 'DeliveryType',
-  delivery_charge: 'DeliveryCharge', voucher_code: 'VoucherCode',
-  voucher_discount: 'VoucherDiscount', delivery_status: 'DeliveryStatus',
-  courier_service: 'CourierService', tracking_no: 'TrackingNo',
-  delivery_address: 'DeliveryAddress', affiliate_code: 'AffiliateCode',
-  affiliate_discount: 'AffiliateDiscount', unit_price: 'UnitPrice',
-  line_total: 'LineTotal', mod_total: 'ModTotal',
-  patch_price: 'PatchPrice', name_print: 'NamePrint',
-  name_print_price: 'NamePrintPrice', total_purchases: 'TotalPurchases',
-  total_spent: 'TotalSpent', pending_amount: 'PendingAmount',
-  total_orders: 'TotalOrders', product_id: 'ProductID',
-  remaining_qty: 'RemainingQty', old_stock: 'OldStock', new_stock: 'NewStock',
-  expected_date: 'ExpectedDate', fulfilled_date: 'FulfilledDate',
-  times_used: 'TimesUsed', max_uses: 'MaxUses', min_order: 'MinOrder',
-  valid_from: 'ValidFrom', valid_to: 'ValidTo',
-  discount_value: 'DiscountValue', discount_type: 'DiscountType',
-  total_discount_given: 'TotalDiscountGiven',
-  affiliate_id: 'AffiliateID', affiliate_name: 'AffiliateName',
-  commission_amount: 'CommissionAmount', paid_date: 'PaidDate',
-  expense_id: 'ExpenseID', comm_fan: 'CommissionFanEdition',
-  comm_player: 'CommissionPlayerEdition', comm_special: 'CommissionSpecialEdition',
-  comm_bd: 'CommissionBDPremium', total_commission: 'TotalCommission',
-  paid_commission: 'PaidCommission', pending_commission: 'PendingCommission',
-  paid_to: 'PaidTo', capital_tied: 'CapitalTied',
-  days_inactive: 'DaysInactive', snapshot_id: 'SnapshotID',
-  snapshot_date: 'SnapshotDate', total_amount: 'TotalAmount'
-};
-
-function mapSupabaseRow(row) {
-  if (!row || typeof row !== 'object') return row;
-  const mapped = {};
-  for (const k in row) {
-    const newKey = FIELD_MAP[k] || (k === 'id' ? 'ID' : k.charAt(0).toUpperCase() + k.slice(1));
-    mapped[newKey] = row[k];
-  }
-  return mapped;
-}
-
-function mapSupabaseArray(arr) {
-  if (!Array.isArray(arr)) return arr;
-  return arr.map(mapSupabaseRow);
-}
-
-// ============================================================
-// Supabase fetch helpers
-// ============================================================
-async function supabaseFetch(path, options = {}) {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
-  
-  try {
-    const r = await fetch(`${CONFIG.SUPABASE_URL}${path}`, {
-      ...options,
-      signal: controller.signal,
-      headers: {
-        'apikey': CONFIG.SUPABASE_KEY,
-        'Authorization': `Bearer ${CONFIG.SUPABASE_KEY}`,
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-      }
-    });
-    clearTimeout(timeoutId);
-    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
-    supabaseFailureCount = 0;
-    return r.json();
-  } catch (err) {
-    clearTimeout(timeoutId);
-    supabaseFailureCount++;
-    if (CONFIG.AUTO_FAILOVER && supabaseFailureCount >= CONFIG.FAILURE_THRESHOLD && activeBackend === 'supabase') {
-      activeBackend = 'google';
-      toast('⚠️ Switched to Google Sheets (Supabase unreachable)', 'warning');
-    }
-    throw err;
-  }
-}
-
-// ============================================================
-// Google Sheets fallback
-// ============================================================
-async function googleGet(action, params) {
-  const url = new URL(CONFIG.GOOGLE_SCRIPT_URL);
-  url.searchParams.set('action', action);
-  for (const k in params) url.searchParams.set(k, params[k]);
-  const r = await fetch(url.toString());
-  return r.json();
-}
-
-async function googlePost(action, payload) {
-  const r = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
-    method: 'POST',
-    body: JSON.stringify({ action, ...payload }),
-    headers: { 'Content-Type': 'text/plain' }
-  });
-  return r.json();
-}
-
-// ============================================================
-// Supabase GET handler
-// ============================================================
-async function supabaseGet(action, params = {}) {
-  // Standard table query
-  if (GET_TABLE_MAP[action]) {
-    const cfg = GET_TABLE_MAP[action];
-    let path = `/rest/v1/${cfg.table}?select=*`;
-    if (cfg.order) path += `&order=${cfg.order}`;
-    const data = await supabaseFetch(path);
-    return mapSupabaseArray(data);
-  }
-  
-  // Filtered queries
-  if (action === 'getBatches' && params.productId) {
-    const data = await supabaseFetch(`/rest/v1/inventory_batches?select=*&product_id=eq.${params.productId}`);
-    return mapSupabaseArray(data);
-  }
-  
-  if (action === 'getSalesItems' && params.invoiceNo) {
-    const data = await supabaseFetch(`/rest/v1/sales_items?select=*&invoice_no=eq.${params.invoiceNo}`);
-    return mapSupabaseArray(data);
-  }
-  
-  if (action === 'getSalesItems') {
-    const data = await supabaseFetch(`/rest/v1/sales_items?select=*`);
-    return mapSupabaseArray(data);
-  }
-  
-  if (action === 'getSettings') {
-    const arr = await supabaseFetch(`/rest/v1/settings?select=*`);
-    const obj = {};
-    arr.forEach(s => obj[s.key] = s.value);
-    return obj;
-  }
-  
-  if (action === 'getDashboard') {
-    return await computeDashboard();
-  }
-  
-  // Unknown action → fallback to Google Sheets
-  throw new Error(`Unhandled Supabase action: ${action}`);
-}
-
-// ============================================================
-// Supabase POST handler (Edge Functions)
-// ============================================================
-async function supabasePost(action, payload) {
-  const edgeFn = EDGE_FN_MAP[action];
-  if (!edgeFn) throw new Error(`No edge function for action: ${action}`);
-  
-  return await supabaseFetch(`/functions/v1/${edgeFn}`, {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  });
-}
-
-// ============================================================
-// Dashboard computation (Supabase mode)
-// ============================================================
-async function computeDashboard() {
-  const [inv, sales, custs, payments, expenses, suppliers, items] = await Promise.all([
-    supabaseFetch('/rest/v1/inventory?select=*'),
-    supabaseFetch('/rest/v1/sales?select=*&order=date.desc'),
-    supabaseFetch('/rest/v1/customers?select=*'),
-    supabaseFetch('/rest/v1/payments?select=*'),
-    supabaseFetch('/rest/v1/expenses?select=*'),
-    supabaseFetch('/rest/v1/suppliers?select=*'),
-    supabaseFetch('/rest/v1/sales_items?select=*')
-  ]);
-  
-  const inventory = mapSupabaseArray(inv);
-  const salesArr = mapSupabaseArray(sales);
-  const customers = mapSupabaseArray(custs);
-  const salesItems = mapSupabaseArray(items);
-  
-  const today = new Date();
-  const todayStr = today.toISOString().substring(0, 10);
-  const thisMonth = today.toISOString().substring(0, 7);
-  
-  let totalStockValue = 0, totalRetailValue = 0, totalItems = 0;
-  let lowStockItems = [], outOfStockItems = [];
-  
-  inventory.forEach(item => {
-    const stock = Number(item.Stock) || 0;
-    totalItems += stock;
-    totalStockValue += stock * (Number(item.CostPrice) || 0);
-    totalRetailValue += stock * (Number(item.SellPrice) || 0);
-    const minStock = Number(item.MinStock) || 5;
-    if (stock === 0) outOfStockItems.push(item);
-    else if (stock <= minStock) lowStockItems.push(item);
-  });
-  
-  let totalRevenue = 0, todaySales = 0, monthlySales = 0, totalPending = 0;
-  let todaySaleCount = 0, monthlySaleCount = 0;
-  let totalProfit = 0, monthlyProfit = 0, todayProfit = 0, totalCost = 0;
-  
-  salesArr.forEach(sale => {
-    if (sale.Status === 'Cancelled') return;
-    const saleDate = String(sale.Date).substring(0, 10);
-    const saleMonth = String(sale.Date).substring(0, 7);
-    const finalAmt = Number(sale.FinalAmount) || 0;
-    const dueAmt = Number(sale.DueAmount) || 0;
-    const profit = Number(sale.ProfitOverride) || Number(sale.Profit) || 0;
-    totalRevenue += finalAmt;
-    totalPending += dueAmt;
-    totalProfit += profit;
-    totalCost += Number(sale.CostTotal) || 0;
-    if (saleDate === todayStr) { todaySales += finalAmt; todaySaleCount++; todayProfit += profit; }
-    if (saleMonth === thisMonth) { monthlySales += finalAmt; monthlySaleCount++; monthlyProfit += profit; }
-  });
-  
-  let totalExpenses = 0, monthlyExpenses = 0;
-  expenses.forEach(exp => {
-    const amt = Number(exp.amount) || 0;
-    totalExpenses += amt;
-    if (String(exp.date).substring(0, 7) === thisMonth) monthlyExpenses += amt;
-  });
-  
-  const productSales = {};
-  salesItems.forEach(item => {
-    const name = item.ProductName;
-    if (!productSales[name]) productSales[name] = { name, qty: 0, revenue: 0 };
-    productSales[name].qty += Number(item.Quantity) || 0;
-    productSales[name].revenue += Number(item.LineTotal) || 0;
-  });
-  const topProducts = Object.values(productSales).sort((a,b) => b.revenue - a.revenue).slice(0, 10);
-  
-  const monthlySalesData = {};
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-    const key = d.toISOString().substring(0, 7);
-    monthlySalesData[key] = { month: d.toLocaleString('en', {month:'short', year:'numeric'}), sales: 0, profit: 0, count: 0 };
-  }
-  salesArr.forEach(sale => {
-    if (sale.Status === 'Cancelled') return;
-    const saleMonth = String(sale.Date).substring(0, 7);
-    if (monthlySalesData[saleMonth]) {
-      monthlySalesData[saleMonth].sales += Number(sale.FinalAmount) || 0;
-      monthlySalesData[saleMonth].profit += Number(sale.ProfitOverride) || Number(sale.Profit) || 0;
-      monthlySalesData[saleMonth].count++;
-    }
-  });
-  
-  return {
-    totalProducts: inventory.length, totalItems,
-    totalStockValue: Math.round(totalStockValue), totalRetailValue: Math.round(totalRetailValue),
-    totalRevenue: Math.round(totalRevenue), todaySales: Math.round(todaySales), todaySaleCount,
-    monthlySales: Math.round(monthlySales), monthlySaleCount,
-    totalPending: Math.round(totalPending), totalExpenses: Math.round(totalExpenses),
-    monthlyExpenses: Math.round(monthlyExpenses),
-    totalProfit: Math.round(totalProfit), monthlyProfit: Math.round(monthlyProfit),
-    todayProfit: Math.round(todayProfit), totalCost: Math.round(totalCost),
-    totalCustomers: customers.length,
-    totalUnitsSold: salesItems.reduce((s,i) => s + (Number(i.Quantity) || 0), 0),
-    totalSuppliers: suppliers.length,
-    lowStockItems, outOfStockItems,
-    lowStockCount: lowStockItems.length, outOfStockCount: outOfStockItems.length,
-    recentSales: salesArr.filter(s => s.Status !== 'Cancelled').slice(0, 15),
-    topProducts,
-    monthlySalesChart: Object.values(monthlySalesData)
-  };
-}
-
-// ============================================================
-// UNIFIED API (same signatures as before - rest of code unchanged)
-// ============================================================
-async function apiGet(action, params = {}) {
-  setSS('Syncing...');
-  try {
-    let result;
-    
-    if (activeBackend === 'google' || CONFIG.MODE === 'google') {
-      result = await googleGet(action, params);
-    } else {
-      try {
-        result = await supabaseGet(action, params);
-      } catch (err) {
-        if (CONFIG.MODE === 'auto') {
-          console.warn('Supabase failed, using Google Sheets:', err.message);
-          result = await googleGet(action, params);
-        } else throw err;
-      }
-    }
-    
-    if (result?.error) { toast(result.error, 'error'); setSS('Error'); return result; }
-    setSS('Synced ✓');
-    return result;
-  } catch (e) {
-    setSS('Offline');
-    toast('Connection error', 'error');
-    throw e;
-  }
-}
-
-async function apiPost(action, payload) {
+async function apiPost(action,payload){
   setSS('Saving...');
-  try {
-    let result;
-    
-    if (activeBackend === 'google' || CONFIG.MODE === 'google') {
-      result = await googlePost(action, payload);
-    } else {
-      try {
-        result = await supabasePost(action, payload);
-      } catch (err) {
-        if (CONFIG.MODE === 'auto') {
-          console.warn('Supabase POST failed, using Google Sheets:', err.message);
-          result = await googlePost(action, payload);
-        } else throw err;
-      }
-    }
-    
-    if (result?.error) { toast('Error: ' + result.error, 'error'); setSS('Error'); return result; }
-    setSS('Saved ✓');
-    return result;
-  } catch (e) {
-    setSS('Offline');
-    toast('Connection error', 'error');
-    throw e;
-  }
+  try{const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({action,...payload}),headers:{'Content-Type':'text/plain'}});const d=await r.json();if(d.error){toast('Error: '+d.error,'error');setSS('Error');return d;}setSS('Saved ✓');return d;}
+  catch(e){setSS('Offline');toast('Connection error','error');throw e;}
 }
-
 function setSS(t) {
   const el = document.getElementById('syncSt');
   if (!el) return;
@@ -1398,8 +762,7 @@ function toast(msg, type = 'success') {
       setTimeout(() => t.remove(), 300);
     }
   }, 4500);
-}
-function openModal(id){document.getElementById(id).classList.add('active')}
+}function openModal(id){document.getElementById(id).classList.add('active')}
 function closeModal(id){document.getElementById(id).classList.remove('active')}
 
 function fabAction() {
@@ -1456,35 +819,6 @@ async function renderPage(page){
     case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
-
-
-  // ============================================================
-// HAMBURGER MENU — Sidebar toggle helpers
-// ============================================================
-function toggleSidebar() {
-  const sidebar = document.getElementById('sidebar');
-  const backdrop = document.getElementById('sidebarBackdrop');
-  const isOpen = sidebar.classList.toggle('open');
-  if (backdrop) backdrop.classList.toggle('active', isOpen);
-  // Prevent body scroll when sidebar is open on mobile
-  document.body.style.overflow = isOpen && window.innerWidth <= 768 ? 'hidden' : '';
-}
-
-function closeSidebar() {
-  document.getElementById('sidebar').classList.remove('open');
-  document.getElementById('sidebarBackdrop')?.classList.remove('active');
-  document.body.style.overflow = '';
-}
-
-// Close sidebar on Escape key
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeSidebar();
-});
-
-// Close sidebar on resize to desktop
-window.addEventListener('resize', () => {
-  if (window.innerWidth > 768) closeSidebar();
-});
 // ============================================================
 // PHONE NUMBER FORMATTER (Bangladesh format: 017-1234-5678)
 // ============================================================
@@ -4165,48 +3499,7 @@ async function renderPOS(area){
     <hr style="margin:20px 0;border:none;border-top:1px solid var(--border)">
     <div class="fg" style="max-width:500px;margin-left:auto">
       <div class="form-group"><label>Subtotal</label><input class="fc" id="posSub" value="0" readonly></div>
-      <!-- DISCOUNT WIDGET — Replaces the simple discount input -->
-<div class="discount-widget">
-  <div class="discount-widget-hdr">
-    <h4><i class="fas fa-tag"></i> Manual Discount</h4>
-    <div class="discount-type-toggle">
-      <button type="button" id="discTypeFixed" class="active" onclick="setDiscountType('fixed')">${C()} Fixed</button>
-      <button type="button" id="discTypePercent" onclick="setDiscountType('percent')">% Percent</button>
-    </div>
-  </div>
-  
-  <div class="discount-input-row">
-    <div class="discount-input-wrap">
-      <span class="symbol" id="discSymbol">${C()}</span>
-      <input type="number" id="posDisc" value="0" min="0" step="any" 
-             oninput="onDiscountInput()" placeholder="0">
-    </div>
-    <button type="button" class="discount-clear-btn" onclick="clearDiscount()">
-      <i class="fas fa-times"></i> Clear
-    </button>
-  </div>
-  
-  <div class="discount-quick-btns" id="discQuickBtns">
-    <button type="button" class="discount-quick-btn" data-pct="5" onclick="applyQuickDiscount(5)">5%</button>
-    <button type="button" class="discount-quick-btn" data-pct="10" onclick="applyQuickDiscount(10)">10%</button>
-    <button type="button" class="discount-quick-btn" data-pct="15" onclick="applyQuickDiscount(15)">15%</button>
-    <button type="button" class="discount-quick-btn" data-pct="20" onclick="applyQuickDiscount(20)">20%</button>
-    <button type="button" class="discount-quick-btn" data-pct="25" onclick="applyQuickDiscount(25)">25%</button>
-    <button type="button" class="discount-quick-btn" data-pct="50" onclick="applyQuickDiscount(50)">50%</button>
-  </div>
-  
-  <input type="text" class="discount-reason-input" id="posDiscReason" 
-         placeholder="Reason for discount (optional, e.g., 'Loyal customer', 'Damaged box')">
-  
-  <div class="discount-savings-display" id="discSavingsDisplay">
-    <i class="fas fa-piggy-bank"></i>
-    <span>Customer saves <span class="savings-amount" id="discSavingsAmount">${C()}0</span></span>
-  </div>
-  
-  <!-- Hidden field to track discount type -->
-  <input type="hidden" id="posDiscType" value="fixed">
-  <input type="hidden" id="posDiscPercent" value="0">
-</div>
+      <div class="form-group"><label>Discount</label><input type="number" class="fc" id="posDisc" value="0" oninput="calcPOSTotal()"></div>
       <div class="form-group"><label>Affiliate Disc.</label><input class="fc" id="posAffDisc" value="0" readonly></div>
       <div class="form-group"><label>Voucher Disc.</label><input class="fc" id="posVchDisc" value="0" readonly></div>
       <div class="form-group"><label>Delivery</label><input class="fc" id="posDelCharge" value="0" readonly></div>
@@ -4225,109 +3518,6 @@ async function renderPOS(area){
   document.getElementById('posCust').addEventListener('change',function(){document.getElementById('posCustPhone').value=this.selectedOptions[0]?.dataset.phone||''});
   document.getElementById('posDel').addEventListener('change',function(){document.getElementById('posDelAddrWrap').style.display=this.value!=='None'?'block':'none'});
 }
-
-// ============================================================
-// MANUAL DISCOUNT WIDGET — Smart percentage/fixed toggle
-// ============================================================
-function setDiscountType(type) {
-  const fixedBtn = document.getElementById('discTypeFixed');
-  const percentBtn = document.getElementById('discTypePercent');
-  const symbol = document.getElementById('discSymbol');
-  const input = document.getElementById('posDisc');
-  const typeField = document.getElementById('posDiscType');
-  
-  if (type === 'percent') {
-    fixedBtn.classList.remove('active');
-    percentBtn.classList.add('active');
-    symbol.textContent = '%';
-    typeField.value = 'percent';
-    input.placeholder = '0';
-    input.max = '100';
-  } else {
-    percentBtn.classList.remove('active');
-    fixedBtn.classList.add('active');
-    symbol.textContent = C();
-    typeField.value = 'fixed';
-    input.placeholder = '0';
-    input.removeAttribute('max');
-  }
-  
-  // Reset input and recalc
-  input.value = 0;
-  document.getElementById('posDiscPercent').value = 0;
-  clearActiveQuickBtns();
-  calcPOSTotal();
-}
-
-function applyQuickDiscount(percent) {
-  // Force percent mode
-  setDiscountType('percent');
-  document.getElementById('posDisc').value = percent;
-  document.getElementById('posDiscPercent').value = percent;
-  
-  // Highlight the active quick button
-  clearActiveQuickBtns();
-  document.querySelector(`.discount-quick-btn[data-pct="${percent}"]`)?.classList.add('active');
-  
-  calcPOSTotal();
-}
-
-function clearActiveQuickBtns() {
-  document.querySelectorAll('.discount-quick-btn').forEach(b => b.classList.remove('active'));
-}
-
-function clearDiscount() {
-  document.getElementById('posDisc').value = 0;
-  document.getElementById('posDiscPercent').value = 0;
-  document.getElementById('posDiscReason').value = '';
-  clearActiveQuickBtns();
-  setDiscountType('fixed');
-  calcPOSTotal();
-  toast('Discount cleared', 'info');
-}
-
-function onDiscountInput() {
-  // Clear active quick buttons if user manually types
-  clearActiveQuickBtns();
-  
-  const type = document.getElementById('posDiscType').value;
-  const val = Number(document.getElementById('posDisc').value) || 0;
-  
-  if (type === 'percent') {
-    // Cap at 100%
-    if (val > 100) {
-      document.getElementById('posDisc').value = 100;
-    }
-    document.getElementById('posDiscPercent').value = Math.min(val, 100);
-  }
-  
-  calcPOSTotal();
-}
-
-// Computes the actual discount amount based on type (called inside calcPOSTotal)
-function getActualDiscountAmount(subtotal) {
-  const type = document.getElementById('posDiscType')?.value || 'fixed';
-  const val = Number(document.getElementById('posDisc')?.value) || 0;
-  
-  if (type === 'percent') {
-    return Math.round(subtotal * val / 100);
-  }
-  return val;
-}
-
-function updateDiscountSavingsDisplay(amount) {
-  const display = document.getElementById('discSavingsDisplay');
-  const amountEl = document.getElementById('discSavingsAmount');
-  if (!display || !amountEl) return;
-  
-  if (amount > 0) {
-    amountEl.textContent = C() + amount.toLocaleString();
-    display.classList.add('show');
-  } else {
-    display.classList.remove('show');
-  }
-}
-  
 // ============================================================
 // QUICK ADD CUSTOMER FROM POS PAGE
 // ============================================================
@@ -4399,191 +3589,101 @@ function openQuickAddCustomerModal() {
 }
 
 async function saveQuickCustomer() {
-  const name = document.getElementById('qcName')?.value?.trim() || '';
-  const phone = document.getElementById('qcPhone')?.value?.trim() || '';
-  const email = document.getElementById('qcEmail')?.value?.trim() || '';
-  const address = document.getElementById('qcAddr')?.value?.trim() || '';
-  const notes = document.getElementById('qcNotes')?.value?.trim() || '';
-  
+  const name = document.getElementById('qcName').value.trim();
   if (!name) {
-    showToast('Customer name is required', 'error');
-    document.getElementById('qcName')?.focus();
-    return;
-  }
-  if (!phone) {
-    showToast('Phone number is required', 'error');
-    document.getElementById('qcPhone')?.focus();
+    toast('Customer name is required', 'error');
+    document.getElementById('qcName').focus();
     return;
   }
   
-  // Disable save button to prevent double-clicks
+  const phone = document.getElementById('qcPhone').value.trim();
+  
+  // 🛡 Final duplicate check before saving
+  if (phone) {
+    const existing = findExactCustomerByPhone(phone);
+    if (existing) {
+      const confirmAdd = confirm(
+        `⚠️ Phone number ${phone} is already registered to:\n\n` +
+        `${existing.Name}${existing.Email ? '\n' + existing.Email : ''}\n\n` +
+        `Click OK to use this existing customer instead.\n` +
+        `Click Cancel to go back and edit the phone number.`
+      );
+      if (confirmAdd) {
+        useExistingCustomerFromQuickAdd(existing.ID, existing.Name, existing.Phone || '');
+        return;
+      } else {
+        document.getElementById('qcPhone').focus();
+        document.getElementById('qcPhone').select();
+        return;
+      }
+    }
+  }
+  
+  const data = {
+    Name: name,
+    Phone: phone,
+    Email: document.getElementById('qcEmail').value.trim(),
+    Address: document.getElementById('qcAddr').value.trim(),
+    Notes: document.getElementById('qcNotes').value.trim()
+  };
+  
+  // Disable the save button to prevent double-submission
   const saveBtn = document.querySelector('#quickCustModal .btn-primary');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+    saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
   }
   
-  try {
-    const result = await apiPost('addCustomer', { 
-      name, 
-      phone, 
-      email, 
-      address, 
-      notes 
-    });
+  const r = await apiPost('addCustomer', data);
+  
+  if (r.success) {
+    toast(`${name} added successfully!`);
+    closeModal('quickCustModal');
     
-    if (result.success || result.id || result.customerId) {
-      const newCustomerId = result.id || result.customerId || result.customer_id;
-      const customerName = result.name || name;
-      const customerPhone = result.phone || phone;
+    // Refresh customers list
+    S.customers = await apiGet('getCustomers');
+    
+    // Rebuild the POS customer dropdown with new customer included
+    const custSelect = document.getElementById('posCust');
+    if (custSelect) {
+      const sortedCustomers = [...S.customers].sort((a, b) => 
+        String(a.Name || '').localeCompare(String(b.Name || ''))
+      );
       
-      // ✅ Step 1: Refresh customers data from database
-      await refreshCustomersData();
+      custSelect.innerHTML = `<option value="">Walk-in Customer</option>` +
+        sortedCustomers.map(c => 
+          `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone || ''}">${esc(c.Name)} (${c.Phone || ''})</option>`
+        ).join('');
       
-      // ✅ Step 2: Update all customer dropdowns/lists
-      refreshAllCustomerUI();
-      
-      // ✅ Step 3: Auto-select in POS
-      selectCustomerInPOS(newCustomerId, customerName, customerPhone);
-      
-      // ✅ Step 4: Refresh customers page if visible
-      if (typeof renderCustomers === 'function') renderCustomers();
-      if (typeof renderCustomersTable === 'function') renderCustomersTable();
-      
-      // ✅ Step 5: Close modal
-      closeModal('quickCustModal');
-      
-      if (result.existing) {
-        showToast(`ℹ Customer already existed — selected "${customerName}"`, 'info');
-      } else {
-        showToast(`✓ Customer "${customerName}" added & selected`, 'success');
+      // Auto-select the newly added customer
+      for (let i = 0; i < custSelect.options.length; i++) {
+        if (custSelect.options[i].value === r.id) {
+          custSelect.selectedIndex = i;
+          break;
+        }
       }
-    } else {
-      throw new Error(result.error || 'Failed to add customer');
+      
+      // Auto-fill the phone field
+      const phoneInput = document.getElementById('posCustPhone');
+      if (phoneInput && data.Phone) {
+        phoneInput.value = data.Phone;
+      }
+      
+      // Visual highlight for confirmation
+      custSelect.style.transition = 'all 0.3s';
+      custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+      custSelect.style.borderColor = 'var(--secondary)';
+      setTimeout(() => {
+        custSelect.style.boxShadow = '';
+        custSelect.style.borderColor = '';
+      }, 1500);
     }
-  } catch (err) {
-    console.error('saveQuickCustomer error:', err);
-    showToast('Error: ' + (err.message || String(err)), 'error');
-    
-    // Re-enable save button on error
+  } else {
+    // Re-enable button on error
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.innerHTML = '<i class="fas fa-save"></i>Save & Select';
     }
-  }
-}
-
-// Reload customers from Supabase
-async function refreshCustomersData() {
-  try {
-    // Use the supabase client (assuming it's globally available based on your error log)
-    if (typeof supabaseFetch === 'function') {
-      // Direct supabase GET pattern matching your code
-      const data = await supabaseFetch('customers?select=*&order=name.asc');
-      if (Array.isArray(data)) {
-        customers = data;
-        return;
-      }
-    }
-    
-    // Fallback: try apiGet
-    if (typeof apiGet === 'function') {
-      const data = await apiGet('customers');
-      if (Array.isArray(data)) {
-        customers = data;
-        return;
-      }
-    }
-    
-    // Last resort: full data reload
-    if (typeof loadAllData === 'function') {
-      await loadAllData();
-    } else if (typeof loadData === 'function') {
-      await loadData();
-    } else if (typeof initData === 'function') {
-      await initData();
-    }
-  } catch (err) {
-    console.error('refreshCustomersData error:', err);
-  }
-}
-
-// Update all customer dropdowns/datalists on the page
-function refreshAllCustomerUI() {
-  if (!Array.isArray(customers)) return;
-  
-  // Common dropdown IDs in your app
-  const dropdownIds = [
-    'saleCustomer', 'saleCustomerId', 'saleCustomerSelect',
-    'posCustomer', 'posCustomerSelect',
-    'preorderCustomer', 'preorderCustomerSelect',
-    'paymentCustomer', 'paymentCustomerSelect',
-    'custSelect', 'customerSelect'
-  ];
-  
-  dropdownIds.forEach(id => {
-    const dd = document.getElementById(id);
-    if (!dd || dd.tagName !== 'SELECT') return;
-    
-    const currentValue = dd.value;
-    const placeholder = dd.querySelector('option[value=""]')?.textContent || 'Select customer...';
-    
-    dd.innerHTML = `<option value="">${placeholder}</option>` + 
-      customers.map(c => 
-        `<option value="${c.id}" data-name="${c.name || ''}" data-phone="${c.phone || ''}">${c.name || 'Unknown'} - ${c.phone || ''}</option>`
-      ).join('');
-    
-    if (currentValue) dd.value = currentValue;
-  });
-  
-  // Refresh datalists (autocomplete inputs)
-  const datalistIds = ['customersList', 'customerSuggestions', 'custList'];
-  datalistIds.forEach(id => {
-    const dl = document.getElementById(id);
-    if (!dl) return;
-    dl.innerHTML = customers.map(c => 
-      `<option value="${c.phone || ''}" data-name="${c.name || ''}" data-id="${c.id}">${c.name || ''}</option>`
-    ).join('');
-  });
-}
-
-// Auto-select customer in POS after add
-function selectCustomerInPOS(customerId, name, phone) {
-  // Set hidden ID field
-  const idFields = ['saleCustomerId', 'posCustomerId', 'currentCustomerId'];
-  idFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = customerId;
-  });
-  
-  // Set visible name field
-  const nameFields = ['saleCustomerName', 'posCustomerName', 'custName'];
-  nameFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = name;
-  });
-  
-  // Set visible phone field
-  const phoneFields = ['saleCustomerPhone', 'posCustomerPhone', 'custPhone'];
-  phoneFields.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = phone;
-  });
-  
-  // Try common dropdown selectors
-  ['saleCustomer', 'saleCustomerSelect', 'posCustomer'].forEach(id => {
-    const dd = document.getElementById(id);
-    if (dd) dd.value = customerId;
-  });
-  
-  // Trigger any custom customer-selected handlers
-  if (typeof onCustomerSelected === 'function') {
-    onCustomerSelected(customerId);
-  }
-  
-  // Update global current customer (common pattern)
-  if (typeof currentCustomer !== 'undefined') {
-    window.currentCustomer = { id: customerId, name, phone };
   }
 }
 function addPOSRow() {
@@ -4626,158 +3726,37 @@ function togglePOSCustomization() {
   });
 }
   function onPOSProdChange(sel){const tr=sel.closest('tr');const opt=sel.selectedOptions[0];if(opt&&opt.value){tr.querySelector('.pos-price').value=opt.dataset.price||0;tr.querySelector('.pos-cost').value=opt.dataset.cost||0;const isService=opt.value==='__CUSTOMIZATION__';const np=tr.querySelector('.pos-nameprint');if(np&&!np.value.trim()&&isService)np.value='Customization service'}calcPOSTotal()}
-function calcPOSTotal() {
-  let subtotal = 0;
-  document.querySelectorAll('#posItems tr').forEach(tr => {
-    const price = Number(tr.querySelector('.pos-price').value) || 0;
-    const qty = Number(tr.querySelector('.pos-qty').value) || 0;
-    const hasPatch = tr.querySelector('.pos-patch').checked;
-    const hasName = tr.querySelector('.pos-nameprint').value.trim() !== '';
-    const patchP = hasPatch ? (Number(tr.querySelector('.pos-patchprice').value) || 0) : 0;
-    const nameP = hasName ? (Number(tr.querySelector('.pos-nameprice').value) || 0) : 0;
-    const lineTotal = (price * qty) + ((patchP + nameP) * qty);
-    tr.querySelector('.pos-linetotal').value = lineTotal;
-    subtotal += lineTotal;
-  });
-  
-  // ===== UPDATED: Smart discount calculation =====
-  const disc = getActualDiscountAmount(subtotal);
-  updateDiscountSavingsDisplay(disc);
-  // ================================================
-  
+function calcPOSTotal(){
+  let subtotal=0;
+  document.querySelectorAll('#posItems tr').forEach(tr=>{const price=Number(tr.querySelector('.pos-price').value)||0;const qty=Number(tr.querySelector('.pos-qty').value)||0;const hasPatch=tr.querySelector('.pos-patch').checked;const hasName=tr.querySelector('.pos-nameprint').value.trim()!=='';const patchP=hasPatch?(Number(tr.querySelector('.pos-patchprice').value)||0):0;const nameP=hasName?(Number(tr.querySelector('.pos-nameprice').value)||0):0;const lineTotal=(price*qty)+((patchP+nameP)*qty);tr.querySelector('.pos-linetotal').value=lineTotal;subtotal+=lineTotal});
+  const disc=Number(document.getElementById('posDisc').value)||0;
   // Affiliate
-  let affDisc = 0;
-  const affCode = document.getElementById('posAffCode').value.trim();
-  if (affCode) {
-    const aff = S.affiliates.find(a => a.Code.toLowerCase() === affCode.toLowerCase() && a.Active === 'Yes');
-    if (aff) {
-      affDisc = aff.DiscountType === 'Fixed' 
-        ? (Number(aff.DiscountValue) || 0) 
-        : Math.round(subtotal * (Number(aff.DiscountValue) || 0) / 100);
-    }
-  }
-  document.getElementById('posAffDisc').value = affDisc;
-  
+  let affDisc=0;const affCode=document.getElementById('posAffCode').value.trim();
+  if(affCode){const aff=S.affiliates.find(a=>a.Code.toLowerCase()===affCode.toLowerCase()&&a.Active==='Yes');if(aff){affDisc=aff.DiscountType==='Fixed'?(Number(aff.DiscountValue)||0):Math.round(subtotal*(Number(aff.DiscountValue)||0)/100)}}
+  document.getElementById('posAffDisc').value=affDisc;
   // Voucher
-  let vchDisc = 0;
-  const vchCode = document.getElementById('posVchCode').value.trim();
-  if (vchCode) {
-    const vch = S.vouchers.find(v => v.Code && v.Code.toLowerCase() === vchCode.toLowerCase() && v.Active === 'Yes');
-    if (vch) {
-      const minOrd = Number(vch.MinOrder) || 0;
-      const maxUses = Number(vch.MaxUses) || 0;
-      if (subtotal >= minOrd && (maxUses === 0 || Number(vch.TimesUsed) < maxUses)) {
-        vchDisc = vch.DiscountType === 'Percentage' 
-          ? Math.round(subtotal * (Number(vch.DiscountValue) || 0) / 100) 
-          : (Number(vch.DiscountValue) || 0);
-      }
-    }
-  }
-  document.getElementById('posVchDisc').value = vchDisc;
-  
+  let vchDisc=0;const vchCode=document.getElementById('posVchCode').value.trim();
+  if(vchCode){const vch=S.vouchers.find(v=>v.Code&&v.Code.toLowerCase()===vchCode.toLowerCase()&&v.Active==='Yes');if(vch){const minOrd=Number(vch.MinOrder)||0;const maxUses=Number(vch.MaxUses)||0;if(subtotal>=minOrd&&(maxUses===0||Number(vch.TimesUsed)<maxUses)){vchDisc=vch.DiscountType==='Percentage'?Math.round(subtotal*(Number(vch.DiscountValue)||0)/100):(Number(vch.DiscountValue)||0)}}}
+  document.getElementById('posVchDisc').value=vchDisc;
   // Delivery
-  const delType = document.getElementById('posDel').value;
-  let delCharge = 0;
-  if (delType === 'Inside Dhaka') delCharge = Number(S.settings.deliveryInsideDhaka) || 80;
-  else if (delType === 'Outside Dhaka') delCharge = Number(S.settings.deliveryOutsideDhaka) || 150;
-  else if (delType === 'On Campus') delCharge = Number(S.settings.deliveryOnCampus) || 0;
-  document.getElementById('posDelCharge').value = delCharge;
-  
-  const grand = Math.max(0, subtotal - disc - affDisc - vchDisc + delCharge);
-  const paid = Number(document.getElementById('posPaid').value) || 0;
-  
-  document.getElementById('posSub').value = subtotal;
-  document.getElementById('posTotal').value = grand;
-  document.getElementById('posDue').value = Math.max(0, grand - paid);
+  const delType=document.getElementById('posDel').value;let delCharge=0;
+  if(delType==='Inside Dhaka')delCharge=Number(S.settings.deliveryInsideDhaka)||80;
+  else if(delType==='Outside Dhaka')delCharge=Number(S.settings.deliveryOutsideDhaka)||150;
+  else if(delType==='On Campus')delCharge=Number(S.settings.deliveryOnCampus)||0;
+  document.getElementById('posDelCharge').value=delCharge;
+  const grand=Math.max(0,subtotal-disc-affDisc-vchDisc+delCharge);
+  const paid=Number(document.getElementById('posPaid').value)||0;
+  document.getElementById('posSub').value=subtotal;document.getElementById('posTotal').value=grand;document.getElementById('posDue').value=Math.max(0,grand-paid);
 }
-
-function clearPOS() {
-  document.getElementById('posCust').value = '';
-  document.getElementById('posCustPhone').value = '';
-  document.getElementById('posDisc').value = 0;
-  document.getElementById('posDiscReason').value = '';
-  document.getElementById('posDiscType').value = 'fixed';
-  document.getElementById('posDiscPercent').value = 0;
-  clearActiveQuickBtns();
-  setDiscountType('fixed');
-  document.getElementById('posPaid').value = 0;
-  document.getElementById('posNotes').value = '';
-  document.getElementById('posAffCode').value = '';
-  document.getElementById('posVchCode').value = '';
-  document.getElementById('posDel').value = 'None';
-  document.getElementById('posItems').innerHTML = '';
-  addPOSRow();
-  calcPOSTotal();
-}
-  async function submitSale() {
-  const items = [];
-  document.querySelectorAll('#posItems tr').forEach(tr => {
-    const sel = tr.querySelector('.pos-prod');
-    if (!sel.value) return;
-    const opt = sel.selectedOptions[0];
-    const isCustomization = sel.value === '__CUSTOMIZATION__';
-    items.push({
-      ProductID: isCustomization ? '' : sel.value,
-      Club_Country: opt.dataset.club,
-      Edition: opt.dataset.ed,
-      Type: isCustomization ? 'Service' : opt.dataset.type,
-      Size: opt.dataset.size,
-      Quantity: tr.querySelector('.pos-qty').value,
-      UnitPrice: tr.querySelector('.pos-price').value,
-      CostPrice: tr.querySelector('.pos-cost').value,
-      Patch: tr.querySelector('.pos-patch').checked,
-      PatchPrice: tr.querySelector('.pos-patchprice').value,
-      NamePrint: tr.querySelector('.pos-nameprint').value,
-      NamePrintPrice: tr.querySelector('.pos-nameprice').value,
-      IsCustomizationService: isCustomization,
-      ServiceName: isCustomization ? 'Bring-your-own jersey customization' : ''
-    });
-  });
-  
-  if (!items.length) { toast('Add items', 'error'); return; }
-  
-  const custSel = document.getElementById('posCust');
-  const custOpt = custSel.selectedOptions[0];
-  
-  // ===== NEW: Compute actual discount + capture type/reason =====
-  const subtotal = Number(document.getElementById('posSub').value) || 0;
-  const discType = document.getElementById('posDiscType').value;
-  const discRaw = Number(document.getElementById('posDisc').value) || 0;
-  const discAmount = getActualDiscountAmount(subtotal);
-  const discReason = document.getElementById('posDiscReason').value.trim();
-  // ================================================================
-  
-  const payload = {
-    CustomerID: custSel.value,
-    CustomerName: custOpt ? (custOpt.dataset.name || custOpt.textContent) : 'Walk-in Customer',
-    CustomerPhone: document.getElementById('posCustPhone').value,
-    Items: items,
-    TotalAmount: subtotal,
-    Discount: discAmount,              // Actual discount amount
-    DiscountType: discType,            // 'fixed' or 'percent'
-    DiscountPercent: discType === 'percent' ? discRaw : 0,
-    DiscountReason: discReason,        // Reason text
-    AffiliateCode: document.getElementById('posAffCode').value,
-    AffiliateDiscount: document.getElementById('posAffDisc').value,
-    VoucherCode: document.getElementById('posVchCode').value,
-    VoucherDiscount: document.getElementById('posVchDisc').value,
-    DeliveryType: document.getElementById('posDel').value,
-    DeliveryCharge: document.getElementById('posDelCharge').value,
-    DeliveryAddress: document.getElementById('posDelAddr')?.value || '',
-    PaidAmount: document.getElementById('posPaid').value,
-    PaymentMethod: document.getElementById('posPayM').value,
-    Notes: document.getElementById('posNotes').value
-  };
-  
-  if (!confirm(`Complete sale of ${C()}${document.getElementById('posTotal').value}?${discAmount > 0 ? '\n\nDiscount applied: ' + C() + discAmount.toLocaleString() : ''}`)) return;
-  
-  const r = await apiPost('createSale', payload);
-  if (r.success) {
-    toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission ? ' | Comm: ' + C() + r.commission : ''}`);
-    showInvoice(r.invoiceNo, payload, items);
-    clearPOS();
-    S.inventory = await apiGet('getInventory');
-  }
+function clearPOS(){document.getElementById('posCust').value='';document.getElementById('posCustPhone').value='';document.getElementById('posDisc').value=0;document.getElementById('posPaid').value=0;document.getElementById('posNotes').value='';document.getElementById('posAffCode').value='';document.getElementById('posVchCode').value='';document.getElementById('posDel').value='None';document.getElementById('posItems').innerHTML='';addPOSRow();calcPOSTotal()}
+async function submitSale(){
+  const items=[];document.querySelectorAll('#posItems tr').forEach(tr=>{const sel=tr.querySelector('.pos-prod');if(!sel.value)return;const opt=sel.selectedOptions[0];const isCustomization=sel.value==='__CUSTOMIZATION__';items.push({ProductID:isCustomization?'':sel.value,Club_Country:opt.dataset.club,Edition:opt.dataset.ed,Type:isCustomization?'Service':opt.dataset.type,Size:opt.dataset.size,Quantity:tr.querySelector('.pos-qty').value,UnitPrice:tr.querySelector('.pos-price').value,CostPrice:tr.querySelector('.pos-cost').value,Patch:tr.querySelector('.pos-patch').checked,PatchPrice:tr.querySelector('.pos-patchprice').value,NamePrint:tr.querySelector('.pos-nameprint').value,NamePrintPrice:tr.querySelector('.pos-nameprice').value,IsCustomizationService:isCustomization,ServiceName:isCustomization?'Bring-your-own jersey customization':''})});
+  if(!items.length){toast('Add items','error');return}
+  const custSel=document.getElementById('posCust');const custOpt=custSel.selectedOptions[0];
+  const payload={CustomerID:custSel.value,CustomerName:custOpt?(custOpt.dataset.name||custOpt.textContent):'Walk-in Customer',CustomerPhone:document.getElementById('posCustPhone').value,Items:items,TotalAmount:document.getElementById('posSub').value,Discount:document.getElementById('posDisc').value,AffiliateCode:document.getElementById('posAffCode').value,AffiliateDiscount:document.getElementById('posAffDisc').value,VoucherCode:document.getElementById('posVchCode').value,VoucherDiscount:document.getElementById('posVchDisc').value,DeliveryType:document.getElementById('posDel').value,DeliveryCharge:document.getElementById('posDelCharge').value,DeliveryAddress:document.getElementById('posDelAddr')?.value||'',PaidAmount:document.getElementById('posPaid').value,PaymentMethod:document.getElementById('posPayM').value,Notes:document.getElementById('posNotes').value};
+  if(!confirm(`Complete sale of ${C()}${document.getElementById('posTotal').value}?`))return;
+  const r=await apiPost('createSale',payload);
+  if(r.success){toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);showInvoice(r.invoiceNo,payload,items);clearPOS();S.inventory=await apiGet('getInventory')}
 }
 
 
@@ -7743,14 +6722,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkPendingPreorders();
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
-
-// Initialize backend dropdown on page load
-document.addEventListener('DOMContentLoaded', () => {
-  const sel = document.getElementById('dbModeSelect');
-  if (sel) sel.value = CONFIG.MODE;
-  updateBackendIndicator();
-});
-  
 </script>
 </body>
 </html>
