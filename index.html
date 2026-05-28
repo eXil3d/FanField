@@ -675,6 +675,12 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
       </div>
     </div>
     <div class="topbar-right">
+      <select id="dbModeSelect" onchange="setDBMode(this.value)" 
+    style="padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font-size:11px;cursor:pointer;margin-right:8px">
+    <option value="auto">🔄 Auto</option>
+    <option value="supabase">⚡ Supabase</option>
+    <option value="google">📊 Sheets</option>
+  </select>
       <span class="sync-status" id="syncSt">Ready</span>
       <button class="btn-icon" onclick="refreshPage()"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
     </div>
@@ -693,13 +699,13 @@ const API_URL='https://script.google.com/macros/s/AKfycbwJXo9VOqP6x-PVoJA5h7kZm-
 const LOGO_URL='logo.jpg';
 const CLUBS_COUNTRIES=['Algeria','Argentina','Australia','Austria','Bangladesh','Belgium','Bolivia','Bosnia','Brazil','Cameroon','Canada','Chile','China','Colombia','Costa Rica','Croatia','Czech Republic','Denmark','Ecuador','Egypt','England','Finland','France','Germany','Ghana','Greece','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Ivory Coast','Jamaica','Japan','Jordan','Kenya','Malaysia','Mexico','Morocco','Nepal','Netherlands','New Zealand','Nigeria','North Korea','Norway','Pakistan','Palestine','Panama','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Saudi Arabia','Scotland','Senegal','Serbia','Slovakia','Slovenia','South Africa','South Korea','Spain','Sri Lanka','Sweden','Switzerland','Thailand','Tunisia','Turkey','UAE','Ukraine','Uruguay','USA','Venezuela','Vietnam','Wales','Arsenal','Aston Villa','AFC Bournemouth','Brentford','Brighton','Burnley','Chelsea','Crystal Palace','Everton','Fulham','Ipswich Town','Leicester City','Liverpool','Luton Town','Manchester City','Manchester United','Newcastle','Nottingham Forest','Sheffield United','Tottenham','West Ham','Wolverhampton','Atletico Madrid','Athletic Bilbao','Barcelona','Real Betis','Celta Vigo','Getafe','Girona','Granada','Las Palmas','Mallorca','Osasuna','Rayo Vallecano','Real Madrid','Real Sociedad','Sevilla','Valencia','Villarreal','AC Milan','AS Roma','Atalanta','Bologna','Cagliari','Empoli','Fiorentina','Frosinone','Genoa','Hellas Verona','Inter Milan','Juventus','Lazio','Lecce','Monza','Napoli','Salernitana','Sassuolo','Torino','Udinese','Augsburg','Bayer Leverkusen','Bayern Munich','Borussia Dortmund','Borussia Monchengladbach','Darmstadt','Eintracht Frankfurt','Freiburg','Heidenheim','Hoffenheim','Koln','Leipzig','Mainz','Stuttgart','Union Berlin','Werder Bremen','Wolfsburg','Brest','Clermont','Le Havre','Lens','Lille','Lorient','Lyon','Marseille','Metz','Monaco','Montpellier','Nantes','Nice','Paris Saint-Germain','Reims','Rennes','Strasbourg','Toulouse','Benfica','Braga','Porto','Sporting CP','Ajax','AZ Alkmaar','Feyenoord','PSV Eindhoven','Besiktas','Fenerbahce','Galatasaray','Trabzonspor','Al Ahli','Al Ettifaq','Al Hilal','Al Ittihad','Al Nassr','Boca Juniors','Corinthians','Flamengo','Palmeiras','River Plate','Santos','Sao Paulo','Atlanta United','Inter Miami','LA Galaxy','LAFC','Celtic','Rangers','Anderlecht','Club Brugge','Red Star Belgrade','Olympiacos','Panathinaikos','Dinamo Zagreb','Shakhtar Donetsk','Zenit','Other'];
 const EDITIONS=['Player Edition','Fan Edition','Special Edition','BD Premium'];
-const TYPES=['Home','Away','Third','Retro','GK','Terrace','Training Kit 2026','Training Kit 2024'];
+const TYPES=['Home','Away','Third','Retro','GK','Terrace','Kith','Training Kit 2026','Training Kit 2024'];
 const SIZES=['S','M','L','XL','2XL','3XL','4XL','5XL'];
 const PAY_METHODS=['Cash','bKash','Nagad','Card','Bank Transfer','Other'];
 const COURIER_SERVICES=['On Campus','Pathao','RedX','Steadfast','Sundarban Courier','Other'];
 const DELIVERY_STATUSES=['Processing','Shipped','In Transit','Delivered','Returned'];
 const SIZE_ORDER={'S':1,'M':2,'L':3,'XL':4,'2XL':5,'3XL':6,'4XL':7,'5XL':8};
-const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Training':7,'Training':8};
+const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Kith':7,'Training Kit 2026':8,'Training Kit 2024':9};
 const EDITION_ORDER={'Player Edition':1,'Fan Edition':2,'Special Edition':3,'BD Premium':4};
 
 let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],settings:{},dashboard:null,currency:'৳'};
@@ -707,16 +713,405 @@ let currentPage='inventory';
 let invSortCol='smart',invSortDir='asc';
 
 // API
-async function apiGet(action,params={}){
-  setSS('Syncing...');const url=new URL(API_URL);url.searchParams.set('action',action);
-  for(const k in params)url.searchParams.set(k,params[k]);
-  try{const r=await fetch(url.toString());const d=await r.json();if(d.error){toast(d.error,'error');setSS('Error');return d;}setSS('Synced ✓');return d;}
-  catch(e){setSS('Offline');toast('Connection error','error');throw e;}
+// ============================================================
+// API CONFIG — Supabase + Google Sheets dual backend
+// ============================================================
+const CONFIG = {
+  SUPABASE_URL: 'https://drywmyfmneoxvjiecvpf.supabase.co',   // ⬅️ REPLACE
+  SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRyeXdteWZtbmVveHZqaWVjdnBmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NjI3MDQsImV4cCI6MjA5NTUzODcwNH0.XD-KdMT-vW9vbqCHTkqBCYDZcyfcJbseGufnHB6uEiM',                // ⬅️ REPLACE (use anon key, NOT service_role)
+  GOOGLE_SCRIPT_URL: API_URL,                          // uses your existing API_URL
+  MODE: localStorage.getItem('dbMode') || 'auto',      // 'auto' | 'supabase' | 'google'
+  TIMEOUT_MS: 8000,
+  AUTO_FAILOVER: true,
+  FAILURE_THRESHOLD: 3
+};
+
+let supabaseFailureCount = 0;
+let activeBackend = CONFIG.MODE === 'google' ? 'google' : 'supabase';
+
+function setDBMode(mode) {
+  CONFIG.MODE = mode;
+  localStorage.setItem('dbMode', mode);
+  activeBackend = mode === 'google' ? 'google' : 'supabase';
+  supabaseFailureCount = 0;
+  updateBackendIndicator();
+  toast(`Switched to ${mode.toUpperCase()} mode`, 'info');
+  refreshPage();
 }
-async function apiPost(action,payload){
+
+function updateBackendIndicator() {
+  const sel = document.getElementById('dbModeSelect');
+  if (sel) sel.value = CONFIG.MODE;
+}
+
+// ============================================================
+// Edge Function mapping (POST actions → Supabase functions)
+// ============================================================
+const EDGE_FN_MAP = {
+  'createSale': 'create-sale',
+  'reverseSale': 'reverse-sale',
+  'addPayment': 'add-payment',
+  'addProduct': 'add-product',
+  'addStock': 'add-stock',
+  'paySupplier': 'pay-supplier',
+  'addExpense': 'add-expense',
+  'payAffiliateCommission': 'pay-affiliate-commission',
+  'updateRecord': 'update-record',
+  'deleteRecord': 'delete-record'
+};
+
+// ============================================================
+// GET action → Supabase table mapping
+// ============================================================
+const GET_TABLE_MAP = {
+  'getInventory': { table: 'inventory', order: 'last_updated.desc' },
+  'getCustomers': { table: 'customers', order: 'name.asc' },
+  'getSuppliers': { table: 'suppliers', order: 'name.asc' },
+  'getSales': { table: 'sales', order: 'date.desc' },
+  'getPayments': { table: 'payments', order: 'date.desc' },
+  'getExpenses': { table: 'expenses', order: 'date.desc' },
+  'getAffiliates': { table: 'affiliates' },
+  'getVouchers': { table: 'vouchers' },
+  'getDeliveries': { table: 'deliveries', order: 'date.desc' },
+  'getStockLog': { table: 'stock_log', order: 'date.desc' },
+  'getPreorders': { table: 'preorders', order: 'date.desc' },
+  'getAllBatches': { table: 'inventory_batches' },
+  'getSupplierLedger': { table: 'supplier_ledger', order: 'date.desc' },
+  'getDeadStockHistory': { table: 'dead_stock_history', order: 'snapshot_date.desc' },
+  'getAffiliateCommissions': { table: 'affiliate_commissions', order: 'date.desc' }
+};
+
+// ============================================================
+// Field name mapping: snake_case → PascalCase
+// ============================================================
+const FIELD_MAP = {
+  product_name: 'ProductName', club_country: 'Club_Country',
+  cost_price: 'CostPrice', sell_price: 'SellPrice', min_stock: 'MinStock',
+  supplier_id: 'SupplierID', supplier_name: 'SupplierName',
+  date_added: 'DateAdded', last_updated: 'LastUpdated',
+  invoice_no: 'InvoiceNo', customer_id: 'CustomerID',
+  customer_name: 'CustomerName', customer_phone: 'CustomerPhone',
+  total_amount: 'TotalAmount', final_amount: 'FinalAmount',
+  paid_amount: 'PaidAmount', due_amount: 'DueAmount',
+  payment_method: 'PaymentMethod', cost_total: 'CostTotal',
+  profit_override: 'ProfitOverride', delivery_type: 'DeliveryType',
+  delivery_charge: 'DeliveryCharge', voucher_code: 'VoucherCode',
+  voucher_discount: 'VoucherDiscount', delivery_status: 'DeliveryStatus',
+  courier_service: 'CourierService', tracking_no: 'TrackingNo',
+  delivery_address: 'DeliveryAddress', affiliate_code: 'AffiliateCode',
+  affiliate_discount: 'AffiliateDiscount', unit_price: 'UnitPrice',
+  line_total: 'LineTotal', mod_total: 'ModTotal',
+  patch_price: 'PatchPrice', name_print: 'NamePrint',
+  name_print_price: 'NamePrintPrice', total_purchases: 'TotalPurchases',
+  total_spent: 'TotalSpent', pending_amount: 'PendingAmount',
+  total_orders: 'TotalOrders', product_id: 'ProductID',
+  remaining_qty: 'RemainingQty', old_stock: 'OldStock', new_stock: 'NewStock',
+  expected_date: 'ExpectedDate', fulfilled_date: 'FulfilledDate',
+  times_used: 'TimesUsed', max_uses: 'MaxUses', min_order: 'MinOrder',
+  valid_from: 'ValidFrom', valid_to: 'ValidTo',
+  discount_value: 'DiscountValue', discount_type: 'DiscountType',
+  total_discount_given: 'TotalDiscountGiven',
+  affiliate_id: 'AffiliateID', affiliate_name: 'AffiliateName',
+  commission_amount: 'CommissionAmount', paid_date: 'PaidDate',
+  expense_id: 'ExpenseID', comm_fan: 'CommissionFanEdition',
+  comm_player: 'CommissionPlayerEdition', comm_special: 'CommissionSpecialEdition',
+  comm_bd: 'CommissionBDPremium', total_commission: 'TotalCommission',
+  paid_commission: 'PaidCommission', pending_commission: 'PendingCommission',
+  paid_to: 'PaidTo', capital_tied: 'CapitalTied',
+  days_inactive: 'DaysInactive', snapshot_id: 'SnapshotID',
+  snapshot_date: 'SnapshotDate', total_amount: 'TotalAmount'
+};
+
+function mapSupabaseRow(row) {
+  if (!row || typeof row !== 'object') return row;
+  const mapped = {};
+  for (const k in row) {
+    const newKey = FIELD_MAP[k] || (k === 'id' ? 'ID' : k.charAt(0).toUpperCase() + k.slice(1));
+    mapped[newKey] = row[k];
+  }
+  return mapped;
+}
+
+function mapSupabaseArray(arr) {
+  if (!Array.isArray(arr)) return arr;
+  return arr.map(mapSupabaseRow);
+}
+
+// ============================================================
+// Supabase fetch helpers
+// ============================================================
+async function supabaseFetch(path, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), CONFIG.TIMEOUT_MS);
+  
+  try {
+    const r = await fetch(`${CONFIG.SUPABASE_URL}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'apikey': CONFIG.SUPABASE_KEY,
+        'Authorization': `Bearer ${CONFIG.SUPABASE_KEY}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      }
+    });
+    clearTimeout(timeoutId);
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${await r.text()}`);
+    supabaseFailureCount = 0;
+    return r.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    supabaseFailureCount++;
+    if (CONFIG.AUTO_FAILOVER && supabaseFailureCount >= CONFIG.FAILURE_THRESHOLD && activeBackend === 'supabase') {
+      activeBackend = 'google';
+      toast('⚠️ Switched to Google Sheets (Supabase unreachable)', 'warning');
+    }
+    throw err;
+  }
+}
+
+// ============================================================
+// Google Sheets fallback
+// ============================================================
+async function googleGet(action, params) {
+  const url = new URL(CONFIG.GOOGLE_SCRIPT_URL);
+  url.searchParams.set('action', action);
+  for (const k in params) url.searchParams.set(k, params[k]);
+  const r = await fetch(url.toString());
+  return r.json();
+}
+
+async function googlePost(action, payload) {
+  const r = await fetch(CONFIG.GOOGLE_SCRIPT_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, ...payload }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  return r.json();
+}
+
+// ============================================================
+// Supabase GET handler
+// ============================================================
+async function supabaseGet(action, params = {}) {
+  // Standard table query
+  if (GET_TABLE_MAP[action]) {
+    const cfg = GET_TABLE_MAP[action];
+    let path = `/rest/v1/${cfg.table}?select=*`;
+    if (cfg.order) path += `&order=${cfg.order}`;
+    const data = await supabaseFetch(path);
+    return mapSupabaseArray(data);
+  }
+  
+  // Filtered queries
+  if (action === 'getBatches' && params.productId) {
+    const data = await supabaseFetch(`/rest/v1/inventory_batches?select=*&product_id=eq.${params.productId}`);
+    return mapSupabaseArray(data);
+  }
+  
+  if (action === 'getSalesItems' && params.invoiceNo) {
+    const data = await supabaseFetch(`/rest/v1/sales_items?select=*&invoice_no=eq.${params.invoiceNo}`);
+    return mapSupabaseArray(data);
+  }
+  
+  if (action === 'getSalesItems') {
+    const data = await supabaseFetch(`/rest/v1/sales_items?select=*`);
+    return mapSupabaseArray(data);
+  }
+  
+  if (action === 'getSettings') {
+    const arr = await supabaseFetch(`/rest/v1/settings?select=*`);
+    const obj = {};
+    arr.forEach(s => obj[s.key] = s.value);
+    return obj;
+  }
+  
+  if (action === 'getDashboard') {
+    return await computeDashboard();
+  }
+  
+  // Unknown action → fallback to Google Sheets
+  throw new Error(`Unhandled Supabase action: ${action}`);
+}
+
+// ============================================================
+// Supabase POST handler (Edge Functions)
+// ============================================================
+async function supabasePost(action, payload) {
+  const edgeFn = EDGE_FN_MAP[action];
+  if (!edgeFn) throw new Error(`No edge function for action: ${action}`);
+  
+  return await supabaseFetch(`/functions/v1/${edgeFn}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+// ============================================================
+// Dashboard computation (Supabase mode)
+// ============================================================
+async function computeDashboard() {
+  const [inv, sales, custs, payments, expenses, suppliers, items] = await Promise.all([
+    supabaseFetch('/rest/v1/inventory?select=*'),
+    supabaseFetch('/rest/v1/sales?select=*&order=date.desc'),
+    supabaseFetch('/rest/v1/customers?select=*'),
+    supabaseFetch('/rest/v1/payments?select=*'),
+    supabaseFetch('/rest/v1/expenses?select=*'),
+    supabaseFetch('/rest/v1/suppliers?select=*'),
+    supabaseFetch('/rest/v1/sales_items?select=*')
+  ]);
+  
+  const inventory = mapSupabaseArray(inv);
+  const salesArr = mapSupabaseArray(sales);
+  const customers = mapSupabaseArray(custs);
+  const salesItems = mapSupabaseArray(items);
+  
+  const today = new Date();
+  const todayStr = today.toISOString().substring(0, 10);
+  const thisMonth = today.toISOString().substring(0, 7);
+  
+  let totalStockValue = 0, totalRetailValue = 0, totalItems = 0;
+  let lowStockItems = [], outOfStockItems = [];
+  
+  inventory.forEach(item => {
+    const stock = Number(item.Stock) || 0;
+    totalItems += stock;
+    totalStockValue += stock * (Number(item.CostPrice) || 0);
+    totalRetailValue += stock * (Number(item.SellPrice) || 0);
+    const minStock = Number(item.MinStock) || 5;
+    if (stock === 0) outOfStockItems.push(item);
+    else if (stock <= minStock) lowStockItems.push(item);
+  });
+  
+  let totalRevenue = 0, todaySales = 0, monthlySales = 0, totalPending = 0;
+  let todaySaleCount = 0, monthlySaleCount = 0;
+  let totalProfit = 0, monthlyProfit = 0, todayProfit = 0, totalCost = 0;
+  
+  salesArr.forEach(sale => {
+    if (sale.Status === 'Cancelled') return;
+    const saleDate = String(sale.Date).substring(0, 10);
+    const saleMonth = String(sale.Date).substring(0, 7);
+    const finalAmt = Number(sale.FinalAmount) || 0;
+    const dueAmt = Number(sale.DueAmount) || 0;
+    const profit = Number(sale.ProfitOverride) || Number(sale.Profit) || 0;
+    totalRevenue += finalAmt;
+    totalPending += dueAmt;
+    totalProfit += profit;
+    totalCost += Number(sale.CostTotal) || 0;
+    if (saleDate === todayStr) { todaySales += finalAmt; todaySaleCount++; todayProfit += profit; }
+    if (saleMonth === thisMonth) { monthlySales += finalAmt; monthlySaleCount++; monthlyProfit += profit; }
+  });
+  
+  let totalExpenses = 0, monthlyExpenses = 0;
+  expenses.forEach(exp => {
+    const amt = Number(exp.amount) || 0;
+    totalExpenses += amt;
+    if (String(exp.date).substring(0, 7) === thisMonth) monthlyExpenses += amt;
+  });
+  
+  const productSales = {};
+  salesItems.forEach(item => {
+    const name = item.ProductName;
+    if (!productSales[name]) productSales[name] = { name, qty: 0, revenue: 0 };
+    productSales[name].qty += Number(item.Quantity) || 0;
+    productSales[name].revenue += Number(item.LineTotal) || 0;
+  });
+  const topProducts = Object.values(productSales).sort((a,b) => b.revenue - a.revenue).slice(0, 10);
+  
+  const monthlySalesData = {};
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+    const key = d.toISOString().substring(0, 7);
+    monthlySalesData[key] = { month: d.toLocaleString('en', {month:'short', year:'numeric'}), sales: 0, profit: 0, count: 0 };
+  }
+  salesArr.forEach(sale => {
+    if (sale.Status === 'Cancelled') return;
+    const saleMonth = String(sale.Date).substring(0, 7);
+    if (monthlySalesData[saleMonth]) {
+      monthlySalesData[saleMonth].sales += Number(sale.FinalAmount) || 0;
+      monthlySalesData[saleMonth].profit += Number(sale.ProfitOverride) || Number(sale.Profit) || 0;
+      monthlySalesData[saleMonth].count++;
+    }
+  });
+  
+  return {
+    totalProducts: inventory.length, totalItems,
+    totalStockValue: Math.round(totalStockValue), totalRetailValue: Math.round(totalRetailValue),
+    totalRevenue: Math.round(totalRevenue), todaySales: Math.round(todaySales), todaySaleCount,
+    monthlySales: Math.round(monthlySales), monthlySaleCount,
+    totalPending: Math.round(totalPending), totalExpenses: Math.round(totalExpenses),
+    monthlyExpenses: Math.round(monthlyExpenses),
+    totalProfit: Math.round(totalProfit), monthlyProfit: Math.round(monthlyProfit),
+    todayProfit: Math.round(todayProfit), totalCost: Math.round(totalCost),
+    totalCustomers: customers.length,
+    totalUnitsSold: salesItems.reduce((s,i) => s + (Number(i.Quantity) || 0), 0),
+    totalSuppliers: suppliers.length,
+    lowStockItems, outOfStockItems,
+    lowStockCount: lowStockItems.length, outOfStockCount: outOfStockItems.length,
+    recentSales: salesArr.filter(s => s.Status !== 'Cancelled').slice(0, 15),
+    topProducts,
+    monthlySalesChart: Object.values(monthlySalesData)
+  };
+}
+
+// ============================================================
+// UNIFIED API (same signatures as before - rest of code unchanged)
+// ============================================================
+async function apiGet(action, params = {}) {
+  setSS('Syncing...');
+  try {
+    let result;
+    
+    if (activeBackend === 'google' || CONFIG.MODE === 'google') {
+      result = await googleGet(action, params);
+    } else {
+      try {
+        result = await supabaseGet(action, params);
+      } catch (err) {
+        if (CONFIG.MODE === 'auto') {
+          console.warn('Supabase failed, using Google Sheets:', err.message);
+          result = await googleGet(action, params);
+        } else throw err;
+      }
+    }
+    
+    if (result?.error) { toast(result.error, 'error'); setSS('Error'); return result; }
+    setSS('Synced ✓');
+    return result;
+  } catch (e) {
+    setSS('Offline');
+    toast('Connection error', 'error');
+    throw e;
+  }
+}
+
+async function apiPost(action, payload) {
   setSS('Saving...');
-  try{const r=await fetch(API_URL,{method:'POST',body:JSON.stringify({action,...payload}),headers:{'Content-Type':'text/plain'}});const d=await r.json();if(d.error){toast('Error: '+d.error,'error');setSS('Error');return d;}setSS('Saved ✓');return d;}
-  catch(e){setSS('Offline');toast('Connection error','error');throw e;}
+  try {
+    let result;
+    
+    if (activeBackend === 'google' || CONFIG.MODE === 'google') {
+      result = await googlePost(action, payload);
+    } else {
+      try {
+        result = await supabasePost(action, payload);
+      } catch (err) {
+        if (CONFIG.MODE === 'auto') {
+          console.warn('Supabase POST failed, using Google Sheets:', err.message);
+          result = await googlePost(action, payload);
+        } else throw err;
+      }
+    }
+    
+    if (result?.error) { toast('Error: ' + result.error, 'error'); setSS('Error'); return result; }
+    setSS('Saved ✓');
+    return result;
+  } catch (e) {
+    setSS('Offline');
+    toast('Connection error', 'error');
+    throw e;
+  }
+}
 }
 function setSS(t) {
   const el = document.getElementById('syncSt');
@@ -762,7 +1157,8 @@ function toast(msg, type = 'success') {
       setTimeout(() => t.remove(), 300);
     }
   }, 4500);
-}function openModal(id){document.getElementById(id).classList.add('active')}
+}
+function openModal(id){document.getElementById(id).classList.add('active')}
 function closeModal(id){document.getElementById(id).classList.remove('active')}
 
 function fabAction() {
@@ -6722,6 +7118,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   checkPendingPreorders();
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
+
+// Initialize backend dropdown on page load
+document.addEventListener('DOMContentLoaded', () => {
+  const sel = document.getElementById('dbModeSelect');
+  if (sel) sel.value = CONFIG.MODE;
+  updateBackendIndicator();
+});
+  
 </script>
 </body>
 </html>
