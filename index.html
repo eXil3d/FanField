@@ -748,16 +748,18 @@ function updateBackendIndicator() {
 // Edge Function mapping (POST actions → Supabase functions)
 // ============================================================
 const EDGE_FN_MAP = {
-  // Sales
+  // ===== Sales =====
   'createSale': 'create-sale',
   'addManualSale': 'add-manual-sale',
+  'updateSale': 'update-sale',
+  'updateSaleProfit': 'update-sale-profit',
   'reverseSale': 'reverse-sale',
   'partialReverseSale': 'partial-reverse-sale',
   'adjustSaleAmount': 'adjust-sale-amount',
   'exchangeAndReplace': 'exchange-and-replace',
   'updateDeliveryStatus': 'update-delivery-status',
   
-  // Inventory
+  // ===== Inventory =====
   'addProduct': 'add-product',
   'updateProduct': 'update-product',
   'deleteProduct': 'delete-product',
@@ -765,45 +767,50 @@ const EDGE_FN_MAP = {
   'addStock': 'update-stock',
   'addBatch': 'add-batch',
   
-  // Customers
+  // ===== Customers =====
   'addCustomer': 'add-customer',
+  'updateCustomer': 'update-customer',
   'deleteCustomer': 'delete-customer',
   
-  // Suppliers
+  // ===== Suppliers =====
   'addSupplier': 'add-supplier',
+  'updateSupplier': 'update-supplier',
   'deleteSupplier': 'delete-supplier',
   'paySupplier': 'pay-supplier',
   'addSupplierLedgerEntry': 'add-supplier-ledger-entry',
   
-  // Payments
+  // ===== Payments =====
   'addPayment': 'add-payment',
   
-  // Expenses
+  // ===== Expenses =====
   'addExpense': 'add-expense',
+  'updateExpense': 'update-expense',
   'deleteExpense': 'delete-expense',
   
-  // Affiliates
+  // ===== Affiliates =====
   'addAffiliate': 'add-affiliate',
+  'updateAffiliate': 'update-affiliate',
   'deleteAffiliate': 'delete-affiliate',
   'payAffiliateCommission': 'pay-affiliate-commission',
   'reverseAffiliatePayment': 'reverse-affiliate-payment',
   
-  // Vouchers
+  // ===== Vouchers =====
   'addVoucher': 'add-voucher',
+  'updateVoucher': 'update-voucher',
   'deleteVoucher': 'delete-voucher',
   
-  // Preorders
+  // ===== Preorders =====
   'addPreorder': 'add-preorder',
   'updatePreorder': 'update-preorder',
   'deletePreorder': 'delete-preorder',
   
-  // Settings & misc
+  // ===== Settings & Maintenance =====
   'updateSettings': 'update-settings',
   'saveDeadStockSnapshot': 'save-dead-stock-snapshot',
   'deleteDeadStockSnapshot': 'delete-dead-stock-snapshot',
   'migratePhoneFormats': 'migrate-phone-formats',
   
-  // Generic (kept for flexibility)
+  // ===== Generic (catch-all) =====
   'updateRecord': 'update-record',
   'deleteRecord': 'delete-record'
 };
