@@ -3810,27 +3810,6 @@ async function submitSale(){
   }
 }
 
-// Marks the booking as completed/partial & links the invoice after a POS conversion.
-// Uses the existing backend action so reserved stock is released correctly.
-async function finalizeBookingConversion(bookingId, invoiceNo) {
-  try {
-    const r = await apiPost('markBookingConverted', {
-      BookingID: bookingId,
-      LinkedInvoiceNo: invoiceNo
-    });
-    if (r && r.success) {
-      // Refresh bookings cache so the Bookings page reflects the new status
-      S.bookings = await apiGet('getBookings');
-    } else if (r && r.error) {
-      console.warn('Booking finalize warning:', r.error);
-    }
-  } catch (e) {
-    console.error('finalizeBookingConversion failed', e);
-    toast('Sale completed, but booking status update failed. Update it manually.', 'warning');
-  }
-}
-
-
 // ============================================================
 // SMART PHONE LOOKUP — Real-time duplicate detection & auto-fill
 // ============================================================
@@ -6958,7 +6937,7 @@ async function openConvertBookingModal(bookingId) {
 function loadBookingIntoPOS(ctx) {
   const custSelect = document.getElementById('posCust');
   const phoneInput = document.getElementById('posCustPhone');
-  const itemsBody = document.getElementById('posItems');
+  const itemsBody  = document.getElementById('posItems');
 
   if (!custSelect || !itemsBody) {
     toast('POS not ready, please try again', 'error');
@@ -6979,14 +6958,14 @@ function loadBookingIntoPOS(ctx) {
   if (!custFound) custSelect.selectedIndex = 0; // Walk-in
   if (phoneInput) phoneInput.value = ctx.customerPhone || '';
 
-  // --- Clear existing POS rows and add one per reserved item ---
+  // --- Clear existing POS rows, add one per reserved item ---
   itemsBody.innerHTML = '';
 
   ctx.reservedItems.forEach(it => {
     addPOSRow();
     const rows = itemsBody.querySelectorAll('tr');
-    const tr = rows[rows.length - 1];
-    const sel = tr.querySelector('.pos-prod');
+    const tr   = rows[rows.length - 1];
+    const sel  = tr.querySelector('.pos-prod');
 
     // Try to select the matching product in the dropdown
     let prodFound = false;
@@ -6998,17 +6977,37 @@ function loadBookingIntoPOS(ctx) {
       }
     }
 
-    if (prodFound) {
-      onPOSProdChange(sel); // fills price/cost from product
+    // FALLBACK: product not in dropdown — inject an option using booking data.
+    // Dataset keys match addPOSRow(): price, cost, name, club, ed, type, size, stock.
+    if (!prodFound && it.ProductID) {
+      const opt = document.createElement('option');
+      opt.value = it.ProductID;
+      opt.dataset.price = String(nfNum(it.UnitPrice));
+      opt.dataset.cost  = String(nfNum(it.CostPrice));
+      opt.dataset.name  = it.ProductName ||
+        [it.Club_Country, it.Edition, it.Type, it.Size].filter(Boolean).join(' ');
+      opt.dataset.club  = it.Club_Country || '';
+      opt.dataset.ed    = it.Edition || '';
+      opt.dataset.type  = it.Type || '';
+      opt.dataset.size  = it.Size || '';
+      opt.dataset.stock = String(nfNum(it.ReservedQty));
+      opt.textContent   = (opt.dataset.name) + ' [from booking]';
+      sel.appendChild(opt);
+      sel.value = it.ProductID;
+      prodFound = true;
     }
 
-    // Override price with the booking's locked-in unit price
-    const priceInput = tr.querySelector('.pos-price');
-    if (priceInput && it.UnitPrice != null) priceInput.value = Number(it.UnitPrice) || 0;
+    if (prodFound) onPOSProdChange(sel); // auto-fills price/cost from dataset
 
-    // Set the reserved quantity
+    // Override price/cost with the booking's locked-in values (authoritative)
+    const priceInput = tr.querySelector('.pos-price');
+    if (priceInput && it.UnitPrice != null) priceInput.value = nfNum(it.UnitPrice);
+
+    const costInput = tr.querySelector('.pos-cost');
+    if (costInput && it.CostPrice != null) costInput.value = nfNum(it.CostPrice);
+
     const qtyInput = tr.querySelector('.pos-qty');
-    if (qtyInput) qtyInput.value = Number(it.ReservedQty) || 1;
+    if (qtyInput) qtyInput.value = nfNum(it.ReservedQty) || 1;
   });
 
   calcPOSTotal();
@@ -7016,19 +7015,19 @@ function loadBookingIntoPOS(ctx) {
   // Visual confirmation
   window.scrollTo({ top: 0, behavior: 'smooth' });
   custSelect.style.transition = 'all 0.3s';
-  custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+  custSelect.style.boxShadow  = '0 0 0 3px rgba(16,185,129,.3)';
   custSelect.style.borderColor = 'var(--secondary)';
   setTimeout(() => {
-    custSelect.style.boxShadow = '';
+    custSelect.style.boxShadow  = '';
     custSelect.style.borderColor = '';
   }, 1800);
 
-  // Show a persistent banner so the user knows this sale is linked to a booking
   showBookingConversionBanner(ctx);
-
   toast(`Booking ${ctx.bookingNumber} loaded — customize & complete the sale`, 'info');
 }
 
+// Local numeric helper (your frontend has no num()); named nfNum to avoid any clash.
+function nfNum(v) { const n = Number(v); return isFinite(n) ? n : 0; }
 // A dismissible banner at the top of the POS indicating an active booking conversion
 function showBookingConversionBanner(ctx) {
   // Remove any existing banner first
