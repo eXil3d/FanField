@@ -1901,7 +1901,7 @@ async function renderDashboard(area){
 // INVENTORY (with filters & sorting)
 // ============================================================
 async function renderInventory(area){
-  S.inventory=await apiGet('getInventory');S.suppliers=await apiGet('getSuppliers');
+  S.inventory=await apiGet('getInventoryWithReserved');S.suppliers=await apiGet('getSuppliers');
   const cats=[...new Set(S.inventory.map(i=>i.Club_Country).filter(Boolean))].sort();
   const eds=[...new Set(S.inventory.map(i=>i.Edition).filter(Boolean))];
   const types=[...new Set(S.inventory.map(i=>i.Type).filter(Boolean))];
@@ -1943,10 +1943,11 @@ function filterInv(){
     const mt = !type || i.Type === type;
     const mz = !size || i.Size === size;
     
+    const avail = (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
     let mst = true;
-    if (stk === 'low') mst = Number(i.Stock) > 0 && Number(i.Stock) <= Number(i.MinStock || 5);
-    else if (stk === 'out') mst = Number(i.Stock) === 0;
-    else if (stk === 'ok') mst = Number(i.Stock) > Number(i.MinStock || 5);
+    if (stk === 'low') mst = avail > 0 && avail <= Number(i.MinStock || 5);
+    else if (stk === 'out') mst = avail <= 0;
+    else if (stk === 'ok') mst = avail > Number(i.MinStock || 5);
     
     return ms && mc && me && mt && mz && mst;
   });
@@ -1967,21 +1968,28 @@ function updateInvSummaryBar(data) {
   const bar = document.getElementById('invSummaryBar');
   if (!bar) return;
   const c = C();
+  const getAvail = i => (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
   const totalProducts = data.length;
   const totalUnits = data.reduce((s, i) => s + (Number(i.Stock) || 0), 0);
+  const totalReserved = data.reduce((s, i) => s + (Number(i.ReservedQty) || 0), 0);
+  const totalAvailable = data.reduce((s, i) => s + getAvail(i), 0);
   const totalCostValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.CostPrice) || 0)), 0);
-  const lowCount = data.filter(i => Number(i.Stock) > 0 && Number(i.Stock) <= Number(i.MinStock || 5)).length;
-  const outCount = data.filter(i => Number(i.Stock) === 0).length;
-  
+  const reservedValue = data.reduce((s, i) => s + ((Number(i.ReservedQty) || 0) * (Number(i.CostPrice) || 0)), 0);
+  const lowCount = data.filter(i => getAvail(i) > 0 && getAvail(i) <= Number(i.MinStock || 5)).length;
+  const outCount = data.filter(i => getAvail(i) <= 0).length;
+
   bar.innerHTML = `
     <span style="color:var(--text-muted)"><i class="fas fa-boxes-stacked" style="color:var(--primary);margin-right:4px"></i><strong style="color:var(--text)">${totalProducts}</strong> products</span>
-    <span style="color:var(--text-muted)"><i class="fas fa-cubes" style="color:var(--secondary);margin-right:4px"></i><strong style="color:var(--text)">${totalUnits}</strong> units</span>
-    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Capital Invested: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
+    <span style="color:var(--text-muted)"><i class="fas fa-cubes" style="color:var(--secondary);margin-right:4px"></i><strong style="color:var(--text)">${totalAvailable}</strong> available</span>
+    ${totalReserved > 0 ? `<span style="color:var(--text-muted)"><i class="fas fa-calendar-check" style="color:var(--purple);margin-right:4px"></i><strong style="color:var(--purple)">${totalReserved}</strong> booked</span>` : ''}
+    <span style="color:var(--text-muted)"><i class="fas fa-layer-group" style="color:var(--text-sec);margin-right:4px"></i>Physical: <strong style="color:var(--text)">${totalUnits}</strong></span>
+    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Capital: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
+    ${totalReserved > 0 ? `<span style="color:var(--text-muted)">Reserved Value: <strong style="color:var(--purple)">${c}${reservedValue.toLocaleString()}</strong></span>` : ''}
     ${lowCount > 0 ? `<span style="color:var(--warning)"><i class="fas fa-triangle-exclamation"></i> <strong>${lowCount}</strong> low</span>` : ''}
     ${outCount > 0 ? `<span style="color:var(--danger)"><i class="fas fa-circle-xmark"></i> <strong>${outCount}</strong> out</span>` : ''}
   `;
 }
-function colSort(data,col,dir){return[...data].sort((a,b)=>{let vA,vB;switch(col){case'Edition':vA=EDITION_ORDER[a.Edition]||99;vB=EDITION_ORDER[b.Edition]||99;return dir==='asc'?vA-vB:vB-vA;case'Type':vA=TYPE_ORDER[a.Type]||99;vB=TYPE_ORDER[b.Type]||99;return dir==='asc'?vA-vB:vB-vA;case'Size':vA=SIZE_ORDER[a.Size]||99;vB=SIZE_ORDER[b.Size]||99;return dir==='asc'?vA-vB:vB-vA;case'CostPrice':case'SellPrice':case'Stock':vA=Number(a[col])||0;vB=Number(b[col])||0;return dir==='asc'?vA-vB:vB-vA;default:vA=String(a[col]||'').toLowerCase();vB=String(b[col]||'').toLowerCase();return dir==='asc'?vA.localeCompare(vB):-vA.localeCompare(vB)}})}
+function colSort(data,col,dir){return[...data].sort((a,b)=>{let vA,vB;switch(col){case'Edition':vA=EDITION_ORDER[a.Edition]||99;vB=EDITION_ORDER[b.Edition]||99;return dir==='asc'?vA-vB:vB-vA;case'Type':vA=TYPE_ORDER[a.Type]||99;vB=TYPE_ORDER[b.Type]||99;return dir==='asc'?vA-vB:vB-vA;case'Size':vA=SIZE_ORDER[a.Size]||99;vB=SIZE_ORDER[b.Size]||99;return dir==='asc'?vA-vB:vB-vA;case'Available':vA=(a.AvailableQty!==undefined?Number(a.AvailableQty):Number(a.Stock)-Number(a.ReservedQty||0));vB=(b.AvailableQty!==undefined?Number(b.AvailableQty):Number(b.Stock)-Number(b.ReservedQty||0));return dir==='asc'?vA-vB:vB-vA;case'ReservedQty':case'CostPrice':case'SellPrice':case'Stock':vA=Number(a[col])||0;vB=Number(b[col])||0;return dir==='asc'?vA-vB:vB-vA;default:vA=String(a[col]||'').toLowerCase();vB=String(b[col]||'').toLowerCase();return dir==='asc'?vA.localeCompare(vB):-vA.localeCompare(vB)}})}
 function setInvSort(mode) {
   invSortCol = mode;
   invSortDir = 'asc';
@@ -2390,6 +2398,7 @@ function si(col){if(invSortCol!==col)return'<i class="fas fa-sort" style="opacit
 function renderInvTable(data){
   const el=document.getElementById('invTbl');const c=C();
   if(!data.length){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-muted)">No products found</div>';return}
+  const getAvail = i => (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
   el.innerHTML=`<table><thead><tr>
     <th class="sortable" onclick="toggleInvSort('ProductName')">Product ${si('ProductName')}</th>
     <th class="sortable" onclick="toggleInvSort('Club_Country')">Club ${si('Club_Country')}</th>
@@ -2398,10 +2407,23 @@ function renderInvTable(data){
     <th class="sortable" onclick="toggleInvSort('Size')">Size ${si('Size')}</th>
     <th class="sortable" onclick="toggleInvSort('CostPrice')">Cost ${si('CostPrice')}</th>
     <th class="sortable" onclick="toggleInvSort('SellPrice')">Sell ${si('SellPrice')}</th>
-    <th class="sortable" onclick="toggleInvSort('Stock')">Stock ${si('Stock')}</th>
+    <th class="sortable" onclick="toggleInvSort('Available')">Available ${si('Available')}</th>
+    <th class="sortable" onclick="toggleInvSort('ReservedQty')">Booked ${si('ReservedQty')}</th>
+    <th class="sortable" onclick="toggleInvSort('Stock')">Physical ${si('Stock')}</th>
     <th>Health</th><th>Supplier</th><th>Actions</th>
-  </tr></thead><tbody>${data.map(i=>{const stk=Number(i.Stock)||0;const mn=Number(i.MinStock)||5;const pct=Math.min(100,(stk/Math.max(mn*3,1))*100);const col=stk===0?'#dc2626':stk<=mn?'#d97706':'#059669';const isBatch=String(i.ID).match(/^PRD-\d+[A-Z]$/);
-    return`<tr><td><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td>${i.Edition||'-'}</td><td>${i.Type||'-'}</td><td>${i.Size||'-'}</td><td>${c}${Number(i.CostPrice).toLocaleString()}</td><td><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td><td><strong>${stk}</strong></td><td><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${stk===0?'<span class="badge badge-d">Out</span>':stk<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td>${esc(i.SupplierName||'-')}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${stk})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
+  </tr></thead><tbody>${data.map(i=>{
+    const physical=Number(i.Stock)||0;
+    const reserved=Number(i.ReservedQty)||0;
+    const avail=getAvail(i);
+    const mn=Number(i.MinStock)||5;
+    const pct=Math.min(100,(Math.max(0,avail)/Math.max(mn*3,1))*100);
+    const col=avail<=0?'#dc2626':avail<=mn?'#d97706':'#059669';
+    const isBatch=String(i.ID).match(/^PRD-\d+[A-Z]$/);
+    return`<tr><td><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td>${i.Edition||'-'}</td><td>${i.Type||'-'}</td><td>${i.Size||'-'}</td><td>${c}${Number(i.CostPrice).toLocaleString()}</td><td><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
+    <td><strong style="font-size:14px;color:${avail<=0?'var(--danger)':avail<=mn?'var(--warning)':'var(--text)'}">${avail}</strong></td>
+    <td>${reserved>0?`<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>`:'<span style="color:var(--text-faint)">—</span>'}</td>
+    <td><span style="color:var(--text-muted)">${physical}</span></td>
+    <td><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td>${esc(i.SupplierName||'-')}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
 }
 function openProductModal(prod = null) {
   let m = document.getElementById('productModal');
@@ -3280,7 +3302,22 @@ async function deleteMonthlySnapshot(monthKey) {
 }
   
 async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
-function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
+function openStockModal(id,cur){
+  let m=document.getElementById('stockModal');if(m)m.remove();
+  const prod = S.inventory.find(x=>x.ID===id);
+  const reserved = prod ? (Number(prod.ReservedQty)||0) : 0;
+  const physical = prod ? (Number(prod.Stock)||0) : Number(cur);
+  const avail = physical - reserved;
+  const infoBox = reserved > 0 ? `
+    <div style="background:rgba(139,92,246,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--purple);margin-bottom:12px;font-size:11.5px;color:var(--text-sec)">
+      <i class="fas fa-calendar-check" style="color:var(--purple)"></i>
+      <strong>${reserved}</strong> unit(s) reserved by bookings.
+      Physical: <strong>${physical}</strong> • Available: <strong>${avail}</strong><br>
+      <span style="color:var(--text-muted)">Adding stock will auto-fulfill waiting bookings (oldest first).</span>
+    </div>` : '';
+  document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:420px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body">${infoBox}<p style="margin-bottom:12px">Current physical stock: <strong>${physical}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${physical}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);
+  openModal('stockModal');
+}
 async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:document.getElementById('stkMode').value,Stock:document.getElementById('stkQty').value});if(r.success){toast(`Stock: ${r.newStock}`);closeModal('stockModal');renderPage('inventory')}}
 function openAddBatchModal() {
   let m = document.getElementById('batchModal'); if (m) m.remove();
