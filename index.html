@@ -926,7 +926,7 @@ async function renderSearchPage(area) {
   // Preload data if not loaded
   if (!S.customers.length) S.customers = await apiGet('getCustomers');
   if (!S.sales.length) S.sales = await apiGet('getSales');
-  if (!S.inventory.length) S.inventory = await apiGet('getInventory');
+  S.inventory = await apiGet('getInventoryWithReserved');
   
   const c = C();
   area.innerHTML = `
@@ -1123,16 +1123,17 @@ function renderBigSearchResults(results, query) {
     html += `<h3 style="font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-muted);margin:18px 0 10px"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</h3>`;
     
     products.forEach(p => {
-      // Find sales velocity for this product
-      const stk = Number(p.Stock) || 0;
+      const physical = Number(p.Stock) || 0;
+      const reserved = Number(p.ReservedQty) || 0;
+      const available = (p.AvailableQty !== undefined) ? Number(p.AvailableQty) : (physical - reserved);
       const min = Number(p.MinStock || 5);
-      const stockStatus = stk === 0 ? { txt: 'Out of Stock', color: 'var(--danger)', badge: 'badge-d' } : 
-                          stk <= min ? { txt: 'Low Stock', color: 'var(--warning)', badge: 'badge-w' } : 
-                          { txt: 'In Stock', color: 'var(--secondary)', badge: 'badge-s' };
+      const stockStatus = available <= 0 ? { txt: 'Not Available', color: 'var(--danger)', badge: 'badge-d' } :
+                          available <= min ? { txt: 'Low Availability', color: 'var(--warning)', badge: 'badge-w' } :
+                          { txt: 'Available', color: 'var(--secondary)', badge: 'badge-s' };
       const sellPrice = Number(p.SellPrice) || 0;
       const costPrice = Number(p.CostPrice) || 0;
       const margin = sellPrice > 0 ? Math.round(((sellPrice - costPrice) / sellPrice) * 100) : 0;
-      const stockValue = stk * costPrice;
+      const stockValue = physical * costPrice;
       
       html += `<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm)">
         <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">
@@ -1143,17 +1144,23 @@ function renderBigSearchResults(results, query) {
             </div>
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${stk > 0 ? `<button class="btn btn-success btn-sm" onclick="quickAddToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Sell</button>` : ''}
-            <button class="btn btn-outline btn-sm" onclick="openStockModal('${p.ID}',${stk})"><i class="fas fa-cubes"></i> Restock</button>
+            ${available > 0 ? `<button class="btn btn-success btn-sm" onclick="quickAddToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Sell</button>` : ''}
+            <button class="btn btn-outline btn-sm" onclick="openBookingModal()"><i class="fas fa-calendar-check"></i> Book</button>
+            <button class="btn btn-outline btn-sm" onclick="openStockModal('${p.ID}',${physical})"><i class="fas fa-cubes"></i> Restock</button>
             <button class="btn btn-outline btn-sm" onclick="nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)"><i class="fas fa-edit"></i> Edit</button>
           </div>
         </div>
         
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
           <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center;border-left:3px solid ${stockStatus.color}">
-            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Stock</div>
-            <div style="font-size:18px;font-weight:800;color:${stockStatus.color};margin-top:2px">${stk}</div>
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Available</div>
+            <div style="font-size:18px;font-weight:800;color:${stockStatus.color};margin-top:2px">${available}</div>
             <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px">${stockStatus.txt}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Booked</div>
+            <div style="font-size:18px;font-weight:800;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'};margin-top:2px">${reserved}</div>
+            <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px">${reserved > 0 ? 'reserved' : 'physical: ' + physical}</div>
           </div>
           <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Sell Price</div>
@@ -1183,6 +1190,14 @@ function renderBigSearchResults(results, query) {
 
 // ─── Helper: Quick add a product to a new POS sale ───
 function quickAddToPOS(productId) {
+  const p = (S.inventory || []).find(x => x.ID === productId);
+  if (p) {
+    const avail = (p.AvailableQty !== undefined) ? Number(p.AvailableQty) : (Number(p.Stock||0) - Number(p.ReservedQty||0));
+    if (avail <= 0) {
+      toast('No available stock (reserved by bookings or out). Use a Booking instead.', 'warning');
+      return;
+    }
+  }
   nav('pos');
   setTimeout(() => {
     addPOSRow();
@@ -1190,10 +1205,7 @@ function quickAddToPOS(productId) {
     const lastRow = rows[rows.length - 1];
     if (lastRow) {
       const sel = lastRow.querySelector('.pos-prod');
-      if (sel) {
-        sel.value = productId;
-        onPOSProdChange(sel);
-      }
+      if (sel) { sel.value = productId; onPOSProdChange(sel); }
     }
   }, 400);
 }
@@ -1402,18 +1414,22 @@ function renderSearchResultsHTML(results, query, isLarge) {
   if (products.length) {
     html += `<div style="${titleStyle}"><i class="fas fa-boxes-stacked" style="color:var(--secondary);margin-right:4px"></i> Products (${products.length})</div>`;
     products.slice(0, isLarge ? 20 : 5).forEach(p => {
-      const stk = Number(p.Stock) || 0;
+      const phys = Number(p.Stock) || 0;
+      const booked = Number(p.ReservedQty) || 0;
+      const av = (p.AvailableQty !== undefined) ? Number(p.AvailableQty) : (phys - booked);
+      const mn = Number(p.MinStock || 5);
       html += `<div onclick="${isLarge ? `showProductDetails('${p.ID}')` : `closeGlobalSearch();showProductDetails('${p.ID}')`}" style="${cardStyle};cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background=''">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
           <div style="flex:1;min-width:0">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${highlightMatch(p.ProductName, query)}</div>
             <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
-              ${esc(p.Club_Country || '')} • ${esc(p.Size || '')} • ${esc(p.ID)}
-            </div>
+            ${esc(p.Club_Country || '')} • ${esc(p.Size || '')} • ${esc(p.ID)}${booked > 0 ? ` • <span style="color:var(--text-sec)">${phys} physical</span>` : ''}
+          </div>
           </div>
           <div style="text-align:right;flex-shrink:0">
             <div style="font-size:12px;font-weight:700">${c}${Number(p.SellPrice).toLocaleString()}</div>
-            <div style="margin-top:2px">${stk === 0 ? '<span class="badge badge-d">Out</span>' : stk <= Number(p.MinStock||5) ? `<span class="badge badge-w">${stk} left</span>` : `<span class="badge badge-s">${stk} in stock</span>`}</div>
+            <div style="margin-top:2px">${av <= 0 ? '<span class="badge badge-d">Out</span>' : av <= mn ? `<span class="badge badge-w">${av} left</span>` : `<span class="badge badge-s">${av} avail</span>`}</div>
+${booked > 0 ? `<div style="margin-top:3px"><span class="badge badge-p" style="font-size:9px" title="${booked} reserved by bookings"><i class="fas fa-calendar-check" style="font-size:8px;margin-right:2px"></i>${booked} booked</span></div>` : ''}
           </div>
         </div>
       </div>`;
@@ -1676,15 +1692,24 @@ async function showCustomerDetails(custId) {
 // ============================================================
 async function showProductDetails(productId) {
   closeGlobalSearch();
+
+  // Always load reserved-aware inventory so Available/Booked are LIVE & accurate
+  S.inventory = await apiGet('getInventoryWithReserved');
   const p = S.inventory.find(i => i.ID === productId);
   if (!p) { toast('Product not found', 'error'); return; }
-  
+
+  // Normalize availability fields (defensive fallback)
+  const physical = Number(p.Stock) || 0;
+  const reserved = Number(p.ReservedQty) || 0;
+  const available = (p.AvailableQty !== undefined) ? Number(p.AvailableQty) : (physical - reserved);
+  const minStock = Number(p.MinStock) || 5;
+
   // Get sales for this product
   const salesItems = await apiGet('getSalesItems');
   const productSales = salesItems.filter(si => si.ProductID === productId);
   const totalSold = productSales.reduce((s, si) => s + (Number(si.Quantity) || 0), 0);
   const totalRevenue = productSales.reduce((s, si) => s + (Number(si.LineTotal) || 0), 0);
-  
+
   // Recent sales for this product
   if (!S.sales.length) S.sales = await apiGet('getSales');
   const recentInvoices = [...new Set(productSales.slice(-10).map(si => si.InvoiceNo))]
@@ -1692,20 +1717,22 @@ async function showProductDetails(productId) {
     .filter(s => s)
     .sort((a, b) => new Date(b.Date) - new Date(a.Date))
     .slice(0, 10);
-  
+
   const c = C();
-  const stock = Number(p.Stock) || 0;
-  const minStock = Number(p.MinStock) || 5;
-  const stockStatus = stock === 0 ? { text: 'OUT OF STOCK', color: 'var(--danger)', icon: 'fa-circle-xmark' } 
-    : stock <= minStock ? { text: 'LOW STOCK', color: 'var(--warning)', icon: 'fa-triangle-exclamation' }
-    : { text: 'IN STOCK', color: 'var(--secondary)', icon: 'fa-check-circle' };
-  
+
+  // Banner reflects AVAILABLE (sellable) stock, not raw physical
+  const stockStatus = available <= 0
+    ? { text: 'NOT AVAILABLE', color: 'var(--danger)', rgb: '239,68,68', icon: 'fa-circle-xmark' }
+    : available <= minStock
+    ? { text: 'LOW AVAILABILITY', color: 'var(--warning)', rgb: '245,158,11', icon: 'fa-triangle-exclamation' }
+    : { text: 'AVAILABLE', color: 'var(--secondary)', rgb: '16,185,129', icon: 'fa-check-circle' };
+
   const margin = Number(p.SellPrice) - Number(p.CostPrice);
   const marginPct = Number(p.SellPrice) > 0 ? ((margin / Number(p.SellPrice)) * 100).toFixed(1) : 0;
-  
+
   let m = document.getElementById('prodDetailsModal');
   if (m) m.remove();
-  
+
   document.body.insertAdjacentHTML('beforeend', `
     <div class="modal-overlay" id="prodDetailsModal"><div class="modal" style="max-width:800px">
       <div class="modal-hdr">
@@ -1713,17 +1740,26 @@ async function showProductDetails(productId) {
         <button class="modal-close" onclick="closeModal('prodDetailsModal')">&times;</button>
       </div>
       <div class="modal-body">
-        
-        <!-- Stock Status Banner -->
-        <div style="padding:16px;background:rgba(${stock === 0 ? '239,68,68' : stock <= minStock ? '245,158,11' : '16,185,129'},.08);border-radius:10px;border-left:4px solid ${stockStatus.color};margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+
+        <!-- Availability Status Banner -->
+        <div style="padding:16px;background:rgba(${stockStatus.rgb},.08);border-radius:10px;border-left:4px solid ${stockStatus.color};margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
           <div>
             <div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:${stockStatus.color};font-weight:700"><i class="fas ${stockStatus.icon}"></i> ${stockStatus.text}</div>
-            <div style="font-size:32px;font-weight:900;margin-top:4px">${stock} <span style="font-size:14px;color:var(--text-muted);font-weight:500">units</span></div>
-            <div style="font-size:11px;color:var(--text-muted)">Min stock alert: ${minStock}</div>
+            <div style="font-size:32px;font-weight:900;margin-top:4px">${available} <span style="font-size:14px;color:var(--text-muted);font-weight:500">available</span></div>
+            <div style="font-size:11px;color:var(--text-muted)">
+              Physical: ${physical}${reserved > 0 ? ` • <span style="color:var(--purple)">${reserved} booked</span>` : ''} • Min alert: ${minStock}
+            </div>
           </div>
-          <button class="btn btn-success" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${stock})"><i class="fas fa-cubes"></i> Update Stock</button>
+          <button class="btn btn-success" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${physical})"><i class="fas fa-cubes"></i> Update Stock</button>
         </div>
-        
+
+        ${reserved > 0 ? `
+        <div style="padding:10px 14px;background:rgba(139,92,246,.08);border-left:3px solid var(--purple);border-radius:8px;margin-bottom:16px;font-size:12px;color:var(--text-sec)">
+          <i class="fas fa-calendar-check" style="color:var(--purple)"></i>
+          <strong>${reserved}</strong> unit(s) reserved by active bookings and cannot be sold directly.
+          Convert the related booking(s) to sell these.
+        </div>` : ''}
+
         <!-- Product Info Grid -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px">
           <div style="padding:10px;background:var(--bg);border-radius:8px">
@@ -1758,8 +1794,20 @@ async function showProductDetails(productId) {
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Supplier</div>
             <div style="font-size:13px;font-weight:700;margin-top:2px">${esc(p.Supplier || '-')}</div>
           </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Available</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;color:${available <= 0 ? 'var(--danger)' : available <= minStock ? 'var(--warning)' : 'var(--secondary)'}">${available}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Booked / Reserved</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'}">${reserved}${reserved > 0 ? ' <i class="fas fa-calendar-check" style="font-size:11px"></i>' : ''}</div>
+          </div>
+          <div style="padding:10px;background:var(--bg);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Physical Stock</div>
+            <div style="font-size:16px;font-weight:800;margin-top:2px;color:var(--text)">${physical}</div>
+          </div>
         </div>
-        
+
         <!-- Sales Performance -->
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
           <div style="padding:12px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(139,92,246,.05));border-radius:8px;text-align:center">
@@ -1773,17 +1821,18 @@ async function showProductDetails(productId) {
           </div>
           <div style="padding:12px;background:linear-gradient(135deg,rgba(59,130,246,.1),rgba(59,130,246,.05));border-radius:8px;text-align:center">
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Stock Value</div>
-            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:4px">${c}${(stock * Number(p.SellPrice)).toLocaleString()}</div>
+            <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:4px">${c}${(physical * Number(p.SellPrice)).toLocaleString()}</div>
           </div>
         </div>
-        
+
         <!-- Action Buttons -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-          <button class="btn btn-success btn-sm" onclick="closeModal('prodDetailsModal');addProductToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Add to Sale</button>
+          <button class="btn btn-success btn-sm" ${available <= 0 ? 'disabled title="No available stock"' : ''} onclick="closeModal('prodDetailsModal');addProductToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Add to Sale</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openBookingModal()"><i class="fas fa-calendar-check"></i> New Booking</button>
           <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openProductModal('${p.ID}')"><i class="fas fa-pen"></i> Edit Product</button>
-          <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${stock})"><i class="fas fa-cubes"></i> Adjust Stock</button>
+          <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${physical})"><i class="fas fa-cubes"></i> Adjust Stock</button>
         </div>
-        
+
         ${recentInvoices.length ? `
           <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--text-sec);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-history"></i> Recent Sales</h4>
           <div class="tbl-wrap">
@@ -1802,7 +1851,7 @@ async function showProductDetails(productId) {
             </table>
           </div>
         ` : ''}
-        
+
       </div>
       <div class="modal-foot">
         <button class="btn btn-outline" onclick="closeModal('prodDetailsModal')">Close</button>
