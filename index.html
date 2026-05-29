@@ -3791,12 +3791,17 @@ async function submitSale(){
   if(r.success){
     toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);
 
-    // If this was a booking conversion, finalize the booking server-side
-    if (bkCtx && bkCtx.bookingId) {
-      await finalizeBookingConversion(bkCtx.bookingId, r.invoiceNo);
+    // 🆕 Booking conversion is now handled entirely by createSale on the backend.
+    if (bkCtx && bkCtx.bookingId && r.bookingConverted) {
+      const statusMsg = r.bookingStatus === 'Partial'
+        ? `Booking ${bkCtx.bookingNumber} partially converted — backorders remain.`
+        : `Booking ${bkCtx.bookingNumber} fully converted & completed.`;
+      toast(statusMsg, 'success');
       window._convertBookingContext = null;
       const banner = document.getElementById('bookingConvBanner');
       if (banner) banner.remove();
+      // Refresh bookings cache so the Bookings page is up to date
+      S.bookings = await apiGet('getBookings');
     }
 
     showInvoice(r.invoiceNo,payload,items);
