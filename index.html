@@ -3527,7 +3527,10 @@ async function renderPOS(area){
 // ============================================================
 // QUICK ADD CUSTOMER FROM POS PAGE
 // ============================================================
-function openQuickAddCustomerModal() {
+let _quickCustCallback = null; // optional: called with new customer ID after save
+
+function openQuickAddCustomerModal(onSaved = null) {
+  _quickCustCallback = (typeof onSaved === 'function') ? onSaved : null;
   let m = document.getElementById('quickCustModal');
   if (m) m.remove();
   
@@ -3645,22 +3648,30 @@ async function saveQuickCustomer() {
   if (r.success) {
     toast(`${name} added successfully!`);
     closeModal('quickCustModal');
-    
-    // Refresh customers list
+
+    // Refresh customers list (shared everywhere)
     S.customers = await apiGet('getCustomers');
-    
-    // Rebuild the POS customer dropdown with new customer included
+
+    // If a callback was provided (e.g. from Bookings), use it and stop here.
+    if (_quickCustCallback) {
+      const cb = _quickCustCallback;
+      _quickCustCallback = null; // reset so it doesn't leak to next open
+      try { cb(r.id, data); } catch (e) { console.error('quickCust callback', e); }
+      return;
+    }
+
+    // ---- Default POS behavior (unchanged) ----
     const custSelect = document.getElementById('posCust');
     if (custSelect) {
-      const sortedCustomers = [...S.customers].sort((a, b) => 
+      const sortedCustomers = [...S.customers].sort((a, b) =>
         String(a.Name || '').localeCompare(String(b.Name || ''))
       );
-      
+
       custSelect.innerHTML = `<option value="">Walk-in Customer</option>` +
-        sortedCustomers.map(c => 
+        sortedCustomers.map(c =>
           `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone || ''}">${esc(c.Name)} (${c.Phone || ''})</option>`
         ).join('');
-      
+
       // Auto-select the newly added customer
       for (let i = 0; i < custSelect.options.length; i++) {
         if (custSelect.options[i].value === r.id) {
@@ -3668,13 +3679,13 @@ async function saveQuickCustomer() {
           break;
         }
       }
-      
+
       // Auto-fill the phone field
       const phoneInput = document.getElementById('posCustPhone');
       if (phoneInput && data.Phone) {
         phoneInput.value = data.Phone;
       }
-      
+
       // Visual highlight for confirmation
       custSelect.style.transition = 'all 0.3s';
       custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
@@ -4025,11 +4036,20 @@ function onQuickAddPhoneInput(input) {
 function useExistingCustomerFromQuickAdd(id, name, phone) {
   // Close the quick add modal
   closeModal('quickCustModal');
-  
-  // Select the existing customer in POS
+
+  // If a callback is registered (e.g. from Bookings), use it and stop here.
+  if (_quickCustCallback) {
+    const cb = _quickCustCallback;
+    _quickCustCallback = null; // reset so it doesn't leak to the next open
+    try { cb(id, { Name: name, Phone: phone }); } catch (e) { console.error('quickCust callback (existing)', e); }
+    toast(`Existing customer selected: ${name}`, 'success');
+    return;
+  }
+
+  // ---- Default POS behavior (unchanged) ----
   const custSelect = document.getElementById('posCust');
   const phoneInput = document.getElementById('posCustPhone');
-  
+
   if (custSelect) {
     for (let i = 0; i < custSelect.options.length; i++) {
       if (custSelect.options[i].value === id) {
@@ -4045,12 +4065,11 @@ function useExistingCustomerFromQuickAdd(id, name, phone) {
       custSelect.style.borderColor = '';
     }, 1500);
   }
-  
+
   if (phoneInput) phoneInput.value = phone;
-  
+
   toast(`Existing customer selected: ${name}`, 'success');
 }
-
 
 // ============================================================
 // INVOICE DISPLAY (with Full + Compact views, notes, delivery, voucher)
@@ -6655,7 +6674,10 @@ async function openBookingModal(bookingId = '') {
       <div class="modal-body">
         <div class="fg">
           <div class="form-group" style="grid-column:1/-1">
-            <label>Customer</label>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <label>Customer</label>
+              <button type="button" class="btn btn-outline btn-sm" onclick="openQuickAddCustomerModal(selectBookingCustomerAfterAdd)"><i class="fas fa-user-plus"></i> New</button>
+            </div>
             <select class="fc" id="bkCust" onchange="onBookingCustChange()">
               <option value="">Walk-in Customer</option>
               ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(cu=>`<option value="${cu.ID}" data-name="${esc(cu.Name)}" data-phone="${cu.Phone||''}" ${existing&&existing.CustomerID===cu.ID?'selected':''}>${esc(cu.Name)} (${cu.Phone||''})</option>`).join('')}
@@ -6691,6 +6713,28 @@ function onBookingCustChange() {
   document.getElementById('bkPhone').value = phone;
 }
 
+// Called by the shared Quick-Add-Customer modal after saving a new customer
+// from within the Booking modal. Rebuilds the booking dropdown & selects them.
+function selectBookingCustomerAfterAdd(newId, data) {
+  const sel = document.getElementById('bkCust');
+  if (!sel) return; // booking modal was closed — nothing to do
+
+  // Rebuild options sorted, including the new customer (S.customers already refreshed)
+  sel.innerHTML = `<option value="">Walk-in Customer</option>` +
+    [...S.customers].sort((a, b) => String(a.Name || '').localeCompare(String(b.Name || '')))
+      .map(cu => `<option value="${cu.ID}" data-name="${esc(cu.Name)}" data-phone="${cu.Phone || ''}">${esc(cu.Name)} (${cu.Phone || ''})</option>`).join('');
+
+  // Select the newly added customer
+  sel.value = newId;
+  onBookingCustChange(); // auto-fills the phone field in the booking modal
+
+  // Brief highlight for confirmation (matches POS feel)
+  sel.style.transition = 'all 0.3s';
+  sel.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+  sel.style.borderColor = 'var(--secondary)';
+  setTimeout(() => { sel.style.boxShadow = ''; sel.style.borderColor = ''; }, 1500);
+}
+  
 function addBookingRow() {
   const tbody = document.getElementById('bkItems');
   if (!tbody) return;
