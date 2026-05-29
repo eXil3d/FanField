@@ -639,7 +639,6 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
       <div class="nav-item" data-page="sales"><i class="fas fa-receipt"></i>Sales Ledger</div>
       <div class="nav-item" data-page="delivery"><i class="fas fa-truck-fast"></i>Delivery</div>
       <div class="nav-item" data-page="customers"><i class="fas fa-users"></i>Customers</div>
-      <div class="nav-item" data-page="preorders"><i class="fas fa-clipboard-list"></i>Pre-Orders<span class="nav-badge" id="preorderBadge" style="display:none">0</span></div>
       <div class="nav-item" data-page="payments"><i class="fas fa-money-bill-wave"></i>Pending Payments<span class="nav-badge" id="pendBadge" style="display:none">0</span></div>
     </div>
     <div class="nav-section">
@@ -792,7 +791,7 @@ const _origNav = nav;
 nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
   
 // NAV
-const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],preorders:['Pre-Orders','Track customer requests for out-of-stock items'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
+const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
 function nav(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -816,7 +815,7 @@ async function renderPage(page){
   const area=document.getElementById('contentArea');
   area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
   try{switch(page){
-    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'preorders':await renderPreorders(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
+    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
 // ============================================================
@@ -963,10 +962,6 @@ async function renderSearchPage(area) {
           <div style="font-size:18px;font-weight:800"><i class="fas fa-cash-register"></i></div>
           <div style="font-size:10.5px;margin-top:3px;opacity:.9">New Sale</div>
         </div>
-        <div onclick="openWishlistFromSearch()" style="cursor:pointer;padding:14px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border-radius:10px;transition:all .2s" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
-          <div style="font-size:18px;font-weight:800"><i class="fas fa-clipboard-list"></i></div>
-          <div style="font-size:10.5px;margin-top:3px;opacity:.9">Add to Wishlist</div>
-        </div>
       </div>
       
       <div id="bigSearchResults" style="text-align:left"></div>
@@ -974,7 +969,6 @@ async function renderSearchPage(area) {
       <!-- Quick Action Buttons -->
       <div id="quickActions" style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
         <button class="btn btn-success" onclick="nav('pos')"><i class="fas fa-cash-register"></i> Create Sale</button>
-        <button class="btn btn-warning" onclick="openPreorderModal()"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
         <button class="btn btn-primary" onclick="openCustModal()"><i class="fas fa-user-plus"></i> Add Customer</button>
         <button class="btn btn-outline" onclick="nav('inventory')"><i class="fas fa-boxes-stacked"></i> Browse Inventory</button>
       </div>
@@ -995,14 +989,6 @@ async function renderSearchPage(area) {
   setTimeout(() => document.getElementById('bigSearchInput')?.focus(), 100);
 }
 
-function openWishlistFromSearch() {
-  // Open the pre-order modal with empty data
-  if (!S.customers.length) {
-    apiGet('getCustomers').then(d => { S.customers = d; openPreorderModal(); });
-  } else {
-    openPreorderModal();
-  }
-}
 
 function performBigSearch(query) {
   const resultsEl = document.getElementById('bigSearchResults');
@@ -1026,10 +1012,7 @@ function performBigSearch(query) {
       <div style="padding:50px 20px;text-align:center;background:var(--surface);border:1px solid var(--border);border-radius:12px">
         <i class="fas fa-search" style="font-size:32px;color:var(--text-muted);opacity:.4;margin-bottom:12px"></i>
         <div style="font-size:14px;color:var(--text);margin-bottom:8px">No results for "<strong>${esc(query)}</strong>"</div>
-        <div style="font-size:11.5px;color:var(--text-muted);margin-bottom:18px">Try a different search term, or add to wishlist:</div>
-        <button class="btn btn-warning" onclick="openPreorderModalPrefilled('${esc(query)}')">
-          <i class="fas fa-clipboard-list"></i> Add "${esc(query.length > 30 ? query.slice(0,30)+'...' : query)}" to Wishlist
-        </button>
+        <div style="font-size:11.5px;color:var(--text-muted)">Try a different search term.</div>
       </div>
     `;
     return;
@@ -1069,7 +1052,6 @@ function renderBigSearchResults(results, query) {
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-cash-register"></i> New Sale</button>
-            <button class="btn btn-warning btn-sm" onclick="addWishlistForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-clipboard-list"></i> Wishlist</button>
             <button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone||'')}')" title="WhatsApp"><i class="fab fa-whatsapp" style="color:#25d366"></i></button>
             <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')"><i class="fas fa-history"></i> Full History</button>
           </div>
@@ -1160,7 +1142,6 @@ function renderBigSearchResults(results, query) {
           </div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             ${stk > 0 ? `<button class="btn btn-success btn-sm" onclick="quickAddToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Sell</button>` : ''}
-            <button class="btn btn-warning btn-sm" onclick="openPreorderModalForProduct('${esc(p.ProductName)}','${esc(p.Size||'')}')"><i class="fas fa-clipboard-list"></i> Wishlist</button>
             <button class="btn btn-outline btn-sm" onclick="openStockModal('${p.ID}',${stk})"><i class="fas fa-cubes"></i> Restock</button>
             <button class="btn btn-outline btn-sm" onclick="nav('inventory');setTimeout(()=>{const i=document.getElementById('invSrch');if(i){i.value='${esc(p.ID)}';filterInv()}},300)"><i class="fas fa-edit"></i> Edit</button>
           </div>
@@ -1196,41 +1177,6 @@ function renderBigSearchResults(results, query) {
   }
   
   return html;
-}
-
-// ─── Helper: Quick action — pre-fill wishlist for a specific customer ───
-function addWishlistForCustomer(custId, custName, custPhone) {
-  openPreorderModal();
-  setTimeout(() => {
-    const sel = document.getElementById('poCustomer');
-    if (sel) {
-      sel.value = custId;
-      onPreorderCustChange();
-    } else {
-      document.getElementById('poName').value = custName;
-      document.getElementById('poPhone').value = formatPhoneBD(custPhone);
-    }
-  }, 100);
-}
-
-// ─── Helper: Pre-fill wishlist with a search query as the product name ───
-function openPreorderModalPrefilled(query) {
-  openPreorderModal();
-  setTimeout(() => {
-    document.getElementById('poProduct').value = query;
-  }, 100);
-}
-
-// ─── Helper: Pre-fill wishlist with a specific product (for out-of-stock) ───
-function openPreorderModalForProduct(productName, size) {
-  openPreorderModal();
-  setTimeout(() => {
-    document.getElementById('poProduct').value = productName;
-    if (size) {
-      const sizeEl = document.getElementById('poSize');
-      if (sizeEl) sizeEl.value = size;
-    }
-  }, 100);
 }
 
 // ─── Helper: Quick add a product to a new POS sale ───
@@ -1644,9 +1590,7 @@ async function showCustomerDetails(custId) {
   const lastOrder = customerSales[0];
   const daysSinceLastOrder = lastOrder ? Math.floor((Date.now() - new Date(lastOrder.Date).getTime()) / (1000 * 60 * 60 * 24)) : null;
   
-  // Get pre-orders for this customer
-  if (!S.preorders) S.preorders = await apiGet('getPreorders');
-  const activePreorders = (S.preorders || []).filter(p => p.CustomerID === custId && p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
+  
   
   let m = document.getElementById('custDetailsModal');
   if (m) m.remove();
@@ -1691,30 +1635,12 @@ async function showCustomerDetails(custId) {
         <!-- Action Buttons -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
           <button class="btn btn-success btn-sm" onclick="closeModal('custDetailsModal');createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-cash-register"></i> New Sale</button>
-          <button class="btn btn-warning btn-sm" onclick="closeModal('custDetailsModal');openPreorderModalForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone||'')}')"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
           ${cu.Phone ? `<button class="btn btn-outline btn-sm" onclick="sendVIPMessage('${esc(cu.Name)}','${esc(cu.Phone)}')" style="color:#25d366;border-color:#25d366"><i class="fab fa-whatsapp"></i> WhatsApp</button>` : ''}
           ${totalPending > 0 ? `<button class="btn btn-danger btn-sm" onclick="closeModal('custDetailsModal');sendPaymentReminder('${esc(cu.Name)}','${esc(cu.Phone||'')}',${totalPending})"><i class="fas fa-money-bill"></i> Payment Reminder</button>` : ''}
           <button class="btn btn-outline btn-sm" onclick="closeModal('custDetailsModal');viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')"><i class="fas fa-book"></i> Full Ledger</button>
         </div>
         
-        ${activePreorders.length > 0 ? `
-          <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--warning);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-clipboard-list"></i> Active Wishlist (${activePreorders.length})</h4>
-          <div class="tbl-wrap" style="margin-bottom:16px">
-            <table>
-              <thead><tr><th>Date</th><th>Product</th><th>Size</th><th>Qty</th><th>Status</th></tr></thead>
-              <tbody>
-                ${activePreorders.map(p => `<tr>
-                  <td><small>${fmtD(p.Date)}</small></td>
-                  <td><strong>${esc(p.ProductName)}</strong></td>
-                  <td>${esc(p.Size || '-')}</td>
-                  <td>${p.Quantity || 1}</td>
-                  <td>${preorderStatusBadge(p.Status)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        ` : ''}
-        
+                
         <!-- Order History -->
         <h4 style="font-size:12px;font-weight:700;margin:14px 0 8px;color:var(--text-sec);text-transform:uppercase;letter-spacing:1px"><i class="fas fa-history"></i> Order History (${customerSales.length})</h4>
         <div class="tbl-wrap">
@@ -1852,7 +1778,6 @@ async function showProductDetails(productId) {
         <!-- Action Buttons -->
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
           <button class="btn btn-success btn-sm" onclick="closeModal('prodDetailsModal');addProductToPOS('${p.ID}')"><i class="fas fa-cash-register"></i> Add to Sale</button>
-          <button class="btn btn-warning btn-sm" onclick="closeModal('prodDetailsModal');openWishlistForProduct('${p.ID}','${esc(p.ProductName)}','${esc(p.Size||'')}')"><i class="fas fa-clipboard-list"></i> Add to Wishlist</button>
           <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openProductModal('${p.ID}')"><i class="fas fa-pen"></i> Edit Product</button>
           <button class="btn btn-outline btn-sm" onclick="closeModal('prodDetailsModal');openStockModal('${p.ID}',${stock})"><i class="fas fa-cubes"></i> Adjust Stock</button>
         </div>
@@ -1886,29 +1811,8 @@ async function showProductDetails(productId) {
 }
 
 // ============================================================
-// QUICK ACTIONS - Add to Wishlist / Add to POS
+// QUICK ACTIONS - Add to POS
 // ============================================================
-function openWishlistForProduct(productId, productName, size) {
-  // Open the preorder modal pre-filled with the product
-  openPreorderModal();
-  setTimeout(() => {
-    document.getElementById('poProduct').value = productName;
-    if (size) document.getElementById('poSize').value = size;
-    document.getElementById('poName').focus();
-  }, 100);
-}
-
-function openPreorderModalForCustomer(custId, custName, custPhone) {
-  // Open preorder modal pre-filled with the customer
-  openPreorderModal();
-  setTimeout(() => {
-    const sel = document.getElementById('poCustomer');
-    sel.value = custId;
-    document.getElementById('poName').value = custName;
-    document.getElementById('poPhone').value = formatPhoneBD(custPhone || '');
-    document.getElementById('poProduct').focus();
-  }, 100);
-}
 
 function addProductToPOS(productId) {
   nav('pos');
@@ -1961,13 +1865,21 @@ async function renderDashboard(area){
     <div class="card"><div class="card-hdr"><h3><i class="fas fa-chart-bar" style="color:var(--primary);margin-right:6px"></i>Monthly Sales</h3></div><div class="card-body"><div class="chart-bars" id="dChart"></div></div></div>
     <div class="card"><div class="card-hdr"><h3><i class="fas fa-triangle-exclamation" style="color:var(--warning);margin-right:6px"></i>Stock Alerts</h3></div><div class="card-body np"><div class="tbl-wrap" id="dAlerts"></div></div></div>
   </div>
-  <div class="card">
-    <div class="card-hdr">
-      <h3><i class="fas fa-clock-rotate-left" style="color:var(--purple);margin-right:6px"></i>Recent Sales</h3>
-      <button class="btn btn-outline btn-sm" onclick="nav('sales')"><i class="fas fa-arrow-right"></i> View All</button>
+  <div class="dash-grid">
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-clock-rotate-left" style="color:var(--purple);margin-right:6px"></i>Recent Sales</h3>
+        <button class="btn btn-outline btn-sm" onclick="nav('sales')"><i class="fas fa-arrow-right"></i> View All</button>
+      </div>
+      <div class="card-body np"><div class="tbl-wrap" id="dRecent"></div></div>
     </div>
-    <div class="card-body np"><div class="tbl-wrap" id="dRecent"></div></div>
-  </div>`;
+    <div class="card">
+      <div class="card-hdr">
+        <h3><i class="fas fa-trophy" style="color:var(--warning);margin-right:6px"></i>Top Products</h3>
+      </div>
+      <div class="card-body np"><div class="tbl-wrap" id="dTopProducts"></div></div>
+    </div>
+  </div>`;  
   // Chart
   const chart=document.getElementById('dChart');const cd=d.monthlySalesChart||[];
   if(cd.length){const mx=Math.max(...cd.map(x=>x.sales),1);chart.innerHTML=cd.map(x=>{const p=Math.max(2,(x.sales/mx)*100);return`<div class="chart-bw"><div class="chart-bv">${c}${x.sales>=1000?(x.sales/1000).toFixed(1)+'k':x.sales}</div><div class="chart-bar" style="height:${p}%"></div><div class="chart-bl">${x.month}</div></div>`}).join('')}
@@ -1976,6 +1888,11 @@ async function renderDashboard(area){
   document.getElementById('dAlerts').innerHTML=alerts.length?`<table><thead><tr><th>Product</th><th>Stock</th><th>Status</th></tr></thead><tbody>${alerts.slice(0,12).map(i=>`<tr><td><strong>${esc(i.ProductName)}</strong></td><td>${i.Stock}</td><td>${i._t==='out'?'<span class="badge badge-d">Out</span>':'<span class="badge badge-w">Low</span>'}</td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)"><i class="fas fa-check-circle"></i> All stock healthy!</div>';
   // Recent sales
   document.getElementById('dRecent').innerHTML=(d.recentSales||[]).length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${(d.recentSales||[]).map(s=>`<tr><td><strong>${s.InvoiceNo}</strong><br><small style="color:var(--text-muted)">${fmtD(s.Date)}</small></td><td>${esc(s.CustomerName||'Walk-in')}</td><td><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td><td>${statusBadge(s.Status)}</td><td><button class="btn btn-outline btn-sm" onclick="viewInvoice('${s.InvoiceNo}')"><i class="fas fa-file-invoice"></i></button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales yet</div>';
+  // Top products
+  const tp = d.topProducts || [];
+  document.getElementById('dTopProducts').innerHTML = tp.length
+    ? `<table><thead><tr><th>Product</th><th>Qty</th><th>Revenue</th></tr></thead><tbody>${tp.map(p=>`<tr><td><strong>${esc(p.name)}</strong></td><td>${Number(p.qty)||0}</td><td>${c}${(Number(p.revenue)||0).toLocaleString()}</td></tr>`).join('')}</tbody></table>`
+    : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No product sales yet</div>';
   }
 
 // ============================================================
@@ -2867,8 +2784,89 @@ async function saveProduct(id) {
     }
     return;
   }
-
+  
   // ============================================================
+  // ADD MODE: Variant builder
+  // ============================================================
+  const variants = readVariantRows();
+  
+  if (!variants.length) {
+    toast('Add at least one size variant row with details', 'error');
+    return;
+  }
+  
+  // Validate: every row must have a size selected
+  const invalid = variants.filter(v => !SIZES.includes(v.Size));
+  if (invalid.length) {
+    toast(`Select a valid size in all ${invalid.length} incomplete row(s)`, 'error');
+    return;
+  }
+  
+  // Validate: no duplicate sizes
+  const sizeList = variants.map(v => v.Size);
+  const dupSizes = sizeList.filter((s, i, a) => a.indexOf(s) !== i);
+  if (dupSizes.length) {
+    toast(`Duplicate size(s): ${[...new Set(dupSizes)].join(', ')} — please remove duplicates`, 'error');
+    return;
+  }
+  
+  // Validate: each variant must have at least cost and sell price
+  const incomplete = variants.filter(v => v.CostPrice <= 0 || v.SellPrice <= 0);
+  if (incomplete.length) {
+    toast(`${incomplete.length} variant(s) missing cost or sell price`, 'error');
+    return;
+  }
+  
+  // Confirmation summary before saving
+  const totalStock = variants.reduce((s, v) => s + v.Stock, 0);
+  const totalInvest = variants.reduce((s, v) => s + (v.CostPrice * v.Stock), 0);
+  const productLabel = `${base.Club_Country} ${base.Type} ${base.Edition}`.trim();
+  
+  if (!confirm(
+    `Confirm adding product?\n\n` +
+    `📦 ${productLabel}\n` +
+    `🎨 ${variants.length} size variant${variants.length > 1 ? 's' : ''}: ${sizeList.join(', ')}\n` +
+    `📊 Total Stock: ${totalStock} units\n` +
+    `💰 Total Investment: ${C()}${totalInvest.toLocaleString()}\n\n` +
+    `Each size will be saved as a separate inventory item.`
+  )) return;
+  
+  // Disable Save button to prevent double submission
+  const saveBtn = document.querySelector('#productModal .btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
+  }
+  
+  // Save each variant as a separate product
+  let ok = 0, failed = 0;
+  for (const v of variants) {
+    const r = await apiPost('addProduct', {
+      ...base,
+      Size: v.Size,
+      Stock: v.Stock,
+      CostPrice: v.CostPrice,
+      SellPrice: v.SellPrice
+    });
+    if (r.success) ok++; else failed++;
+  }
+  
+  if (ok > 0) {
+    let msg = `✅ Added ${ok} variant${ok > 1 ? 's' : ''}`;
+    if (failed > 0) msg += ` (${failed} failed)`;
+    toast(msg, failed > 0 ? 'warning' : 'success');
+    closeModal('productModal');
+    renderPage('inventory');
+  } else {
+    toast('Failed to add product variants', 'error');
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<i class="fas fa-save"></i>Save';
+    }
+  }
+}
+  
+// ============================================================
 // DEAD STOCK — Save monthly snapshot
 // ============================================================
 async function saveDeadStockSnapshot() {
@@ -3279,86 +3277,6 @@ async function deleteMonthlySnapshot(monthKey) {
   }
 }
   
-  // ============================================================
-  // ADD MODE: Variant builder
-  // ============================================================
-  const variants = readVariantRows();
-  
-  if (!variants.length) {
-    toast('Add at least one size variant row with details', 'error');
-    return;
-  }
-  
-  // Validate: every row must have a size selected
-  const invalid = variants.filter(v => !SIZES.includes(v.Size));
-  if (invalid.length) {
-    toast(`Select a valid size in all ${invalid.length} incomplete row(s)`, 'error');
-    return;
-  }
-  
-  // Validate: no duplicate sizes
-  const sizeList = variants.map(v => v.Size);
-  const dupSizes = sizeList.filter((s, i, a) => a.indexOf(s) !== i);
-  if (dupSizes.length) {
-    toast(`Duplicate size(s): ${[...new Set(dupSizes)].join(', ')} — please remove duplicates`, 'error');
-    return;
-  }
-  
-  // Validate: each variant must have at least cost and sell price
-  const incomplete = variants.filter(v => v.CostPrice <= 0 || v.SellPrice <= 0);
-  if (incomplete.length) {
-    toast(`${incomplete.length} variant(s) missing cost or sell price`, 'error');
-    return;
-  }
-  
-  // Confirmation summary before saving
-  const totalStock = variants.reduce((s, v) => s + v.Stock, 0);
-  const totalInvest = variants.reduce((s, v) => s + (v.CostPrice * v.Stock), 0);
-  const productLabel = `${base.Club_Country} ${base.Type} ${base.Edition}`.trim();
-  
-  if (!confirm(
-    `Confirm adding product?\n\n` +
-    `📦 ${productLabel}\n` +
-    `🎨 ${variants.length} size variant${variants.length > 1 ? 's' : ''}: ${sizeList.join(', ')}\n` +
-    `📊 Total Stock: ${totalStock} units\n` +
-    `💰 Total Investment: ${C()}${totalInvest.toLocaleString()}\n\n` +
-    `Each size will be saved as a separate inventory item.`
-  )) return;
-  
-  // Disable Save button to prevent double submission
-  const saveBtn = document.querySelector('#productModal .btn-primary');
-  if (saveBtn) {
-    saveBtn.disabled = true;
-    saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
-  }
-  
-  // Save each variant as a separate product
-  let ok = 0, failed = 0;
-  for (const v of variants) {
-    const r = await apiPost('addProduct', {
-      ...base,
-      Size: v.Size,
-      Stock: v.Stock,
-      CostPrice: v.CostPrice,
-      SellPrice: v.SellPrice
-    });
-    if (r.success) ok++; else failed++;
-  }
-  
-  if (ok > 0) {
-    let msg = `✅ Added ${ok} variant${ok > 1 ? 's' : ''}`;
-    if (failed > 0) msg += ` (${failed} failed)`;
-    toast(msg, failed > 0 ? 'warning' : 'success');
-    closeModal('productModal');
-    renderPage('inventory');
-  } else {
-    toast('Failed to add product variants', 'error');
-    if (saveBtn) {
-      saveBtn.disabled = false;
-      saveBtn.innerHTML = '<i class="fas fa-save"></i>Save';
-    }
-  }
-}
 async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
 function openStockModal(id,cur){let m=document.getElementById('stockModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="stockModal"><div class="modal" style="max-width:400px"><div class="modal-hdr"><h3>Update Stock</h3><button class="modal-close" onclick="closeModal('stockModal')">&times;</button></div><div class="modal-body"><p style="margin-bottom:12px">Current: <strong>${cur}</strong></p><div class="form-group"><label>Mode</label><select class="fc" id="stkMode"><option value="set">Set exact</option><option value="add">Add</option><option value="subtract">Subtract</option></select></div><div class="form-group"><label>Qty</label><input type="number" class="fc" id="stkQty" value="${cur}"></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('stockModal')">Cancel</button><button class="btn btn-primary" onclick="saveStock('${id}')"><i class="fas fa-save"></i>Update</button></div></div></div>`);openModal('stockModal')}
 async function saveStock(id){const r=await apiPost('updateStock',{ID:id,mode:document.getElementById('stkMode').value,Stock:document.getElementById('stkQty').value});if(r.success){toast(`Stock: ${r.newStock}`);closeModal('stockModal');renderPage('inventory')}}
@@ -5927,286 +5845,6 @@ async function delCust(id) {
 }
 
 
-
-// ============================================================
-// PRE-ORDERS — Customer requests for out-of-stock items
-// ============================================================
-async function renderPreorders(area) {
-  const preorders = await apiGet('getPreorders');
-  S.preorders = preorders || [];
-  if (!S.customers.length) S.customers = await apiGet('getCustomers');
-  
-  const c = C();
-  const pending = S.preorders.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
-  const fulfilled = S.preorders.filter(p => p.Status === 'Fulfilled');
-  
-  area.innerHTML = `
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-hdr"><div class="stat-icon orange"><i class="fas fa-clipboard-list"></i></div></div>
-        <div class="stat-val">${pending.length}</div>
-        <div class="stat-label">Active Pre-Orders</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-hdr"><div class="stat-icon green"><i class="fas fa-check-circle"></i></div></div>
-        <div class="stat-val">${fulfilled.length}</div>
-        <div class="stat-label">Fulfilled</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-hdr"><div class="stat-icon purple"><i class="fas fa-list"></i></div></div>
-        <div class="stat-val">${S.preorders.length}</div>
-        <div class="stat-label">Total Records</div>
-      </div>
-    </div>
-    
-    <div class="card">
-      <div class="card-hdr">
-        <h3><i class="fas fa-clipboard-list" style="color:var(--warning);margin-right:6px"></i>Pre-Order Requests</h3>
-        <div class="btn-group">
-          <div class="search-box"><i class="fas fa-search"></i><input type="text" id="poSrch" placeholder="Search customer, product, phone..." oninput="filterPreorders()"></div>
-          <select class="fc btn-sm" style="width:auto" id="poFilter" onchange="filterPreorders()">
-            <option value="active">Active Only</option>
-            <option value="all">All</option>
-            <option value="fulfilled">Fulfilled</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <button class="btn btn-primary btn-sm" onclick="openPreorderModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add Pre-Order</span></button>
-        </div>
-      </div>
-      <div class="card-body np"><div class="tbl-wrap" id="preorderTbl"></div></div>
-    </div>
-  `;
-  
-  filterPreorders();
-}
-
-function filterPreorders() {
-  const filter = document.getElementById('poFilter')?.value || 'active';
-  const srch = document.getElementById('poSrch')?.value || '';
-  
-  let data = S.preorders || [];
-  if (filter === 'active') data = data.filter(p => p.Status !== 'Fulfilled' && p.Status !== 'Cancelled');
-  else if (filter === 'fulfilled') data = data.filter(p => p.Status === 'Fulfilled');
-  else if (filter === 'cancelled') data = data.filter(p => p.Status === 'Cancelled');
-  
-  // Flexible search
-  data = data.filter(p => flexMatch(srch, 
-    [p.CustomerName, p.CustomerPhone, p.ProductName, p.Size, p.Status, p.Notes],
-    [p.CustomerPhone]
-  ));
-  
-  const sorted = [...data].sort((a, b) => new Date(b.Date) - new Date(a.Date));
-  const c = C();
-  const el = document.getElementById('preorderTbl');
-  
-  if (!sorted.length) {
-    el.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted)"><i class="fas fa-clipboard-list" style="font-size:32px;opacity:.4;margin-bottom:10px"></i><br>No pre-orders found</div>';
-    return;
-  }
-  
-  el.innerHTML = `<table>
-    <thead><tr>
-      <th>Date</th><th>Customer</th><th>Phone</th><th>Product Wanted</th>
-      <th>Size</th><th>Qty</th><th>Notes</th><th>Status</th><th>Actions</th>
-    </tr></thead>
-    <tbody>${sorted.map(p => {
-      const isFulfilled = p.Status === 'Fulfilled';
-      const isCancelled = p.Status === 'Cancelled';
-      return `<tr style="${isFulfilled || isCancelled ? 'opacity:.6' : ''}">
-        <td><small>${fmtD(p.Date)}</small></td>
-        <td><strong>${esc(p.CustomerName)}</strong></td>
-        <td>${esc(formatPhoneBD(p.CustomerPhone || ''))}</td>
-        <td><strong>${esc(p.ProductName)}</strong></td>
-        <td>${esc(p.Size || '-')}</td>
-        <td>${p.Quantity || 1}</td>
-        <td style="font-size:11px;max-width:200px">${esc(p.Notes || '-')}</td>
-        <td>${preorderStatusBadge(p.Status)}</td>
-        <td><div class="btn-group">
-          ${!isFulfilled && !isCancelled ? `
-            <button class="btn btn-success btn-sm" onclick="fulfillPreorder('${p.ID}','${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Mark fulfilled & notify customer"><i class="fas fa-check"></i></button>
-            <button class="btn btn-outline btn-sm" onclick="notifyPreorder('${esc(p.CustomerName)}','${p.CustomerPhone||''}','${esc(p.ProductName)}')" title="Send WhatsApp"><i class="fab fa-whatsapp"></i></button>
-            <button class="btn btn-warning btn-sm" onclick="cancelPreorder('${p.ID}')" title="Cancel"><i class="fas fa-ban"></i></button>
-          ` : ''}
-          <button class="btn btn-danger btn-sm" onclick="deletePreorder('${p.ID}')" title="Delete"><i class="fas fa-trash"></i></button>
-        </div></td>
-      </tr>`;
-    }).join('')}</tbody>
-  </table>`;
-}
-
-function preorderStatusBadge(status) {
-  const map = {
-    'Pending': '<span class="badge badge-w">Pending</span>',
-    'Ordered': '<span class="badge badge-i">Ordered from Supplier</span>',
-    'Received': '<span class="badge badge-p">Received - Ready</span>',
-    'Fulfilled': '<span class="badge badge-s">✓ Fulfilled</span>',
-    'Cancelled': '<span class="badge badge-d">Cancelled</span>'
-  };
-  return map[status] || `<span class="badge badge-i">${status || 'Pending'}</span>`;
-}
-
-function openPreorderModal(preorder = null) {
-  let m = document.getElementById('preorderModal');
-  if (m) m.remove();
-  
-  document.body.insertAdjacentHTML('beforeend', `
-    <div class="modal-overlay" id="preorderModal"><div class="modal" style="max-width:600px">
-      <div class="modal-hdr">
-        <h3><i class="fas fa-clipboard-list" style="color:var(--warning);margin-right:6px"></i>${preorder ? 'Edit' : 'New'} Pre-Order</h3>
-        <button class="modal-close" onclick="closeModal('preorderModal')">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div style="background:rgba(245,158,11,.08);padding:10px 12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:11.5px;color:var(--text-sec)">
-          <i class="fas fa-lightbulb" style="color:var(--warning)"></i>
-          Log a customer's request for an out-of-stock or unavailable item. Notify them via WhatsApp when ready.
-        </div>
-        <div class="fg">
-          <div class="form-group">
-            <label>Customer *</label>
-            <select class="fc" id="poCustomer" onchange="onPreorderCustChange()">
-              <option value="">Walk-in / Quick Entry</option>
-              ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(c => `<option value="${c.ID}" data-name="${esc(c.Name)}" data-phone="${c.Phone||''}" ${c.ID === preorder?.CustomerID ? 'selected' : ''}>${esc(c.Name)} (${c.Phone||''})</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Customer Name *</label>
-            <input class="fc" id="poName" value="${esc(preorder?.CustomerName || '')}">
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>Customer Phone</label>
-            <input class="fc" id="poPhone" value="${esc(formatPhoneBD(preorder?.CustomerPhone || ''))}" placeholder="017-1234-5678">
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>Product Wanted *</label>
-            <input class="fc" id="poProduct" value="${esc(preorder?.ProductName || '')}" placeholder="Type product name or pick from list below" list="poProductList">
-            <datalist id="poProductList">
-              ${smartSort([...S.inventory]).map(p => `<option value="${esc(p.ProductName)}${p.Size ? ' — Size ' + p.Size : ''}">`).join('')}
-            </datalist>
-            <small style="color:var(--text-muted);font-size:11px;margin-top:4px;display:block">💡 Start typing to see matching products, or type a custom name</small>
-          </div>
-          <div class="form-group">
-            <label>Size</label>
-            <select class="fc" id="poSize">
-              <option value="">Any/Not Specified</option>
-              ${SIZES.map(s => `<option ${s === preorder?.Size ? 'selected' : ''}>${s}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Quantity</label>
-            <input type="number" class="fc" id="poQty" value="${preorder?.Quantity || 1}" min="1">
-          </div>
-          <div class="form-group">
-            <label>Status</label>
-            <select class="fc" id="poStatus">
-              <option value="Pending" ${preorder?.Status === 'Pending' ? 'selected' : ''}>Pending</option>
-              <option value="Ordered" ${preorder?.Status === 'Ordered' ? 'selected' : ''}>Ordered from Supplier</option>
-              <option value="Received" ${preorder?.Status === 'Received' ? 'selected' : ''}>Received - Ready</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Expected Date</label>
-            <input type="date" class="fc" id="poExpected" value="${preorder?.ExpectedDate || ''}">
-          </div>
-          <div class="form-group" style="grid-column:1/-1">
-            <label>Notes</label>
-            <textarea class="fc" id="poNotes" rows="2" placeholder="Color preference, alternatives, etc.">${esc(preorder?.Notes || '')}</textarea>
-          </div>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button class="btn btn-outline" onclick="closeModal('preorderModal')">Cancel</button>
-        <button class="btn btn-primary" onclick="savePreorder('${preorder?.ID || ''}')"><i class="fas fa-save"></i>Save</button>
-      </div>
-    </div></div>
-  `);
-  openModal('preorderModal');
-  setTimeout(() => bindPhoneFormatter('poPhone'), 50);
-}
-
-function onPreorderCustChange() {
-  const sel = document.getElementById('poCustomer');
-  const opt = sel.selectedOptions[0];
-  if (opt && opt.value) {
-    document.getElementById('poName').value = opt.dataset.name || '';
-    document.getElementById('poPhone').value = formatPhoneBD(opt.dataset.phone || '');
-  }
-}
-
-async function savePreorder(id) {
-  const custSel = document.getElementById('poCustomer');
-  const data = {
-    ID: id,
-    CustomerID: custSel.value,
-    CustomerName: document.getElementById('poName').value.trim(),
-    CustomerPhone: document.getElementById('poPhone').value.trim(),
-    ProductName: document.getElementById('poProduct').value.trim(),
-    Size: document.getElementById('poSize').value,
-    Quantity: Number(document.getElementById('poQty').value) || 1,
-    Status: document.getElementById('poStatus').value,
-    ExpectedDate: document.getElementById('poExpected').value,
-    Notes: document.getElementById('poNotes').value.trim()
-  };
-  
-  if (!data.CustomerName) { toast('Customer name required', 'error'); return; }
-  if (!data.ProductName) { toast('Product name required', 'error'); return; }
-  
-  const r = await apiPost(id ? 'updatePreorder' : 'addPreorder', data);
-  if (r.success) {
-    toast(id ? 'Updated!' : 'Pre-order saved!');
-    closeModal('preorderModal');
-    renderPage('preorders');
-  }
-}
-
-async function fulfillPreorder(id, custName, phone, product) {
-  if (!confirm(`Mark this pre-order as fulfilled?\n\n${custName} — ${product}\n\nThis will:\n• Mark status as Fulfilled\n• Open WhatsApp to notify the customer`)) return;
-  
-  const r = await apiPost('updatePreorder', { ID: id, Status: 'Fulfilled', FulfilledDate: new Date().toISOString() });
-  if (r.success) {
-    toast(`✓ Marked fulfilled for ${custName}`);
-    // Open WhatsApp
-    notifyPreorder(custName, phone, product);
-    renderPage('preorders');
-  }
-}
-
-function notifyPreorder(name, phone, product) {
-  const cleanPhone = unformatPhone(phone);
-  if (!cleanPhone) { toast('No phone number to notify', 'warning'); return; }
-  const waPhone = cleanPhone.startsWith('0') ? '88' + cleanPhone : cleanPhone;
-  const businessName = S.settings.businessName || 'Fan Field';
-  const message = encodeURIComponent(`Hi ${name}! 🎉\n\nGreat news! The jersey you requested is now available:\n\n*${product}*\n\nPlease visit us or reply to confirm your order. Thank you for your patience!\n\n— ${businessName}`);
-  window.open(`https://wa.me/${waPhone}?text=${message}`, '_blank');
-}
-
-async function cancelPreorder(id) {
-  if (!confirm('Cancel this pre-order?')) return;
-  const r = await apiPost('updatePreorder', { ID: id, Status: 'Cancelled' });
-  if (r.success) { toast('Cancelled'); renderPage('preorders'); }
-}
-
-async function deletePreorder(id) {
-  if (!confirm('Delete this pre-order permanently?')) return;
-  const r = await apiPost('deletePreorder', { ID: id });
-  if (r.success) { toast('Deleted'); renderPage('preorders'); }
-}
-
-async function checkPendingPreorders() {
-  try {
-    const preorders = await apiGet('getPreorders');
-    const active = (preorders || []).filter(p => p.Status === 'Received' || p.Status === 'Pending');
-    const badge = document.getElementById('preorderBadge');
-    if (badge) {
-      if (active.length > 0) {
-        badge.style.display = '';
-        badge.textContent = active.length;
-      } else {
-        badge.style.display = 'none';
-      }
-    }
-  } catch (e) {}
-}
-
 // ============================================================
 // STOCK HISTORY — Full log of all stock changes
 // ============================================================
@@ -6744,7 +6382,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   S.customers = await apiGet('getCustomers');
   S.sales = await apiGet('getSales');
   renderPage('search');
-  checkPendingPreorders();
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
 </script>
