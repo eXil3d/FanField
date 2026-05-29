@@ -3770,10 +3770,59 @@ async function submitSale(){
   const items=[];document.querySelectorAll('#posItems tr').forEach(tr=>{const sel=tr.querySelector('.pos-prod');if(!sel.value)return;const opt=sel.selectedOptions[0];const isCustomization=sel.value==='__CUSTOMIZATION__';items.push({ProductID:isCustomization?'':sel.value,Club_Country:opt.dataset.club,Edition:opt.dataset.ed,Type:isCustomization?'Service':opt.dataset.type,Size:opt.dataset.size,Quantity:tr.querySelector('.pos-qty').value,UnitPrice:tr.querySelector('.pos-price').value,CostPrice:tr.querySelector('.pos-cost').value,Patch:tr.querySelector('.pos-patch').checked,PatchPrice:tr.querySelector('.pos-patchprice').value,NamePrint:tr.querySelector('.pos-nameprint').value,NamePrintPrice:tr.querySelector('.pos-nameprice').value,IsCustomizationService:isCustomization,ServiceName:isCustomization?'Bring-your-own jersey customization':''})});
   if(!items.length){toast('Add items','error');return}
   const custSel=document.getElementById('posCust');const custOpt=custSel.selectedOptions[0];
+
+  // Booking conversion context (if this sale originated from a booking)
+  const bkCtx = window._convertBookingContext;
+
   const payload={CustomerID:custSel.value,CustomerName:custOpt?(custOpt.dataset.name||custOpt.textContent):'Walk-in Customer',CustomerPhone:document.getElementById('posCustPhone').value,Items:items,TotalAmount:document.getElementById('posSub').value,Discount:document.getElementById('posDisc').value,AffiliateCode:document.getElementById('posAffCode').value,AffiliateDiscount:document.getElementById('posAffDisc').value,VoucherCode:document.getElementById('posVchCode').value,VoucherDiscount:document.getElementById('posVchDisc').value,DeliveryType:document.getElementById('posDel').value,DeliveryCharge:document.getElementById('posDelCharge').value,DeliveryAddress:document.getElementById('posDelAddr')?.value||'',PaidAmount:document.getElementById('posPaid').value,PaymentMethod:document.getElementById('posPayM').value,Notes:document.getElementById('posNotes').value};
-  if(!confirm(`Complete sale of ${C()}${document.getElementById('posTotal').value}?`))return;
+
+  // Tell the backend this sale fulfills a booking so it can mark it converted
+  if (bkCtx && bkCtx.bookingId) {
+    payload.FromBookingID = bkCtx.bookingId;
+    payload.FromBookingNumber = bkCtx.bookingNumber;
+  }
+
+  const confirmMsg = bkCtx
+    ? `Complete sale of ${C()}${document.getElementById('posTotal').value} and convert booking ${bkCtx.bookingNumber}?`
+    : `Complete sale of ${C()}${document.getElementById('posTotal').value}?`;
+  if(!confirm(confirmMsg))return;
+
   const r=await apiPost('createSale',payload);
-  if(r.success){toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);showInvoice(r.invoiceNo,payload,items);clearPOS();S.inventory=await apiGet('getInventory')}
+  if(r.success){
+    toast(`Sale done! ${r.invoiceNo} | Profit: ${C()}${r.profit}${r.commission?' | Comm: '+C()+r.commission:''}`);
+
+    // If this was a booking conversion, finalize the booking server-side
+    if (bkCtx && bkCtx.bookingId) {
+      await finalizeBookingConversion(bkCtx.bookingId, r.invoiceNo);
+      window._convertBookingContext = null;
+      const banner = document.getElementById('bookingConvBanner');
+      if (banner) banner.remove();
+    }
+
+    showInvoice(r.invoiceNo,payload,items);
+    clearPOS();
+    S.inventory=await apiGet('getInventory');
+  }
+}
+
+// Marks the booking as completed/partial & links the invoice after a POS conversion.
+// Uses the existing backend action so reserved stock is released correctly.
+async function finalizeBookingConversion(bookingId, invoiceNo) {
+  try {
+    const r = await apiPost('markBookingConverted', {
+      BookingID: bookingId,
+      LinkedInvoiceNo: invoiceNo
+    });
+    if (r && r.success) {
+      // Refresh bookings cache so the Bookings page reflects the new status
+      S.bookings = await apiGet('getBookings');
+    } else if (r && r.error) {
+      console.warn('Booking finalize warning:', r.error);
+    }
+  } catch (e) {
+    console.error('finalizeBookingConversion failed', e);
+    toast('Sale completed, but booking status update failed. Update it manually.', 'warning');
+  }
 }
 
 
@@ -6859,60 +6908,154 @@ async function cancelBookingConfirm(bookingId) {
   if (r.success) { toast('Booking cancelled'); S.bookings = await apiGet('getBookings'); openBookingDetail(bookingId); }
 }
 
-// ---- Convert to Sale ----
+// ---- Convert to Sale — now uses the FULL POS page ----
 async function openConvertBookingModal(bookingId) {
   const res = await apiGet('getBooking', { bookingId });
-  if (!res.success) return;
+  if (!res.success) { toast('Booking not found', 'error'); return; }
   const { booking: b, items } = res;
   const reserved = items.filter(i => Number(i.ReservedQty) > 0);
-  if (!reserved.length) { toast('No reserved items. Restock first before converting.', 'warning'); return; }
-  const c = C();
-  const subtotal = reserved.reduce((s,i)=>s+Number(i.UnitPrice)*Number(i.ReservedQty),0);
+  if (!reserved.length) {
+    toast('No reserved items. Restock first before converting.', 'warning');
+    return;
+  }
+
   const backordered = items.filter(i => Number(i.BackorderedQty) > 0);
 
-  let m = document.getElementById('convertBkModal'); if (m) m.remove();
-  document.body.insertAdjacentHTML('beforeend', `
-    <div class="modal-overlay" id="convertBkModal"><div class="modal" style="max-width:600px">
-      <div class="modal-hdr"><h3><i class="fas fa-cash-register" style="color:var(--secondary);margin-right:6px"></i>Convert ${esc(b.BookingNumber)} to Sale</h3><button class="modal-close" onclick="closeModal('convertBkModal')">&times;</button></div>
-      <div class="modal-body">
-        <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
-          Selling <strong>${reserved.length}</strong> reserved item(s) for <strong>${esc(b.CustomerName)}</strong>.
-          ${backordered.length?`<br><span style="color:var(--warning)">⚠️ ${backordered.length} backordered item(s) will remain on this booking (a new partial booking is kept).</span>`:''}
-        </div>
-        <div class="tbl-wrap"><table>
-          <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
-          <tbody>${reserved.map(i=>`<tr><td>${esc(i.ProductName)}</td><td>${i.ReservedQty}</td><td>${c}${Number(i.UnitPrice).toLocaleString()}</td><td>${c}${(Number(i.UnitPrice)*Number(i.ReservedQty)).toLocaleString()}</td></tr>`).join('')}</tbody>
-        </table></div>
-        <div class="fg" style="margin-top:14px;max-width:400px;margin-left:auto">
-          <div class="form-group"><label>Subtotal</label><input class="fc" value="${c}${subtotal.toLocaleString()}" readonly></div>
-          <div class="form-group"><label>Discount</label><input type="number" class="fc" id="cvDisc" value="0"></div>
-          <div class="form-group"><label>Payment Method</label><select class="fc" id="cvPayM">${makeOptions(PAY_METHODS)}</select></div>
-          <div class="form-group"><label>Paid Amount</label><input type="number" class="fc" id="cvPaid" value="${subtotal}"></div>
-        </div>
-      </div>
-      <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('convertBkModal')">Cancel</button>
-      <button class="btn btn-success" onclick="submitConvertBooking('${bookingId}')"><i class="fas fa-check"></i>Complete Sale</button></div>
-    </div></div>`);
-  openModal('convertBkModal');
+  // Confirm with the user what will be loaded
+  let msg = `Load ${reserved.length} reserved item(s) for "${b.CustomerName}" into the POS?\n\n`;
+  msg += `You'll be able to add patches, name prints, vouchers, affiliate codes, delivery charges, and discounts — just like a normal sale.\n`;
+  if (backordered.length) {
+    msg += `\n⚠️ ${backordered.length} backordered item(s) will stay on this booking.`;
+  }
+  msg += `\n\nContinue?`;
+  if (!confirm(msg)) return;
+
+  // Stash the booking context so submitSale() can finalize the booking afterwards
+  window._convertBookingContext = {
+    bookingId: b.BookingID,
+    bookingNumber: b.BookingNumber,
+    customerId: b.CustomerID || '',
+    customerName: b.CustomerName || 'Walk-in Customer',
+    customerPhone: b.CustomerPhone || '',
+    reservedItems: reserved,
+    hasBackorders: backordered.length > 0
+  };
+
+  // Close the booking detail modal if open
+  const m = document.getElementById('convertBkModal'); if (m) m.remove();
+
+  // Jump to POS and load the booking items
+  await nav('pos');
+  setTimeout(() => loadBookingIntoPOS(window._convertBookingContext), 450);
 }
 
-async function submitConvertBooking(bookingId) {
-  const r = await apiPost('convertBookingToSale', {
-    BookingID: bookingId,
-    Discount: document.getElementById('cvDisc').value,
-    PaymentMethod: document.getElementById('cvPayM').value,
-    PaidAmount: document.getElementById('cvPaid').value
-  });
-  if (r.success) {
-    toast(`Sale created: ${r.invoiceNo}`);
-    closeModal('convertBkModal');
-    S.bookings = await apiGet('getBookings');
-    S.inventory = [];
-    renderPage('bookings');
-    setTimeout(() => { if (confirm('View the invoice?')) viewInvoice(r.invoiceNo); }, 300);
-  } else {
-    toast(r.error || 'Conversion failed', 'error');
+// Loads the reserved booking items into the POS page rows + customer fields
+function loadBookingIntoPOS(ctx) {
+  const custSelect = document.getElementById('posCust');
+  const phoneInput = document.getElementById('posCustPhone');
+  const itemsBody = document.getElementById('posItems');
+
+  if (!custSelect || !itemsBody) {
+    toast('POS not ready, please try again', 'error');
+    return;
   }
+
+  // --- Select the customer in the dropdown ---
+  let custFound = false;
+  if (ctx.customerId) {
+    for (let i = 0; i < custSelect.options.length; i++) {
+      if (custSelect.options[i].value === ctx.customerId) {
+        custSelect.selectedIndex = i;
+        custFound = true;
+        break;
+      }
+    }
+  }
+  if (!custFound) custSelect.selectedIndex = 0; // Walk-in
+  if (phoneInput) phoneInput.value = ctx.customerPhone || '';
+
+  // --- Clear existing POS rows and add one per reserved item ---
+  itemsBody.innerHTML = '';
+
+  ctx.reservedItems.forEach(it => {
+    addPOSRow();
+    const rows = itemsBody.querySelectorAll('tr');
+    const tr = rows[rows.length - 1];
+    const sel = tr.querySelector('.pos-prod');
+
+    // Try to select the matching product in the dropdown
+    let prodFound = false;
+    for (let i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value === it.ProductID) {
+        sel.selectedIndex = i;
+        prodFound = true;
+        break;
+      }
+    }
+
+    if (prodFound) {
+      onPOSProdChange(sel); // fills price/cost from product
+    }
+
+    // Override price with the booking's locked-in unit price
+    const priceInput = tr.querySelector('.pos-price');
+    if (priceInput && it.UnitPrice != null) priceInput.value = Number(it.UnitPrice) || 0;
+
+    // Set the reserved quantity
+    const qtyInput = tr.querySelector('.pos-qty');
+    if (qtyInput) qtyInput.value = Number(it.ReservedQty) || 1;
+  });
+
+  calcPOSTotal();
+
+  // Visual confirmation
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  custSelect.style.transition = 'all 0.3s';
+  custSelect.style.boxShadow = '0 0 0 3px rgba(16,185,129,.3)';
+  custSelect.style.borderColor = 'var(--secondary)';
+  setTimeout(() => {
+    custSelect.style.boxShadow = '';
+    custSelect.style.borderColor = '';
+  }, 1800);
+
+  // Show a persistent banner so the user knows this sale is linked to a booking
+  showBookingConversionBanner(ctx);
+
+  toast(`Booking ${ctx.bookingNumber} loaded — customize & complete the sale`, 'info');
+}
+
+// A dismissible banner at the top of the POS indicating an active booking conversion
+function showBookingConversionBanner(ctx) {
+  // Remove any existing banner first
+  const old = document.getElementById('bookingConvBanner');
+  if (old) old.remove();
+
+  const posCard = document.querySelector('#contentArea .card .card-body');
+  if (!posCard) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'bookingConvBanner';
+  banner.style.cssText = 'margin-bottom:16px;padding:12px 16px;background:rgba(16,185,129,.1);border-left:3px solid var(--secondary);border-radius:8px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap';
+  banner.innerHTML = `
+    <div style="font-size:12.5px;color:var(--text-sec)">
+      <i class="fas fa-calendar-check" style="color:var(--secondary);margin-right:6px"></i>
+      Converting booking <strong style="color:var(--text)">${esc(ctx.bookingNumber)}</strong> for <strong style="color:var(--text)">${esc(ctx.customerName)}</strong>.
+      ${ctx.hasBackorders ? '<br><span style="color:var(--warning)">⚠️ Backordered items will remain on the booking.</span>' : ''}
+      <br><span style="color:var(--text-muted);font-size:11px">Add patches, name prints, vouchers, affiliate codes & delivery as needed, then Complete Sale.</span>
+    </div>
+    <button class="btn btn-outline btn-sm" onclick="cancelBookingConversion()" style="white-space:nowrap">
+      <i class="fas fa-times"></i> Cancel Conversion
+    </button>
+  `;
+  posCard.insertBefore(banner, posCard.firstChild);
+}
+
+function cancelBookingConversion() {
+  window._convertBookingContext = null;
+  const banner = document.getElementById('bookingConvBanner');
+  if (banner) banner.remove();
+  clearPOS();
+  toast('Booking conversion cancelled', 'info');
 }
   
 // INIT — Open Search page by default
