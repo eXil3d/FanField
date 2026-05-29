@@ -5276,7 +5276,7 @@ async function submitPartialReturn(saleId, invoiceNo) {
 }
 
 // ============================================================
-// EXCHANGE & REPLACE — Return items + create replacement sale in ONE step
+// EXCHANGE & REPLACE — Modifies the ORIGINAL invoice in-place (no new invoice created)
 // ============================================================
 async function openExchangeReplaceModal(saleId, invoiceNo) {
   const items = await apiGet('getSalesItems', { invoiceNo });
@@ -5310,8 +5310,9 @@ async function openExchangeReplaceModal(saleId, invoiceNo) {
         <button class="modal-close" onclick="closeModal('exchangeModal')">&times;</button>
       </div>
       <div class="modal-body">
-        <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
-          <i class="fas fa-info-circle" style="color:var(--secondary)"></i>
+        <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+          <i class="fas fa-exclamation-triangle" style="color:var(--warning)"></i>
+          <strong style="color:var(--warning)">This will modify invoice ${invoiceNo} directly</strong> — no new invoice will be created.<br>
           <strong>Customer:</strong> ${esc(sale.CustomerName || 'Walk-in')} ${sale.CustomerPhone ? '— ' + esc(sale.CustomerPhone) : ''}<br>
           Step 1: Select items being <strong>returned</strong>. Step 2: Select <strong>replacement</strong> items. Stock auto-adjusts both ways.
         </div>
@@ -5337,7 +5338,7 @@ async function openExchangeReplaceModal(saleId, invoiceNo) {
               let mods = [];
               if (item.Patch === 'Yes') mods.push('Patch');
               if (item.NamePrint) mods.push('Name: ' + item.NamePrint);
-              return `<tr data-idx="${idx}" data-itemid="${item.ID}" data-productid="${item.ProductID || ''}" data-productname="${esc(item.ProductName || '')}" data-edition="${esc(item.Edition || '')}" data-unitprice="${up}" data-costprice="${item.CostPrice || 0}" data-modperunit="${modPerUnit}" data-qtysold="${qty}">
+              return `<tr data-idx="${idx}" data-itemid="${item.ID}" data-productid="${item.ProductID || ''}" data-productname="${esc(item.ProductName || '')}" data-edition="${esc(item.Edition || '')}" data-unitprice="${up}" data-costprice="${item.CostPrice || 0}" data-modperunit="${modPerUnit}" data-qtysold="${qty}" data-patch="${item.Patch || ''}" data-patchprice="${item.PatchPrice || 0}" data-nameprint="${esc(item.NamePrint || '')}" data-namepriceprice="${item.NamePrintPrice || 0}">
                 <td><input type="checkbox" class="cb ex-chk" onchange="onExchangeReturnToggle(this)"></td>
                 <td><strong>${esc(item.ProductName || '-')}</strong></td>
                 <td>${item.Size || '-'}</td>
@@ -5398,7 +5399,7 @@ async function openExchangeReplaceModal(saleId, invoiceNo) {
         
         <div style="margin-top:20px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
           <button class="btn btn-outline" onclick="closeModal('exchangeModal')"><i class="fas fa-times"></i>Cancel</button>
-          <button class="btn btn-success btn-lg" onclick="submitExchangeReplace()"><i class="fas fa-check-circle"></i>Process Exchange</button>
+          <button class="btn btn-success btn-lg" id="exSubmitBtn" onclick="submitExchangeReplace()"><i class="fas fa-check-circle"></i>Process Exchange</button>
         </div>
       </div>
     </div></div>`);
@@ -5547,7 +5548,11 @@ async function submitExchangeReplace() {
       ReturnQty: retQty,
       UnitPrice: Number(tr.dataset.unitprice) || 0,
       CostPrice: Number(tr.dataset.costprice) || 0,
-      ModPerUnit: Number(tr.dataset.modperunit) || 0
+      ModPerUnit: Number(tr.dataset.modperunit) || 0,
+      Patch: tr.dataset.patch || '',
+      PatchPrice: Number(tr.dataset.patchprice) || 0,
+      NamePrint: tr.dataset.nameprint || '',
+      NamePrintPrice: Number(tr.dataset.namepriceprice) || 0
     });
   });
   
@@ -5559,6 +5564,7 @@ async function submitExchangeReplace() {
     const opt = sel.selectedOptions[0];
     replaceItems.push({
       ProductID: sel.value,
+      ProductName: opt.dataset.name || '',
       Club_Country: opt.dataset.club,
       Edition: opt.dataset.ed,
       Type: opt.dataset.type,
@@ -5583,18 +5589,29 @@ async function submitExchangeReplace() {
   const extraDisc = Number(document.getElementById('exExtraDisc').value) || 0;
   const difference = (replaceTotal - extraDisc) - returnCredit;
   
-  let confirmMsg = `Confirm Exchange & Replace?\n\n`;
+  // UPDATED: Confirmation now clearly states this MODIFIES the original invoice
+  let confirmMsg = `⚠️ This will MODIFY invoice ${ctx.invoiceNo} directly.\n`;
+  confirmMsg += `No new invoice will be created.\n\n`;
   confirmMsg += `📤 Returning: ${returnItems.length} item type(s) (${returnItems.reduce((s,i)=>s+i.ReturnQty,0)} units)\n`;
-  confirmMsg += `📥 Replacement: ${replaceItems.length} item type(s)\n`;
+  confirmMsg += `📥 Replacing with: ${replaceItems.length} item type(s)\n`;
   confirmMsg += `💰 Return Credit: ${c}${returnCredit.toLocaleString()}\n`;
-  confirmMsg += `🛒 Replacement: ${c}${replaceTotal.toLocaleString()}\n`;
+  confirmMsg += `🛒 Replacement Total: ${c}${replaceTotal.toLocaleString()}\n`;
   if (extraDisc > 0) confirmMsg += `🎟 Extra Discount: ${c}${extraDisc.toLocaleString()}\n`;
   
-  if (difference > 0) confirmMsg += `\n⬇️ Customer pays: ${c}${difference.toLocaleString()}`;
+  if (difference > 0) confirmMsg += `\n⬇️ Customer pays extra: ${c}${difference.toLocaleString()}`;
   else if (difference < 0) confirmMsg += `\n⬆️ Refund customer: ${c}${Math.abs(difference).toLocaleString()}`;
   else confirmMsg += `\n⚖️ Even exchange — no money changes hands`;
   
+  confirmMsg += `\n\nContinue?`;
+  
   if (!confirm(confirmMsg)) return;
+  
+  // Disable button to prevent double-submission
+  const submitBtn = document.getElementById('exSubmitBtn');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+  }
   
   const r = await apiPost('exchangeAndReplace', {
     SaleID: ctx.saleId,
@@ -5611,22 +5628,30 @@ async function submitExchangeReplace() {
   });
   
   if (r.success) {
-    let msg = `Exchange complete! `;
-    if (r.newInvoiceNo) msg += `New invoice: ${r.newInvoiceNo}. `;
-    if (r.settlement > 0) msg += `Customer paid: ${c}${r.settlement.toLocaleString()}`;
-    else if (r.settlement < 0) msg += `Refund: ${c}${Math.abs(r.settlement).toLocaleString()}`;
-    else msg += `Even exchange`;
+    // UPDATED: r.invoiceNo is the same invoice (just modified), not a new one
+    let msg = `✓ Invoice ${r.invoiceNo || ctx.invoiceNo} updated! `;
+    if (r.settlement > 0) msg += `Customer paid ${c}${r.settlement.toLocaleString()} extra.`;
+    else if (r.settlement < 0) msg += `Refunded ${c}${Math.abs(r.settlement).toLocaleString()}.`;
+    else msg += `Even exchange.`;
     toast(msg);
     closeModal('exchangeModal');
     
-    // Optionally show the new invoice
-    if (r.newInvoiceNo && confirm('Show replacement invoice?')) {
-      viewInvoice(r.newInvoiceNo);
-    }
-    
+    // Refresh data
     S.sales = await apiGet('getSales');
     S.inventory = await apiGet('getInventory');
     filterSL();
+    
+    // Show the updated invoice
+    if (confirm('Show updated invoice?')) {
+      viewInvoice(r.invoiceNo || ctx.invoiceNo);
+    }
+  } else {
+    // Re-enable button on error
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<i class="fas fa-check-circle"></i>Process Exchange';
+    }
+    toast(r.error || 'Exchange failed', 'error');
   }
 }
   
