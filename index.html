@@ -639,6 +639,7 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
       <div class="nav-item" data-page="sales"><i class="fas fa-receipt"></i>Sales Ledger</div>
       <div class="nav-item" data-page="delivery"><i class="fas fa-truck-fast"></i>Delivery</div>
       <div class="nav-item" data-page="customers"><i class="fas fa-users"></i>Customers</div>
+      <div class="nav-item" data-page="bookings"><i class="fas fa-calendar-check"></i>Bookings<span class="nav-badge" id="bookBadge" style="display:none">0</span></div>
       <div class="nav-item" data-page="payments"><i class="fas fa-money-bill-wave"></i>Pending Payments<span class="nav-badge" id="pendBadge" style="display:none">0</span></div>
     </div>
     <div class="nav-section">
@@ -701,7 +702,7 @@ const SIZE_ORDER={'S':1,'M':2,'L':3,'XL':4,'2XL':5,'3XL':6,'4XL':7,'5XL':8};
 const TYPE_ORDER={'Home':1,'Away':2,'Third':3,'Retro':4,'GK':5,'Terrace':6,'Training':7,'Training':8};
 const EDITION_ORDER={'Player Edition':1,'Player Edition Full Sleeve':2,'Fan Edition':3,'Fan Edition Full Sleeve':4,'Special Edition':5,'BD Premium':6};
 
-let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],settings:{},dashboard:null,currency:'৳'};
+let S={inventory:[],customers:[],sales:[],payments:[],suppliers:[],supplierLedger:[],expenses:[],affiliates:[],vouchers:[],deliveries:[],commissions:[],bookings:[],settings:{},dashboard:null,currency:'৳'};
 let currentPage='inventory';
 let invSortCol='smart',invSortDir='asc';
 
@@ -773,7 +774,8 @@ function fabAction() {
     expenses: () => openExpModal(),
     affiliates: () => openAffModal(),
     vouchers: () => openVchModal(),
-    sales: () => openManualSaleModal()
+    sales: () => openManualSaleModal(),
+    bookings: () => openBookingModal()
   };
   fabActions[currentPage]?.();
 }
@@ -781,7 +783,7 @@ function fabAction() {
 function updateFAB() {
   const fab = document.getElementById('fabBtn');
   if (!fab) return;
-  const showOn = ['inventory', 'customers', 'suppliers', 'expenses', 'affiliates', 'vouchers', 'sales'];
+  const showOn = ['inventory', 'customers', 'suppliers', 'expenses', 'affiliates', 'vouchers', 'sales','bookings'];
   fab.style.display = (showOn.includes(currentPage) && window.innerWidth <= 768) ? 'flex' : 'none';
 }
 
@@ -791,7 +793,7 @@ const _origNav = nav;
 nav = function(page) { _origNav(page); setTimeout(updateFAB, 100); };
   
 // NAV
-const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
+const pgInfo={search:['Search','Find anything fast — Ctrl+K'],dashboard:['Dashboard','Overview of your business'],inventory:['Inventory','Manage products & stock'],pos:['New Sale / POS','Create sale & generate invoice'],sales:['Sales Ledger','All sales transactions'],bookings:['Bookings','Customer reservations & stock holds'],delivery:['Delivery Management','Track shipments & deliveries'],customers:['Customers','Customer database'],payments:['Pending Payments','Track & receive payments'],suppliers:['Suppliers','Manage suppliers'],stockHistory:['Stock History','Complete inventory change log'],expenses:['Expenses','Business expenses'],adjustments:['Adjustments Report','All sale price adjustments & audit trail'],affiliates:['Affiliates','Affiliate codes, commissions & payouts'],vouchers:['Vouchers','Voucher/coupon management'],settings:['Settings','Business configuration']};
 function nav(page) {
   currentPage = page;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -815,7 +817,7 @@ async function renderPage(page){
   const area=document.getElementById('contentArea');
   area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
   try{switch(page){
-    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
+    case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'bookings':await renderBookings(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
 }
 // ============================================================
@@ -6372,6 +6374,414 @@ async function formatAllPhoneNumbers() {
     S.sales = [];
   } else {
     toast('Migration failed: ' + (r.error || 'Unknown error'), 'error');
+  }
+}
+
+// ============================================================
+// BOOKINGS — Customer Reservation System
+// ============================================================
+let _selectedBookingId = null;
+let _bookingFilter = 'all';
+
+async function renderBookings(area) {
+  S.bookings = await apiGet('getBookings');
+  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+  const stats = await apiGet('getBookingStats');
+  const c = C();
+
+  // Update sidebar badge
+  const restockCount = stats.needRestocking + stats.partialBookings;
+  const badge = document.getElementById('bookBadge');
+  if (badge) {
+    if (restockCount > 0) { badge.style.display = ''; badge.textContent = restockCount; }
+    else badge.style.display = 'none';
+  }
+
+  area.innerHTML = `
+    <div class="stats-grid">
+      ${statCard('fa-calendar-check','blue',String(stats.activeBookings),'Active Bookings')}
+      ${statCard('fa-triangle-exclamation','orange',String(stats.needRestocking),'Need Restocking')}
+      ${statCard('fa-box','purple',c+stats.reservedStockValue.toLocaleString(),'Reserved Stock Value')}
+      ${statCard('fa-check-circle','green',String(stats.convertedToday),'Converted Today')}
+      ${statCard('fa-ban','red',String(stats.cancelledBookings),'Cancelled')}
+    </div>
+    <div style="display:grid;grid-template-columns:380px 1fr;gap:18px;align-items:start" id="bookLayout">
+      <!-- LEFT PANEL -->
+      <div class="card">
+        <div class="card-hdr">
+          <div class="toolbar" style="width:100%">
+            <div class="search-box"><i class="fas fa-search"></i><input type="text" id="bkSrch" placeholder="Customer, phone, B-number..." oninput="filterBookingList()"></div>
+            <button class="btn btn-primary btn-sm" onclick="openBookingModal()"><i class="fas fa-plus"></i></button>
+          </div>
+        </div>
+        <div style="padding:10px 14px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--border)">
+          ${['all','Active','Need Restocking','Partial','Completed','Cancelled'].map(f =>
+            `<button class="btn btn-outline btn-sm bk-filter${_bookingFilter===f?' active-bk':''}" data-f="${f}" onclick="setBookingFilter('${f}')">${f==='all'?'All':f}</button>`
+          ).join('')}
+        </div>
+        <div class="card-body np"><div id="bkList" style="max-height:600px;overflow-y:auto"></div></div>
+      </div>
+      <!-- RIGHT PANEL -->
+      <div class="card" id="bkDetailCard">
+        <div class="card-body" id="bkDetail">
+          <div style="padding:50px 20px;text-align:center;color:var(--text-muted)">
+            <i class="fas fa-hand-pointer" style="font-size:32px;opacity:.4;margin-bottom:12px"></i>
+            <div>Select a booking to view details</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>.bk-filter.active-bk{background:var(--primary-light);color:var(--primary);border-color:var(--primary)}</style>
+  `;
+
+  filterBookingList();
+  if (_selectedBookingId) openBookingDetail(_selectedBookingId);
+}
+
+function setBookingFilter(f) {
+  _bookingFilter = f;
+  document.querySelectorAll('.bk-filter').forEach(b => b.classList.toggle('active-bk', b.dataset.f === f));
+  filterBookingList();
+}
+
+function bookingStatusBadge(s) {
+  const m = {
+    'Active':'badge-s','Partial':'badge-i','Need Restocking':'badge-w',
+    'Completed':'badge-p','Cancelled':'badge-cancelled','Draft':'badge-i','Expired':'badge-d'
+  };
+  return `<span class="badge ${m[s]||'badge-i'}">${s}</span>`;
+}
+
+function filterBookingList() {
+  const srch = document.getElementById('bkSrch')?.value || '';
+  let data = S.bookings.filter(b => {
+    const mf = _bookingFilter === 'all' || b.Status === _bookingFilter;
+    const ms = flexMatch(srch, [b.CustomerName, b.BookingNumber, b.Notes], [b.CustomerPhone]);
+    return mf && ms;
+  });
+  const el = document.getElementById('bkList');
+  if (!el) return;
+  if (!data.length) {
+    el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">No bookings</div>';
+    return;
+  }
+  el.innerHTML = data.map(b => `
+    <div onclick="openBookingDetail('${b.BookingID}')" style="padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;${_selectedBookingId===b.BookingID?'background:var(--surface-hover)':''}" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='${_selectedBookingId===b.BookingID?'var(--surface-hover)':''}'">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-size:13.5px;font-weight:700">${esc(b.CustomerName)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(b.BookingNumber)} • ${b.itemCount} item${b.itemCount!==1?'s':''}</div>
+        </div>
+        <div style="text-align:right">${bookingStatusBadge(b.Status)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openBookingDetail(bookingId) {
+  _selectedBookingId = bookingId;
+  filterBookingList();
+  const res = await apiGet('getBooking', { bookingId });
+  if (!res.success) { toast('Booking not found', 'error'); return; }
+  const { booking: b, items, timeline } = res;
+  const c = C();
+  const isClosed = b.Status === 'Completed' || b.Status === 'Cancelled';
+
+  document.getElementById('bkDetail').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:6px">
+      <div>
+        <h2 style="font-size:20px;font-weight:800">${esc(b.CustomerName)}</h2>
+        <div style="font-size:12px;color:var(--text-muted)">${esc(b.CustomerPhone||'-')} ${b.CustomerPhone?'':''}</div>
+      </div>
+      ${bookingStatusBadge(b.Status)}
+    </div>
+    <div style="font-size:13px;color:var(--text-sec);margin-bottom:4px"><strong>${esc(b.BookingNumber)}</strong> • ${fmtD(b.BookingDate)} • Priority: <span class="badge badge-p">${b.Priority||'Normal'}</span></div>
+    ${Number(b.DepositAmount)>0?`<div style="font-size:12px;color:var(--secondary);margin-bottom:8px">Deposit Paid: ${c}${Number(b.DepositAmount).toLocaleString()}</div>`:''}
+
+    <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <h4 style="font-size:13px;font-weight:700">Products</h4>
+      ${!isClosed?`<button class="btn btn-outline btn-sm" onclick="openAddBookingItemModal('${b.BookingID}')"><i class="fas fa-plus"></i> Add Item</button>`:''}
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Product</th><th>Req</th><th>Reserved</th><th>Backorder</th><th>Price</th><th>Status</th>${!isClosed?'<th></th>':''}</tr></thead>
+      <tbody>
+        ${items.map(it => `<tr>
+          <td><strong>${esc(it.ProductName||'-')}</strong><br><small style="color:var(--text-muted)">${esc(it.Size||'')}</small></td>
+          <td>${it.RequestedQty}</td>
+          <td style="color:var(--secondary);font-weight:600">${it.ReservedQty}</td>
+          <td style="color:${Number(it.BackorderedQty)>0?'var(--warning)':'inherit'};font-weight:${Number(it.BackorderedQty)>0?'700':'400'}">${it.BackorderedQty}</td>
+          <td>${c}${Number(it.UnitPrice).toLocaleString()}</td>
+          <td><span class="badge ${it.Status==='Reserved'?'badge-s':it.Status==='Partial'?'badge-i':it.Status==='Sold'?'badge-p':'badge-w'}">${it.Status}</span></td>
+          ${!isClosed?`<td><div class="btn-group">
+            <button class="btn btn-outline btn-sm" onclick="editBookingItemQty('${it.BookingItemID}',${it.RequestedQty})" title="Edit qty"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-danger btn-sm" onclick="removeBookingItemConfirm('${it.BookingItemID}')" title="Remove"><i class="fas fa-trash"></i></button>
+          </div></td>`:''}
+        </tr>`).join('')}
+      </tbody>
+    </table></div>
+
+    ${b.Notes?`<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px"><strong>Customer Notes:</strong> ${esc(b.Notes)}</div>`:''}
+    ${b.InternalNotes?`<div style="margin-top:8px;padding:10px;background:rgba(245,158,11,.08);border-left:3px solid var(--warning);border-radius:8px;font-size:12px"><strong>Internal:</strong> ${esc(b.InternalNotes)}</div>`:''}
+
+    <h4 style="font-size:13px;font-weight:700;margin:16px 0 8px">Timeline</h4>
+    <div style="max-height:200px;overflow-y:auto;padding-left:6px;border-left:2px solid var(--border)">
+      ${timeline.map(t => `<div style="padding:6px 0 6px 12px;position:relative">
+        <div style="position:absolute;left:-7px;top:10px;width:8px;height:8px;border-radius:50%;background:var(--primary)"></div>
+        <div style="font-size:12px;color:var(--text)">${esc(t.Description)}</div>
+        <div style="font-size:10px;color:var(--text-muted)">${fmtD(t.CreatedAt)} ${new Date(t.CreatedAt).toLocaleTimeString()}</div>
+      </div>`).join('') || '<div style="padding:10px;color:var(--text-muted);font-size:12px">No activity</div>'}
+    </div>
+
+    <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap">
+      ${!isClosed?`
+        <button class="btn btn-success" onclick="openConvertBookingModal('${b.BookingID}')"><i class="fas fa-cash-register"></i> Convert to Sale</button>
+        <button class="btn btn-outline" onclick="openBookingModal('${b.BookingID}')"><i class="fas fa-pen"></i> Edit</button>
+        <button class="btn btn-danger" onclick="cancelBookingConfirm('${b.BookingID}')"><i class="fas fa-ban"></i> Cancel</button>
+      `:`
+        ${b.LinkedInvoiceNo?`<button class="btn btn-primary" onclick="viewInvoice('${b.LinkedInvoiceNo}')"><i class="fas fa-file-invoice"></i> View Invoice ${esc(b.LinkedInvoiceNo)}</button>`:''}
+        <span style="font-size:12px;color:var(--text-muted);align-self:center">This booking is ${b.Status.toLowerCase()}.</span>
+      `}
+    </div>
+  `;
+}
+
+// ---- Create / Edit Booking modal ----
+async function openBookingModal(bookingId = '') {
+  if (!S.inventory.length) S.inventory = await apiGet('getInventoryWithReserved');
+  else S.inventory = await apiGet('getInventoryWithReserved'); // refresh availability
+  if (!S.customers.length) S.customers = await apiGet('getCustomers');
+
+  let existing = null;
+  if (bookingId) {
+    const r = await apiGet('getBooking', { bookingId });
+    if (r.success) existing = r.booking;
+  }
+
+  let m = document.getElementById('bookingModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="bookingModal"><div class="modal" style="max-width:760px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-calendar-check" style="color:var(--primary);margin-right:6px"></i>${existing?'Edit':'New'} Booking</h3>
+        <button class="modal-close" onclick="closeModal('bookingModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="fg">
+          <div class="form-group" style="grid-column:1/-1">
+            <label>Customer</label>
+            <select class="fc" id="bkCust" onchange="onBookingCustChange()">
+              <option value="">Walk-in Customer</option>
+              ${[...S.customers].sort((a,b)=>String(a.Name||'').localeCompare(String(b.Name||''))).map(cu=>`<option value="${cu.ID}" data-name="${esc(cu.Name)}" data-phone="${cu.Phone||''}" ${existing&&existing.CustomerID===cu.ID?'selected':''}>${esc(cu.Name)} (${cu.Phone||''})</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>Phone</label><input class="fc" id="bkPhone" value="${esc(existing?.CustomerPhone||'')}"></div>
+          <div class="form-group"><label>Priority</label><select class="fc" id="bkPriority">${makeOptions(['Normal','High','VIP','Urgent'], existing?.Priority||'Normal')}</select></div>
+          <div class="form-group"><label>Deposit Paid (${C()})</label><input type="number" class="fc" id="bkDeposit" value="${existing?.DepositAmount||0}"></div>
+          <div class="form-group" style="grid-column:1/-1"><label>Customer Notes</label><input class="fc" id="bkNotes" value="${esc(existing?.Notes||'')}"></div>
+          <div class="form-group" style="grid-column:1/-1"><label>Internal Notes (not on invoice)</label><input class="fc" id="bkInternal" value="${esc(existing?.InternalNotes||'')}"></div>
+        </div>
+        ${existing?'':`
+          <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <h4 style="font-size:12px;font-weight:700">Products to Book</h4>
+            <button type="button" class="btn btn-outline btn-sm" onclick="addBookingRow()"><i class="fas fa-plus"></i> Add</button>
+          </div>
+          <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product (Available)</th><th>Price</th><th>Qty</th><th></th></tr></thead><tbody id="bkItems"></tbody></table></div>
+        `}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('bookingModal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveBooking('${existing?.BookingID||''}')"><i class="fas fa-save"></i>${existing?'Update':'Create Booking'}</button>
+      </div>
+    </div></div>`);
+  openModal('bookingModal');
+  if (!existing) addBookingRow();
+}
+
+function onBookingCustChange() {
+  const sel = document.getElementById('bkCust');
+  const phone = sel.selectedOptions[0]?.dataset.phone || '';
+  document.getElementById('bkPhone').value = phone;
+}
+
+function addBookingRow() {
+  const tbody = document.getElementById('bkItems');
+  if (!tbody) return;
+  const products = smartSort([...S.inventory]);
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td><select class="bk-prod" onchange="onBookingProdChange(this)">
+      <option value="">Select</option>
+      ${products.map(p=>{const avail=(Number(p.AvailableQty)!==undefined?Number(p.AvailableQty):Number(p.Stock)-Number(p.ReservedQty||0));return`<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-avail="${avail}">${esc(p.ProductName)} [Avail: ${avail}]</option>`}).join('')}
+    </select></td>
+    <td><input type="number" class="bk-price" value="0" style="width:80px"></td>
+    <td><input type="number" class="bk-qty" value="1" min="1" style="width:55px"></td>
+    <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-times"></i></button></td>`;
+  tbody.appendChild(tr);
+}
+
+function onBookingProdChange(sel) {
+  const tr = sel.closest('tr');
+  const opt = sel.selectedOptions[0];
+  if (opt && opt.value) tr.querySelector('.bk-price').value = opt.dataset.price || 0;
+}
+
+async function saveBooking(bookingId) {
+  const sel = document.getElementById('bkCust');
+  const opt = sel.selectedOptions[0];
+  const header = {
+    CustomerID: sel.value,
+    CustomerName: opt ? (opt.dataset.name || 'Walk-in Customer') : 'Walk-in Customer',
+    CustomerPhone: document.getElementById('bkPhone').value,
+    Priority: document.getElementById('bkPriority').value,
+    DepositAmount: document.getElementById('bkDeposit').value,
+    Notes: document.getElementById('bkNotes').value,
+    InternalNotes: document.getElementById('bkInternal').value
+  };
+
+  if (bookingId) {
+    const r = await apiPost('updateBooking', { BookingID: bookingId, ...header });
+    if (r.success) { toast('Booking updated!'); closeModal('bookingModal'); renderPage('bookings'); }
+    return;
+  }
+
+  // New booking — collect items
+  const items = [];
+  document.querySelectorAll('#bkItems tr').forEach(tr => {
+    const ps = tr.querySelector('.bk-prod');
+    if (!ps.value) return;
+    const o = ps.selectedOptions[0];
+    items.push({
+      ProductID: ps.value, ProductName: o.dataset.name,
+      Club_Country: o.dataset.club, Edition: o.dataset.ed, Type: o.dataset.type, Size: o.dataset.size,
+      RequestedQty: tr.querySelector('.bk-qty').value,
+      UnitPrice: tr.querySelector('.bk-price').value,
+      CostPrice: o.dataset.cost
+    });
+  });
+  if (!items.length) { toast('Add at least one product', 'error'); return; }
+
+  const r = await apiPost('createBooking', { ...header, Items: items });
+  if (r.success) {
+    toast(`Booking ${r.bookingNumber} created (${r.status})`);
+    closeModal('bookingModal');
+    _selectedBookingId = r.bookingId;
+    renderPage('bookings');
+  }
+}
+
+// ---- Add single item to existing booking ----
+async function openAddBookingItemModal(bookingId) {
+  S.inventory = await apiGet('getInventoryWithReserved');
+  const products = smartSort([...S.inventory]);
+  let m = document.getElementById('addBkItemModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="addBkItemModal"><div class="modal" style="max-width:500px">
+      <div class="modal-hdr"><h3>Add Product to Booking</h3><button class="modal-close" onclick="closeModal('addBkItemModal')">&times;</button></div>
+      <div class="modal-body"><div class="fg">
+        <div class="form-group" style="grid-column:1/-1"><label>Product</label>
+          <select class="fc" id="abProd" onchange="onAddBkProdChange()">
+            <option value="">Select</option>
+            ${products.map(p=>{const avail=Number(p.AvailableQty);return`<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}">${esc(p.ProductName)} [Avail: ${avail}]</option>`}).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Quantity</label><input type="number" class="fc" id="abQty" value="1" min="1"></div>
+        <div class="form-group"><label>Unit Price</label><input type="number" class="fc" id="abPrice" value="0"></div>
+      </div></div>
+      <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('addBkItemModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddBookingItem('${bookingId}')"><i class="fas fa-plus"></i>Add</button></div>
+    </div></div>`);
+  openModal('addBkItemModal');
+}
+function onAddBkProdChange(){const o=document.getElementById('abProd').selectedOptions[0];if(o&&o.value)document.getElementById('abPrice').value=o.dataset.price||0;}
+async function submitAddBookingItem(bookingId) {
+  const sel = document.getElementById('abProd');
+  if (!sel.value) { toast('Select a product', 'error'); return; }
+  const o = sel.selectedOptions[0];
+  const r = await apiPost('addBookingItem', {
+    BookingID: bookingId, ProductID: sel.value, ProductName: o.dataset.name,
+    Club_Country: o.dataset.club, Edition: o.dataset.ed, Type: o.dataset.type, Size: o.dataset.size,
+    RequestedQty: document.getElementById('abQty').value,
+    UnitPrice: document.getElementById('abPrice').value, CostPrice: o.dataset.cost
+  });
+  if (r.success) { toast('Item added'); closeModal('addBkItemModal'); S.bookings = await apiGet('getBookings'); openBookingDetail(bookingId); }
+}
+
+async function editBookingItemQty(itemId, currentQty) {
+  const val = prompt('New quantity:', currentQty);
+  if (val === null) return;
+  const q = Number(val);
+  if (!q || q <= 0) { toast('Invalid quantity', 'error'); return; }
+  const r = await apiPost('updateBookingItemQty', { BookingItemID: itemId, NewQty: q });
+  if (r.success) { toast('Updated'); S.bookings = await apiGet('getBookings'); openBookingDetail(_selectedBookingId); }
+}
+
+async function removeBookingItemConfirm(itemId) {
+  if (!confirm('Remove this item? Reserved stock will be released.')) return;
+  const r = await apiPost('removeBookingItem', { BookingItemID: itemId });
+  if (r.success) { toast('Item removed'); S.bookings = await apiGet('getBookings'); openBookingDetail(_selectedBookingId); }
+}
+
+async function cancelBookingConfirm(bookingId) {
+  if (!confirm('Cancel this booking?\n\n• All reserved stock will be released\n• Backorders removed\n• Booking kept in history')) return;
+  const r = await apiPost('cancelBooking', { BookingID: bookingId });
+  if (r.success) { toast('Booking cancelled'); S.bookings = await apiGet('getBookings'); openBookingDetail(bookingId); }
+}
+
+// ---- Convert to Sale ----
+async function openConvertBookingModal(bookingId) {
+  const res = await apiGet('getBooking', { bookingId });
+  if (!res.success) return;
+  const { booking: b, items } = res;
+  const reserved = items.filter(i => Number(i.ReservedQty) > 0);
+  if (!reserved.length) { toast('No reserved items. Restock first before converting.', 'warning'); return; }
+  const c = C();
+  const subtotal = reserved.reduce((s,i)=>s+Number(i.UnitPrice)*Number(i.ReservedQty),0);
+  const backordered = items.filter(i => Number(i.BackorderedQty) > 0);
+
+  let m = document.getElementById('convertBkModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="convertBkModal"><div class="modal" style="max-width:600px">
+      <div class="modal-hdr"><h3><i class="fas fa-cash-register" style="color:var(--secondary);margin-right:6px"></i>Convert ${esc(b.BookingNumber)} to Sale</h3><button class="modal-close" onclick="closeModal('convertBkModal')">&times;</button></div>
+      <div class="modal-body">
+        <div style="background:rgba(16,185,129,.08);padding:12px;border-radius:8px;border-left:3px solid var(--secondary);margin-bottom:14px;font-size:12px;color:var(--text-sec)">
+          Selling <strong>${reserved.length}</strong> reserved item(s) for <strong>${esc(b.CustomerName)}</strong>.
+          ${backordered.length?`<br><span style="color:var(--warning)">⚠️ ${backordered.length} backordered item(s) will remain on this booking (a new partial booking is kept).</span>`:''}
+        </div>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Product</th><th>Qty</th><th>Price</th><th>Total</th></tr></thead>
+          <tbody>${reserved.map(i=>`<tr><td>${esc(i.ProductName)}</td><td>${i.ReservedQty}</td><td>${c}${Number(i.UnitPrice).toLocaleString()}</td><td>${c}${(Number(i.UnitPrice)*Number(i.ReservedQty)).toLocaleString()}</td></tr>`).join('')}</tbody>
+        </table></div>
+        <div class="fg" style="margin-top:14px;max-width:400px;margin-left:auto">
+          <div class="form-group"><label>Subtotal</label><input class="fc" value="${c}${subtotal.toLocaleString()}" readonly></div>
+          <div class="form-group"><label>Discount</label><input type="number" class="fc" id="cvDisc" value="0"></div>
+          <div class="form-group"><label>Payment Method</label><select class="fc" id="cvPayM">${makeOptions(PAY_METHODS)}</select></div>
+          <div class="form-group"><label>Paid Amount</label><input type="number" class="fc" id="cvPaid" value="${subtotal}"></div>
+        </div>
+      </div>
+      <div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('convertBkModal')">Cancel</button>
+      <button class="btn btn-success" onclick="submitConvertBooking('${bookingId}')"><i class="fas fa-check"></i>Complete Sale</button></div>
+    </div></div>`);
+  openModal('convertBkModal');
+}
+
+async function submitConvertBooking(bookingId) {
+  const r = await apiPost('convertBookingToSale', {
+    BookingID: bookingId,
+    Discount: document.getElementById('cvDisc').value,
+    PaymentMethod: document.getElementById('cvPayM').value,
+    PaidAmount: document.getElementById('cvPaid').value
+  });
+  if (r.success) {
+    toast(`Sale created: ${r.invoiceNo}`);
+    closeModal('convertBkModal');
+    S.bookings = await apiGet('getBookings');
+    S.inventory = [];
+    renderPage('bookings');
+    setTimeout(() => { if (confirm('View the invoice?')) viewInvoice(r.invoiceNo); }, 300);
+  } else {
+    toast(r.error || 'Conversion failed', 'error');
   }
 }
   
