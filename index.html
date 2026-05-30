@@ -2853,7 +2853,7 @@ async function saveProduct(id) {
     if (r.success) {
       toast('Product updated!');
       closeModal('productModal');
-      await afterProductSaved(id); // pass the edited product's ID
+      await afterProductSaved([id]); // wrap in array for consistency
     }
     return;
   }
@@ -2913,7 +2913,7 @@ async function saveProduct(id) {
   
 // Save each variant as a separate product
   let ok = 0, failed = 0;
-  let firstNewId = '';
+  let newProductIds = [];
   for (const v of variants) {
     const r = await apiPost('addProduct', {
       ...base,
@@ -2924,7 +2924,7 @@ async function saveProduct(id) {
     });
     if (r.success) {
       ok++;
-      if (!firstNewId && r.id) firstNewId = r.id; // remember the first created variant
+      if (r.id) newProductIds.push(r.id); // collect every created variant's ID
     } else failed++;
   }
   
@@ -2945,8 +2945,12 @@ async function saveProduct(id) {
 
 // Decides what to do after a product is created/edited via openProductModal().
 // If the Booking modal is open, refresh inventory & rebuild its product dropdowns,
-// then auto-add a new booking row with the just-created product pre-selected.
-async function afterProductSaved(newProductId = '') {
+// then auto-add one new booking row per just-created product/variant.
+async function afterProductSaved(newProductIds = []) {
+  // Normalize: accept a single ID string or an array of IDs
+  if (typeof newProductIds === 'string') newProductIds = newProductIds ? [newProductIds] : [];
+  if (!Array.isArray(newProductIds)) newProductIds = [];
+
   const bookingModalOpen = document.getElementById('bookingModal')?.classList.contains('active');
 
   // Always refresh the shared inventory cache so new products are available everywhere
@@ -2954,9 +2958,14 @@ async function afterProductSaved(newProductId = '') {
 
   if (bookingModalOpen) {
     refreshBookingProductDropdowns();
-    if (newProductId) {
-      addBookingRowWithProduct(newProductId);
-      toast('Product added & dropped into a new booking row', 'success');
+
+    if (newProductIds.length) {
+      let added = 0;
+      newProductIds.forEach(pid => {
+        if (addBookingRowWithProduct(pid)) added++;
+      });
+      const n = added;
+      toast(`Added ${n} new variant${n !== 1 ? 's' : ''} into booking row${n !== 1 ? 's' : ''}`, 'success');
     } else {
       toast('Product added — now available in the booking list', 'info');
     }
@@ -2996,15 +3005,16 @@ function buildBookingProductOptions(products) {
 }
 
 // Adds a fresh booking row and pre-selects the given product (auto-fills price).
+// Returns true if the product was found & selected, false otherwise.
 function addBookingRowWithProduct(productId) {
   const tbody = document.getElementById('bkItems');
-  if (!tbody) return;
+  if (!tbody) return false;
 
   addBookingRow(); // creates the row using S.inventory (already refreshed)
   const rows = tbody.querySelectorAll('tr');
   const tr = rows[rows.length - 1];
   const sel = tr.querySelector('.bk-prod');
-  if (!sel) return;
+  if (!sel) return false;
 
   // Select the new product if it exists in the options
   let found = false;
@@ -3024,8 +3034,8 @@ function addBookingRowWithProduct(productId) {
     setTimeout(() => { tr.style.background = ''; }, 1500);
     tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
-}
-  
+  return found;
+}  
 // ============================================================
 // DEAD STOCK — Save monthly snapshot
 // ============================================================
