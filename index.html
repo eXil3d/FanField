@@ -6667,6 +6667,16 @@ async function renderBookings(area) {
   const stats = await apiGet('getBookingStats');
   const c = C();
 
+  // ── Aggregate ALL backordered (need-restock) units across every booking ──
+  // We fetch each non-closed booking's items and sum BackorderedQty per product.
+  const restockMap = await buildRestockMap();          // { ProductID: {productData, units, bookings:Set} }
+  const restockList = Object.values(restockMap);
+  const totalRestockUnits = restockList.reduce((s, r) => s + r.units, 0);
+  const restockProductCount = restockList.length;
+  // Stash globally so the modal can read it without re-fetching
+  window._restockData = restockList;
+  window._restockTotalUnits = totalRestockUnits;
+
   // Update sidebar badge
   const restockCount = stats.needRestocking + stats.partialBookings;
   const badge = document.getElementById('bookBadge');
@@ -6675,10 +6685,20 @@ async function renderBookings(area) {
     else badge.style.display = 'none';
   }
 
+  // Clickable restock card (only clickable when there's something to show)
+  const restockCardClickable = totalRestockUnits > 0;
+  const restockCard = `
+    <div class="stat-card" ${restockCardClickable ? `onclick="openRestockNeededModal()" style="cursor:pointer"` : ''} title="${restockCardClickable ? 'Click to see all products that need restocking' : 'Nothing needs restocking'}">
+      <div class="stat-hdr"><div class="stat-icon red"><i class="fas fa-cubes-stacked"></i></div></div>
+      <div class="stat-val">${totalRestockUnits}</div>
+      <div class="stat-label">Units to Restock${restockProductCount > 0 ? ` (${restockProductCount} product${restockProductCount !== 1 ? 's' : ''})` : ''}</div>
+    </div>`;
+
   area.innerHTML = `
     <div class="stats-grid">
       ${statCard('fa-calendar-check','blue',String(stats.activeBookings),'Active Bookings')}
-      ${statCard('fa-triangle-exclamation','orange',String(stats.needRestocking),'Need Restocking')}
+      ${statCard('fa-triangle-exclamation','orange',String(stats.needRestocking),'Bookings Need Restocking')}
+      ${restockCard}
       ${statCard('fa-box','purple',c+stats.reservedStockValue.toLocaleString(),'Reserved Stock Value')}
       ${statCard('fa-check-circle','green',String(stats.convertedToday),'Converted Today')}
       ${statCard('fa-ban','red',String(stats.cancelledBookings),'Cancelled')}
@@ -6714,6 +6734,135 @@ async function renderBookings(area) {
 
   filterBookingList();
   if (_selectedBookingId) openBookingDetail(_selectedBookingId);
+}
+
+// ── Build a map of products that need restocking from ALL open bookings ──
+// Returns { [ProductID]: { productData, units, bookings: Set<bookingNumber> } }
+async function buildRestockMap() {
+  // Only open bookings can have backorders worth restocking for
+  const openBookings = (S.bookings || []).filter(
+    b => b.Status !== 'Completed' && b.Status !== 'Cancelled'
+  );
+
+  // Make sure we have inventory to enrich product info & enable smart sort
+  if (!S.inventory.length) {
+    S.inventory = await apiGet('getInventoryWithReserved');
+  }
+  const invById = {};
+  (S.inventory || []).forEach(p => { invById[p.ID] = p; });
+
+  // Fetch the items for each open booking (in parallel)
+  const detailResults = await Promise.all(
+    openBookings.map(b => apiGet('getBooking', { bookingId: b.BookingID }).catch(() => null))
+  );
+
+  const map = {};
+  detailResults.forEach(res => {
+    if (!res || !res.success) return;
+    const booking = res.booking;
+    (res.items || []).forEach(it => {
+      const backorder = Number(it.BackorderedQty) || 0;
+      if (backorder <= 0) return;
+      const pid = it.ProductID || ('__' + (it.ProductName || 'unknown'));
+      if (!map[pid]) {
+        // Prefer the live inventory record (full fields for smart sort);
+        // fall back to the booking item's own fields.
+        const invRec = invById[it.ProductID];
+        map[pid] = {
+          ProductID: it.ProductID || '',
+          ProductName: it.ProductName || (invRec ? invRec.ProductName : '-'),
+          Club_Country: invRec ? invRec.Club_Country : (it.Club_Country || ''),
+          Edition: invRec ? invRec.Edition : (it.Edition || ''),
+          Type: invRec ? invRec.Type : (it.Type || ''),
+          Size: invRec ? invRec.Size : (it.Size || ''),
+          physicalStock: invRec ? (Number(invRec.Stock) || 0) : null,
+          reservedStock: invRec ? (Number(invRec.ReservedQty) || 0) : null,
+          units: 0,
+          bookings: new Set()
+        };
+      }
+      map[pid].units += backorder;
+      map[pid].bookings.add(booking.BookingNumber);
+    });
+  });
+
+  return map;
+}
+
+// ── Modal listing all products that need restocking (smart sorted) ──
+function openRestockNeededModal() {
+  const list = window._restockData || [];
+  const totalUnits = window._restockTotalUnits || 0;
+  const c = C();
+
+  if (!list.length) {
+    toast('Nothing needs restocking right now', 'info');
+    return;
+  }
+
+  // Smart sort exactly like the Inventory page (Club → Type → Edition → Size)
+  const sorted = smartSort(list);
+
+  let m = document.getElementById('restockNeededModal');
+  if (m) m.remove();
+
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="restockNeededModal"><div class="modal" style="max-width:900px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-cubes-stacked" style="color:var(--danger);margin-right:6px"></i>Products Needing Restock</h3>
+        <button class="modal-close" onclick="closeModal('restockNeededModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(239,68,68,.08);padding:12px;border-radius:8px;border-left:3px solid var(--danger);margin-bottom:14px;font-size:12.5px;color:var(--text-sec);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+          <div>
+            <i class="fas fa-triangle-exclamation" style="color:var(--danger)"></i>
+            These products have <strong>backordered</strong> units across active bookings and must be restocked to fulfill them.
+          </div>
+          <div style="font-size:13px;font-weight:700;color:var(--danger);white-space:nowrap">
+            ${totalUnits} unit${totalUnits !== 1 ? 's' : ''} • ${sorted.length} product${sorted.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        <div class="tbl-wrap"><table>
+          <thead><tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Club</th>
+            <th>Edition</th>
+            <th>Type</th>
+            <th>Size</th>
+            <th>Units Needed</th>
+            <th>Physical Stock</th>
+            <th>Bookings</th>
+            <th>Action</th>
+          </tr></thead>
+          <tbody>
+            ${sorted.map((r, idx) => {
+              const bookingList = [...r.bookings].join(', ');
+              const physical = (r.physicalStock !== null) ? r.physicalStock : '—';
+              return `<tr>
+                <td><strong>${idx + 1}</strong></td>
+                <td><strong>${esc(r.ProductName)}</strong>${r.ProductID ? `<br><small style="color:var(--text-muted)">${esc(r.ProductID)}</small>` : ''}</td>
+                <td>${r.Club_Country ? `<span class="badge badge-i">${esc(r.Club_Country)}</span>` : '-'}</td>
+                <td>${esc(r.Edition || '-')}</td>
+                <td>${esc(r.Type || '-')}</td>
+                <td>${esc(r.Size || '-')}</td>
+                <td><strong style="font-size:14px;color:var(--danger)">${r.units}</strong></td>
+                <td>${physical}</td>
+                <td style="font-size:11px;color:var(--text-muted)">${esc(bookingList)}</td>
+                <td>${r.ProductID ? `<button class="btn btn-success btn-sm" onclick="closeModal('restockNeededModal');openStockModal('${r.ProductID}',${r.physicalStock !== null ? r.physicalStock : 0})" title="Restock this product"><i class="fas fa-cubes"></i> Restock</button>` : '<span style="color:var(--text-faint);font-size:11px">N/A</span>'}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('restockNeededModal')">Close</button>
+      </div>
+    </div></div>
+  `);
+
+  openModal('restockNeededModal');
 }
 
 function setBookingFilter(f) {
