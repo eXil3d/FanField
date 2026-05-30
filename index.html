@@ -2853,7 +2853,7 @@ async function saveProduct(id) {
     if (r.success) {
       toast('Product updated!');
       closeModal('productModal');
-      renderPage('inventory');
+      await afterProductSaved(id); // pass the edited product's ID
     }
     return;
   }
@@ -2911,8 +2911,9 @@ async function saveProduct(id) {
     saveBtn.innerHTML = '<div class="spinner"></div> Saving...';
   }
   
-  // Save each variant as a separate product
+// Save each variant as a separate product
   let ok = 0, failed = 0;
+  let firstNewId = '';
   for (const v of variants) {
     const r = await apiPost('addProduct', {
       ...base,
@@ -2921,7 +2922,10 @@ async function saveProduct(id) {
       CostPrice: v.CostPrice,
       SellPrice: v.SellPrice
     });
-    if (r.success) ok++; else failed++;
+    if (r.success) {
+      ok++;
+      if (!firstNewId && r.id) firstNewId = r.id; // remember the first created variant
+    } else failed++;
   }
   
   if (ok > 0) {
@@ -2929,13 +2933,96 @@ async function saveProduct(id) {
     if (failed > 0) msg += ` (${failed} failed)`;
     toast(msg, failed > 0 ? 'warning' : 'success');
     closeModal('productModal');
-    renderPage('inventory');
+    await afterProductSaved(firstNewId); // auto-use the first new variant in a booking row
   } else {
     toast('Failed to add product variants', 'error');
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.innerHTML = '<i class="fas fa-save"></i>Save';
     }
+  }
+}
+
+// Decides what to do after a product is created/edited via openProductModal().
+// If the Booking modal is open, refresh inventory & rebuild its product dropdowns,
+// then auto-add a new booking row with the just-created product pre-selected.
+async function afterProductSaved(newProductId = '') {
+  const bookingModalOpen = document.getElementById('bookingModal')?.classList.contains('active');
+
+  // Always refresh the shared inventory cache so new products are available everywhere
+  S.inventory = await apiGet('getInventoryWithReserved');
+
+  if (bookingModalOpen) {
+    refreshBookingProductDropdowns();
+    if (newProductId) {
+      addBookingRowWithProduct(newProductId);
+      toast('Product added & dropped into a new booking row', 'success');
+    } else {
+      toast('Product added — now available in the booking list', 'info');
+    }
+    return;
+  }
+
+  // Default behavior (Inventory page or anywhere else)
+  renderPage('inventory');
+}
+
+// Rebuilds the product <select> options in every existing booking row,
+// preserving each row's current selection, price and qty.
+function refreshBookingProductDropdowns() {
+  const tbody = document.getElementById('bkItems');
+  if (!tbody) return;
+
+  const products = smartSort([...S.inventory]);
+  const optionsHTML = buildBookingProductOptions(products);
+
+  tbody.querySelectorAll('tr').forEach(tr => {
+    const sel = tr.querySelector('.bk-prod');
+    if (!sel) return;
+    const prevVal = sel.value;          // remember current selection
+    sel.innerHTML = optionsHTML;        // rebuild with the new product included
+    if (prevVal) sel.value = prevVal;   // restore previous selection if still valid
+  });
+}
+
+// Shared option-builder so addBookingRow & refresh stay in sync
+function buildBookingProductOptions(products) {
+  return `<option value="">Select</option>` + products.map(p => {
+    const avail = (p.AvailableQty !== undefined)
+      ? Number(p.AvailableQty)
+      : (Number(p.Stock) - Number(p.ReservedQty || 0));
+    return `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-avail="${avail}">${esc(p.ProductName)} [Avail: ${avail}]</option>`;
+  }).join('');
+}
+
+// Adds a fresh booking row and pre-selects the given product (auto-fills price).
+function addBookingRowWithProduct(productId) {
+  const tbody = document.getElementById('bkItems');
+  if (!tbody) return;
+
+  addBookingRow(); // creates the row using S.inventory (already refreshed)
+  const rows = tbody.querySelectorAll('tr');
+  const tr = rows[rows.length - 1];
+  const sel = tr.querySelector('.bk-prod');
+  if (!sel) return;
+
+  // Select the new product if it exists in the options
+  let found = false;
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === productId) {
+      sel.selectedIndex = i;
+      found = true;
+      break;
+    }
+  }
+
+  if (found) {
+    onBookingProdChange(sel); // auto-fills the unit price from the option's data-price
+    // Brief highlight so the user sees the new row
+    tr.style.transition = 'background .3s';
+    tr.style.background = 'rgba(16,185,129,.12)';
+    setTimeout(() => { tr.style.background = ''; }, 1500);
+    tr.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
   
@@ -6726,7 +6813,10 @@ async function openBookingModal(bookingId = '') {
           <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <h4 style="font-size:12px;font-weight:700">Products to Book</h4>
-            <button type="button" class="btn btn-outline btn-sm" onclick="addBookingRow()"><i class="fas fa-plus"></i> Add</button>
+            <div class="btn-group">
+              <button type="button" class="btn btn-success btn-sm" onclick="openProductModal()" title="Create a brand-new product (same as Inventory page)"><i class="fas fa-box"></i> New Product</button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addBookingRow()"><i class="fas fa-plus"></i> Add</button>
+            </div>
           </div>
           <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product (Available)</th><th>Price</th><th>Qty</th><th></th></tr></thead><tbody id="bkItems"></tbody></table></div>
         `}
@@ -6775,8 +6865,7 @@ function addBookingRow() {
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><select class="bk-prod" onchange="onBookingProdChange(this)">
-      <option value="">Select</option>
-      ${products.map(p=>{const avail=(Number(p.AvailableQty)!==undefined?Number(p.AvailableQty):Number(p.Stock)-Number(p.ReservedQty||0));return`<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-avail="${avail}">${esc(p.ProductName)} [Avail: ${avail}]</option>`}).join('')}
+      ${buildBookingProductOptions(products)}
     </select></td>
     <td><input type="number" class="bk-price" value="0" style="width:80px"></td>
     <td><input type="number" class="bk-qty" value="1" min="1" style="width:55px"></td>
