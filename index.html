@@ -6757,7 +6757,7 @@ async function renderBookings(area) {
 }
 
 // ── Build a map of products that need restocking from ALL open bookings ──
-// Returns { [ProductID]: { productData, units, bookings: Set<bookingNumber> } }
+// Returns { [ProductID]: { productData, units, bookings: Map<bookingNumber,{customer,number}> } }
 async function buildRestockMap() {
   // Only open bookings can have backorders worth restocking for
   const openBookings = (S.bookings || []).filter(
@@ -6785,8 +6785,6 @@ async function buildRestockMap() {
       if (backorder <= 0) return;
       const pid = it.ProductID || ('__' + (it.ProductName || 'unknown'));
       if (!map[pid]) {
-        // Prefer the live inventory record (full fields for smart sort);
-        // fall back to the booking item's own fields.
         const invRec = invById[it.ProductID];
         map[pid] = {
           ProductID: it.ProductID || '',
@@ -6798,11 +6796,15 @@ async function buildRestockMap() {
           physicalStock: invRec ? (Number(invRec.Stock) || 0) : null,
           reservedStock: invRec ? (Number(invRec.ReservedQty) || 0) : null,
           units: 0,
-          bookings: new Set()
+          bookings: new Map()   // keyed by BookingNumber → { customer, number }
         };
       }
       map[pid].units += backorder;
-      map[pid].bookings.add(booking.BookingNumber);
+      // Store customer name alongside booking number (dedup by booking number)
+      map[pid].bookings.set(booking.BookingNumber, {
+        number: booking.BookingNumber,
+        customer: booking.CustomerName || '-'
+      });
     });
   });
 
@@ -6861,7 +6863,13 @@ function openRestockNeededModal() {
           </tr></thead>
           <tbody>
             ${sorted.map((r, idx) => {
-              const bookingList = [...r.bookings].join(', ');
+              const bookingEntries = [...r.bookings.values()];
+              const bookingCells = bookingEntries.map(b =>
+                `<div style="margin-bottom:4px;line-height:1.3">
+                  <span style="font-weight:600;color:var(--text)">${esc(b.customer)}</span><br>
+                  <small style="color:var(--text-muted)">${esc(b.number)}</small>
+                </div>`
+              ).join('');
               const physical = (r.physicalStock !== null) ? r.physicalStock : '—';
               return `<tr>
                 <td><strong>${idx + 1}</strong></td>
@@ -6872,7 +6880,7 @@ function openRestockNeededModal() {
                 <td>${esc(r.Size || '-')}</td>
                 <td><strong style="font-size:14px;color:var(--danger)">${r.units}</strong></td>
                 <td>${physical}</td>
-                <td style="font-size:11px;color:var(--text-muted)">${esc(bookingList)}</td>
+                <td style="font-size:11px">${bookingCells}</td>
                 <td>${r.ProductID ? `<button class="btn btn-success btn-sm" onclick="restockFromBookings('${r.ProductID}',${r.physicalStock !== null ? r.physicalStock : 0})" title="Restock this product"><i class="fas fa-cubes"></i> Restock</button>` : '<span style="color:var(--text-faint);font-size:11px">N/A</span>'}</td>
               </tr>`;
             }).join('')}
@@ -6928,7 +6936,7 @@ function downloadRestockCSV() {
     csvEsc(r.Size),
     r.units,
     (r.physicalStock !== null ? r.physicalStock : ''),
-    csvEsc([...r.bookings].join('; '))
+    csvEsc([...r.bookings.values()].map(b => `${b.customer} (${b.number})`).join('; '))
   ].join(','));
 
   const totalUnits = window._restockTotalUnits || 0;
