@@ -2976,7 +2976,7 @@ async function saveProduct(id) {
     if (failed > 0) msg += ` (${failed} failed)`;
     toast(msg, failed > 0 ? 'warning' : 'success');
     closeModal('productModal');
-    await afterProductSaved(firstNewId); // auto-use the first new variant in a booking row
+    await afterProductSaved(newProductIds); // pass the array of newly created variant IDs
   } else {
     toast('Failed to add product variants', 'error');
     if (saveBtn) {
@@ -2994,12 +2994,14 @@ async function afterProductSaved(newProductIds = []) {
   if (typeof newProductIds === 'string') newProductIds = newProductIds ? [newProductIds] : [];
   if (!Array.isArray(newProductIds)) newProductIds = [];
 
+  // Check if the booking modal is currently open (it stays open behind the product modal)
   const bookingModalOpen = document.getElementById('bookingModal')?.classList.contains('active');
 
   // Always refresh the shared inventory cache so new products are available everywhere
   S.inventory = await apiGet('getInventoryWithReserved');
 
   if (bookingModalOpen) {
+    // Rebuild every existing booking row's dropdown to include the new product(s)
     refreshBookingProductDropdowns();
 
     if (newProductIds.length) {
@@ -3007,18 +3009,22 @@ async function afterProductSaved(newProductIds = []) {
       newProductIds.forEach(pid => {
         if (addBookingRowWithProduct(pid)) added++;
       });
-      const n = added;
-      toast(`Added ${n} new variant${n !== 1 ? 's' : ''} into booking row${n !== 1 ? 's' : ''}`, 'success');
+      if (added > 0) {
+        toast(`Added ${added} new variant${added !== 1 ? 's' : ''} into booking row${added !== 1 ? 's' : ''}`, 'success');
+      } else {
+        toast('Product added — now available in the booking list', 'info');
+      }
     } else {
       toast('Product added — now available in the booking list', 'info');
     }
-    return;
+    return; // ⛔ Do NOT re-render the inventory page — booking modal must stay open
   }
 
-  // Default behavior (Inventory page or anywhere else)
+  // Default behavior (Inventory page or anywhere else): re-render inventory
   renderPage('inventory');
 }
 
+  
 // Rebuilds the product <select> options in every existing booking row,
 // preserving each row's current selection, price and qty.
 function refreshBookingProductDropdowns() {
