@@ -4965,21 +4965,87 @@ function downloadDeadStockCSV() {
 }
   
 // ============================================================
-// SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column)
+// SALES LEDGER (with reverse, partial reverse, summary, delivery status, payment method column, sortable headers, default sort = date newest first)
 // ============================================================
+
+let slSortCol = 'Date', slSortDir = 'desc';
+
 async function renderSales(area){
   S.sales=await apiGet('getSales');if(!S.customers.length)S.customers=await apiGet('getCustomers');
+  // Reset to default sort each time the page loads
+  slSortCol = 'Date'; slSortDir = 'desc';
   area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
     <div class="search-box"><i class="fas fa-search"></i><input type="text" id="slSrch" placeholder="Search..." oninput="filterSL()"></div>
     <select class="fc" style="width:auto" id="slStatus" onchange="filterSL()"><option value="">All</option><option value="Paid">Paid</option><option value="Partial">Partial</option><option value="Unpaid">Unpaid</option><option value="Cancelled">Cancelled</option></select>
     <button class="btn btn-primary btn-sm" onclick="openManualSaleModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Manual</span></button>
   </div></div><div class="card-body np"><div class="tbl-wrap" id="slTbl"></div></div></div>`;filterSL();
 }
+
+function slSortIcon(col){
+  if(slSortCol!==col)return'<i class="fas fa-sort" style="opacity:.3;margin-left:4px"></i>';
+  return slSortDir==='asc'?'<i class="fas fa-sort-up" style="color:var(--primary);margin-left:4px"></i>':'<i class="fas fa-sort-down" style="color:var(--primary);margin-left:4px"></i>';
+}
+
+function toggleSLSort(col){
+  if(slSortCol===col){
+    slSortDir = slSortDir==='asc' ? 'desc' : 'asc';
+  } else {
+    slSortCol = col;
+    // Sensible defaults: text columns asc, numeric/date desc
+    slSortDir = (col==='Date'||col==='FinalAmount'||col==='DueAmount') ? 'desc' : 'asc';
+  }
+  filterSL();
+}
+
+function slCompare(a,b){
+  const dir = slSortDir==='asc' ? 1 : -1;
+  let vA, vB;
+  switch(slSortCol){
+    case 'Date':
+      vA = new Date(a.Date).getTime() || 0;
+      vB = new Date(b.Date).getTime() || 0;
+      return (vA - vB) * dir;
+    case 'FinalAmount':
+      return (Number(a.FinalAmount||0) - Number(b.FinalAmount||0)) * dir;
+    case 'DueAmount':
+      return (Number(a.DueAmount||0) - Number(b.DueAmount||0)) * dir;
+    case 'InvoiceNo':
+      vA = String(a.InvoiceNo||''); vB = String(b.InvoiceNo||'');
+      // Natural-ish compare so FF-1009 < FF-1010
+      return vA.localeCompare(vB, undefined, {numeric:true}) * dir;
+    case 'PaymentMethod':
+      vA = String(a.PaymentMethod||'').toLowerCase(); vB = String(b.PaymentMethod||'').toLowerCase();
+      return vA.localeCompare(vB) * dir;
+    case 'Delivery':
+      vA = String(a.DeliveryStatus||a.DeliveryType||'').toLowerCase();
+      vB = String(b.DeliveryStatus||b.DeliveryType||'').toLowerCase();
+      return vA.localeCompare(vB) * dir;
+    case 'Status':
+      vA = String(a.Status||'').toLowerCase(); vB = String(b.Status||'').toLowerCase();
+      return vA.localeCompare(vB) * dir;
+    default:
+      return 0;
+  }
+}
+
 function filterSL(){
   const srch=(document.getElementById('slSrch')?.value||'').toLowerCase();const st=document.getElementById('slStatus')?.value||'';
   let data=S.sales.filter(s=>{const ms=!srch||(s.InvoiceNo||'').toLowerCase().includes(srch)||(s.CustomerName||'').toLowerCase().includes(srch);return ms&&(!st||s.Status===st)});
-  const sorted=[...data].reverse();const c=C();const el=document.getElementById('slTbl');
-  el.innerHTML=sorted.length?`<table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Method</th><th>Delivery</th><th>Status</th><th>Actions</th></tr></thead><tbody>${sorted.map(s=>{
+  // Apply sort (default: Date desc = latest first)
+  const sorted=[...data].sort(slCompare);
+  const c=C();const el=document.getElementById('slTbl');
+  el.innerHTML=sorted.length?`<table><thead><tr>
+    <th class="sortable" onclick="toggleSLSort('InvoiceNo')">Invoice ${slSortIcon('InvoiceNo')}</th>
+    <th class="sortable" onclick="toggleSLSort('Date')">Date ${slSortIcon('Date')}</th>
+    <th>Customer</th>
+    <th class="sortable" onclick="toggleSLSort('FinalAmount')">Total ${slSortIcon('FinalAmount')}</th>
+    <th>Paid</th>
+    <th class="sortable" onclick="toggleSLSort('DueAmount')">Due ${slSortIcon('DueAmount')}</th>
+    <th class="sortable" onclick="toggleSLSort('PaymentMethod')">Method ${slSortIcon('PaymentMethod')}</th>
+    <th class="sortable" onclick="toggleSLSort('Delivery')">Delivery ${slSortIcon('Delivery')}</th>
+    <th class="sortable" onclick="toggleSLSort('Status')">Status ${slSortIcon('Status')}</th>
+    <th>Actions</th>
+  </tr></thead><tbody>${sorted.map(s=>{
     const isCancelled=s.Status==='Cancelled';
     return`<tr style="${isCancelled?'opacity:.5':''}">
     <td><strong>${s.InvoiceNo}</strong></td><td>${fmtD(s.Date)}</td><td>${esc(s.CustomerName||'Walk-in')}</td>
@@ -4999,7 +5065,7 @@ function filterSL(){
 <button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel Full Order"><i class="fas fa-undo"></i></button>`:''}
     </div></td></tr>`}).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales</div>';
 }
-function showSaleSummary(id){
+  function showSaleSummary(id){
   const s=S.sales.find(x=>x.ID===id);if(!s)return;const c=C();
   const txt=`📋 *${s.InvoiceNo}*\n👤 ${s.CustomerName||'Walk-in'}\n📱 ${s.CustomerPhone||'-'}\n🛍 ${s.Items||'-'}\n💰 Total: ${c}${Number(s.FinalAmount).toLocaleString()}\n✅ Paid: ${c}${Number(s.PaidAmount).toLocaleString()}\n${Number(s.DueAmount)>0?'⏳ Due: '+c+Number(s.DueAmount).toLocaleString()+'\n':''}📅 ${fmtD(s.Date)}\n💳 ${s.PaymentMethod||'-'}${s.DeliveryType&&s.DeliveryType!=='None'?'\n🚚 '+s.DeliveryType:''}`;
   let m=document.getElementById('summaryModal');if(m)m.remove();
