@@ -11,6 +11,9 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+
 <style>
   .content > * {
   animation: pageIn .35s cubic-bezier(.4,0,.2,1);
@@ -6895,6 +6898,7 @@ function openRestockNeededModal() {
       <div class="modal-hdr">
         <h3><i class="fas fa-cubes-stacked" style="color:var(--danger);margin-right:6px"></i>Products Needing Restock</h3>
         <div class="btn-group">
+          <button class="btn btn-outline btn-sm" onclick="downloadRestockPDF()" title="Download as PDF"><i class="fas fa-file-pdf"></i><span class="hide-mobile"> PDF</span></button>
           <button class="btn btn-outline btn-sm" onclick="downloadRestockCSV()" title="Download as CSV"><i class="fas fa-file-csv"></i><span class="hide-mobile"> CSV</span></button>
           <button class="modal-close" onclick="closeModal('restockNeededModal')">&times;</button>
         </div>
@@ -7026,6 +7030,100 @@ function downloadRestockCSV() {
   URL.revokeObjectURL(url);
 
   toast('✓ Restock CSV downloaded!', 'success');
+}
+
+// ── Download the restock list as a PDF file ──
+function downloadRestockPDF() {
+  const list = window._restockData || [];
+  if (!list.length) { toast('No restock data to export', 'warning'); return; }
+
+  // Guard: ensure jsPDF is loaded
+  if (!window.jspdf || !window.jspdf.jsPDF) {
+    toast('PDF library not loaded. Check the jsPDF <script> tags.', 'error');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  const sorted = smartSort(list);
+  const totalUnits = window._restockTotalUnits || 0;
+  const business = (S.settings && S.settings.businessName) ? S.settings.businessName : 'Fan Field';
+  const genDate = new Date().toLocaleString();
+
+  // ── Header ──
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.setTextColor(33, 33, 33);
+  doc.text('Products Needing Restock', 40, 40);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(120, 120, 120);
+  doc.text(business, 40, 56);
+  doc.text(`Generated: ${genDate}`, 40, 68);
+
+  // Summary chip (right side)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(239, 68, 68);
+  const summary = `${totalUnits} unit${totalUnits !== 1 ? 's' : ''} | ${sorted.length} product${sorted.length !== 1 ? 's' : ''}`;
+  doc.text(summary, doc.internal.pageSize.getWidth() - 40, 40, { align: 'right' });
+
+  // ── Table ──
+  const body = sorted.map((r, idx) => {
+    const bookingsText = [...r.bookings.values()]
+      .map(b => `${b.customer} (${b.number})`)
+      .join('\n');
+    return [
+      idx + 1,
+      r.ProductName || '-',
+      r.Club_Country || '-',
+      r.Edition || '-',
+      r.Type || '-',
+      r.Size || '-',
+      r.units,
+      (r.physicalStock !== null ? r.physicalStock : '—'),
+      bookingsText || '-'
+    ];
+  });
+
+  doc.autoTable({
+    startY: 82,
+    head: [['#', 'Product', 'Club', 'Edition', 'Type', 'Size', 'Units Needed', 'Phys. Stock', 'Bookings']],
+    body,
+    styles: { fontSize: 8, cellPadding: 4, valign: 'top', overflow: 'linebreak' },
+    headStyles: { fillColor: [239, 68, 68], textColor: 255, fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [248, 249, 250] },
+    columnStyles: {
+      0: { cellWidth: 24, halign: 'center' },
+      1: { cellWidth: 150 },
+      2: { cellWidth: 70 },
+      3: { cellWidth: 70 },
+      4: { cellWidth: 60 },
+      5: { cellWidth: 45 },
+      6: { cellWidth: 55, halign: 'center', textColor: [239, 68, 68], fontStyle: 'bold' },
+      7: { cellWidth: 55, halign: 'center' },
+      8: { cellWidth: 180 }
+    },
+    didDrawPage: (data) => {
+      // Footer page number
+      const pageCount = doc.internal.getNumberOfPages();
+      const pageCurrent = doc.internal.getCurrentPageInfo().pageNumber;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(
+        `Page ${pageCurrent} of ${pageCount}`,
+        doc.internal.pageSize.getWidth() - 40,
+        doc.internal.pageSize.getHeight() - 20,
+        { align: 'right' }
+      );
+    }
+  });
+
+  doc.save(`Restock_Needed_${new Date().toISOString().slice(0, 10)}.pdf`);
+  toast('✓ Restock PDF downloaded!', 'success');
 }
 
 function setBookingFilter(f) {
