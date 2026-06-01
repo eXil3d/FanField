@@ -7032,12 +7032,11 @@ function downloadRestockCSV() {
   toast('✓ Restock CSV downloaded!', 'success');
 }
 
-// ── Download the restock list as a PDF file ──
-function downloadRestockPDF() {
+// ── Download the restock list as a PDF file (with logo + business header) ──
+async function downloadRestockPDF() {
   const list = window._restockData || [];
   if (!list.length) { toast('No restock data to export', 'warning'); return; }
 
-  // Guard: ensure jsPDF is loaded
   if (!window.jspdf || !window.jspdf.jsPDF) {
     toast('PDF library not loaded. Check the jsPDF <script> tags.', 'error');
     return;
@@ -7049,26 +7048,59 @@ function downloadRestockPDF() {
   const sorted = smartSort(list);
   const totalUnits = window._restockTotalUnits || 0;
   const business = (S.settings && S.settings.businessName) ? S.settings.businessName : 'Fan Field';
+  const phone = '8801845865472';
   const genDate = new Date().toLocaleString();
 
-  // ── Header ──
+  // ── Try to load a logo as base64 (settings URL/base64, or an <img> on page) ──
+  const logoData = await getLogoBase64();
+
+  let textX = 40;            // where the text block starts (shifts right if a logo is drawn)
+  const logoY = 28;
+  const logoSize = 46;       // square box for the logo
+  if (logoData) {
+    try {
+      doc.addImage(logoData.data, logoData.format, 40, logoY, logoSize, logoSize);
+      textX = 40 + logoSize + 14; // push text to the right of the logo
+    } catch (e) {
+      // bad image data — ignore and continue without logo
+      textX = 40;
+    }
+  }
+
+  // ── Business name — BIG & BOLD ──
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  doc.setFontSize(22);
   doc.setTextColor(33, 33, 33);
-  doc.text('Products Needing Restock', 40, 40);
+  doc.text(business, textX, 50);
+
+  // ── Phone number below the name ──
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(90, 90, 90);
+  doc.text(`Phone: ${phone}`, textX, 66);
+
+  // ── Report title + generated date (right side) ──
+  const pageW = doc.internal.pageSize.getWidth();
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(239, 68, 68);
+  doc.text('Products Needing Restock', pageW - 40, 44, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(120, 120, 120);
-  doc.text(business, 40, 56);
-  doc.text(`Generated: ${genDate}`, 40, 68);
+  doc.text(`Generated: ${genDate}`, pageW - 40, 58, { align: 'right' });
 
-  // Summary chip (right side)
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setTextColor(239, 68, 68);
   const summary = `${totalUnits} unit${totalUnits !== 1 ? 's' : ''} | ${sorted.length} product${sorted.length !== 1 ? 's' : ''}`;
-  doc.text(summary, doc.internal.pageSize.getWidth() - 40, 40, { align: 'right' });
+  doc.text(summary, pageW - 40, 72, { align: 'right' });
+
+  // Divider line under the header
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.8);
+  doc.line(40, 86, pageW - 40, 86);
 
   // ── Table ──
   const body = sorted.map((r, idx) => {
@@ -7089,7 +7121,7 @@ function downloadRestockPDF() {
   });
 
   doc.autoTable({
-    startY: 82,
+    startY: 96,
     head: [['#', 'Product', 'Club', 'Edition', 'Type', 'Size', 'Units Needed', 'Phys. Stock', 'Bookings']],
     body,
     styles: { fontSize: 8, cellPadding: 4, valign: 'top', overflow: 'linebreak' },
@@ -7106,8 +7138,7 @@ function downloadRestockPDF() {
       7: { cellWidth: 55, halign: 'center' },
       8: { cellWidth: 180 }
     },
-    didDrawPage: (data) => {
-      // Footer page number
+    didDrawPage: () => {
       const pageCount = doc.internal.getNumberOfPages();
       const pageCurrent = doc.internal.getCurrentPageInfo().pageNumber;
       doc.setFont('helvetica', 'normal');
@@ -7115,7 +7146,7 @@ function downloadRestockPDF() {
       doc.setTextColor(150, 150, 150);
       doc.text(
         `Page ${pageCurrent} of ${pageCount}`,
-        doc.internal.pageSize.getWidth() - 40,
+        pageW - 40,
         doc.internal.pageSize.getHeight() - 20,
         { align: 'right' }
       );
@@ -7126,6 +7157,25 @@ function downloadRestockPDF() {
   toast('✓ Restock PDF downloaded!', 'success');
 }
 
+// ── Helper: load LOGO_URL (logo.jpg in repo) and return { data, format } or null ──
+async function getLogoBase64() {
+  try {
+    const resp = await fetch(LOGO_URL);            // same-origin: 'logo.jpg'
+    const blob = await resp.blob();
+    const dataUrl = await new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(fr.result);
+      fr.onerror = reject;
+      fr.readAsDataURL(blob);
+    });
+    // logo.jpg is a JPEG
+    const format = (blob.type === 'image/png') ? 'PNG' : 'JPEG';
+    return { data: dataUrl, format };
+  } catch (e) {
+    console.warn('Logo load failed, generating PDF without logo:', e);
+    return null;
+  }
+}
 function setBookingFilter(f) {
   _bookingFilter = f;
   document.querySelectorAll('.bk-filter').forEach(b => b.classList.toggle('active-bk', b.dataset.f === f));
