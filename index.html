@@ -815,28 +815,21 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
 </aside>
 <main class="main">
   <div class="topbar">
-  <div class="topbar-left">
-    <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
-    <div class="page-title"><h2 id="pgTitle">Search</h2><p id="pgSub">Find anything fast</p></div>
-  </div>
-  <div class="topbar-center" style="flex:1;max-width:500px;margin:0 16px">
-    <div style="position:relative" id="globalSearchWrap">
-      <i class="fas fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none"></i>
-      <input type="text" id="globalSearch" placeholder="Flexible search: any word order, phone fragments... (Ctrl+K)" 
-        style="width:100%;padding:9px 14px 9px 38px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-2);color:var(--text);transition:all .15s"
-        oninput="performGlobalSearch(this.value)"
-        onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 3px var(--primary-light)';document.getElementById('globalSearchResults').style.display=this.value?'block':'none'"
-        onblur="setTimeout(()=>{document.getElementById('globalSearchResults').style.display='none';this.style.borderColor='';this.style.boxShadow=''},200)">
-      <div id="globalSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:480px;overflow-y:auto;z-index:200"></div>
+    <div class="topbar-left">
+      <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+      <div class="page-title"><h2 id="pgTitle">Search</h2><p id="pgSub">Find anything fast</p></div>
     </div>
-  </div>
-  <div class="topbar-right">
-    <button class="mobile-search-btn" onclick="openMobileSearch()" title="Search"><i class="fas fa-search"></i></button>
-    <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Toggle theme"><i class="fas fa-sun"></i></button>
-    <span class="sync-status hide-mobile" id="syncSt">Ready</span>
-    <button class="btn-icon" onclick="refreshPage()"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
-  </div>
-</div>
+    <div class="topbar-center" style="flex:1;max-width:500px;margin:0 16px">
+      <div style="position:relative" id="globalSearchWrap">
+        <i class="fas fa-search" style="position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;pointer-events:none"></i>
+        <input type="text" id="globalSearch" placeholder="Flexible search: any word order, phone fragments... (Ctrl+K)" 
+          style="width:100%;padding:9px 14px 9px 38px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--bg-2);color:var(--text);transition:all .15s"
+          oninput="performGlobalSearch(this.value)"
+          onfocus="this.style.borderColor='var(--primary)';this.style.boxShadow='0 0 0 3px var(--primary-light)';document.getElementById('globalSearchResults').style.display=this.value?'block':'none'"
+          onblur="setTimeout(()=>{document.getElementById('globalSearchResults').style.display='none';this.style.borderColor='';this.style.boxShadow=''},200)">
+        <div id="globalSearchResults" style="display:none;position:absolute;top:100%;left:0;right:0;margin-top:6px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow-lg);max-height:480px;overflow-y:auto;z-index:200"></div>
+      </div>
+    </div>
     <div class="topbar-right">
       <span class="sync-status" id="syncSt">Ready</span>
       <button class="btn-icon" onclick="refreshPage()"><i class="fas fa-rotate"></i><span class="hide-mobile">Refresh</span></button>
@@ -8158,13 +8151,11 @@ function updateFAB() {
 
 // INIT — Open Search page by default
 document.addEventListener('DOMContentLoaded', async () => {
-  initTheme();              // apply saved light/dark theme
   // Preload key data so search is instant
   S.inventory = await apiGet('getInventory');
   S.customers = await apiGet('getCustomers');
   S.sales = await apiGet('getSales');
   renderPage('search');
-  updateFAB();
 });
 document.addEventListener('click',e=>{if(e.target.classList.contains('modal-overlay'))e.target.classList.remove('active')});
 </script>
