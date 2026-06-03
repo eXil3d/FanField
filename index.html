@@ -1467,11 +1467,8 @@ function searchAll(query) {
   
   // ============================================================
   // PRODUCTS — Flexible multi-field token search
+  // (Reuses the SIZE_TOKENS already declared above for whole-word size matching)
   // ============================================================
-  // Sizes collide as substrings AND single letters (M, L, S) appear inside many words
-  // (hoMe, preMier, arSenal...). So size tokens must match a WHOLE WORD only.
-  const SIZE_TOKENS = ['xs','s','m','l','xl','2xl','3xl','4xl','5xl','xxl','xxxl','xxxxl','xxxxxl'];
-
   const products = (S.inventory || []).filter(p => {
     const combined = [
       p.ProductName || '',
