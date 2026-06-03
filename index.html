@@ -625,6 +625,151 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
   .inv-preview *{color:#000!important}
   .inv-preview .inv-table th{background:#2563eb!important;color:#fff!important}
 }
+
+/* ============================================================
+   ENHANCEMENT PACK — UI/UX + Mobile Improvements
+   ============================================================ */
+
+/* --- Light Mode Support --- */
+:root[data-theme="light"]{
+  --bg:#f1f5f9;--bg-2:#ffffff;--surface:#ffffff;--surface-2:#f8fafc;--surface-hover:#f1f5f9;
+  --border:#e2e8f0;--border-light:#cbd5e1;
+  --text:#0f172a;--text-sec:#334155;--text-muted:#64748b;--text-faint:#94a3b8;
+  --sidebar-bg:#0f172a;--sidebar-text:#94a3b8;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.08);
+  --shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.06);
+  --shadow-md:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.06);
+  --shadow-lg:0 20px 25px -5px rgba(0,0,0,.12),0 8px 10px -6px rgba(0,0,0,.08);
+}
+
+/* --- Theme toggle button --- */
+.theme-toggle{
+  padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface);cursor:pointer;color:var(--text-sec);
+  transition:var(--transition-fast);display:flex;align-items:center;justify-content:center;
+}
+.theme-toggle:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+/* --- Skeleton loading shimmer --- */
+.skeleton{
+  background:linear-gradient(90deg,var(--surface-2) 25%,var(--surface-hover) 50%,var(--surface-2) 75%);
+  background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:var(--radius-xs);
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skeleton-row{height:48px;margin-bottom:8px;border-radius:8px}
+.skeleton-card{height:110px;border-radius:var(--radius)}
+
+/* --- Smoother stat cards --- */
+.stat-card{cursor:default}
+.stat-card .stat-val{transition:color .2s}
+
+/* --- Better mobile tables: card-stack mode --- */
+@media(max-width:768px){
+  /* Convert key tables to stacked cards */
+  .stack-table table,.stack-table thead,.stack-table tbody,
+  .stack-table th,.stack-table td,.stack-table tr{display:block}
+  .stack-table thead{display:none}
+  .stack-table tr{
+    border:1px solid var(--border);border-radius:12px;padding:12px 14px;
+    margin-bottom:12px;background:var(--surface);box-shadow:var(--shadow-sm)
+  }
+  .stack-table td{
+    display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:7px 0;border:none;text-align:right;font-size:12.5px
+  }
+  .stack-table td::before{
+    content:attr(data-label);font-weight:700;color:var(--text-muted);
+    text-transform:uppercase;font-size:10px;letter-spacing:.5px;text-align:left;flex-shrink:0
+  }
+  .stack-table td:last-child{justify-content:flex-end;padding-top:10px;border-top:1px solid var(--border);margin-top:4px}
+  .stack-table .btn-group{flex-wrap:nowrap}
+}
+
+/* --- Mobile topbar search trigger --- */
+.mobile-search-btn{display:none}
+@media(max-width:768px){
+  .mobile-search-btn{
+    display:flex;align-items:center;justify-content:center;
+    padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);
+    background:var(--surface);color:var(--text-sec);cursor:pointer;
+  }
+}
+
+/* --- Improved FAB --- */
+#fabBtn{box-shadow:0 6px 20px rgba(59,130,246,.5)!important}
+#fabBtn:hover{transform:scale(1.08) rotate(90deg)}
+#fabBtn:active{transform:scale(.95)}
+
+/* --- Card header sticky on long tables --- */
+.tbl-wrap table thead th{position:sticky;top:0;z-index:5}
+
+/* --- Better badges contrast --- */
+.badge{line-height:1.4}
+
+/* --- Improved focus on cards --- */
+.stat-card:focus-within{outline:2px solid var(--primary);outline-offset:2px}
+
+/* --- POS table mobile: horizontal scroll hint --- */
+@media(max-width:768px){
+  .si-tbl{min-width:560px}
+  .scroll-hint{
+    display:block;font-size:10.5px;color:var(--text-muted);text-align:center;
+    padding:4px;background:var(--bg-2);border-radius:6px;margin-bottom:6px
+  }
+}
+.scroll-hint{display:none}
+
+/* --- Smoother modal on mobile (bottom sheet feel) --- */
+@media(max-width:600px){
+  .modal-overlay{align-items:flex-end;padding:0}
+  .modal{
+    max-width:100%!important;width:100%;margin:0;
+    border-radius:18px 18px 0 0;max-height:94vh;
+    animation:slideUp .3s cubic-bezier(.4,0,.2,1)
+  }
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .modal-hdr{border-radius:18px 18px 0 0}
+  .modal-hdr::before{
+    content:'';position:absolute;top:7px;left:50%;transform:translateX(-50%);
+    width:38px;height:4px;background:var(--border-light);border-radius:3px
+  }
+  .modal-hdr{padding-top:18px}
+}
+
+/* --- Nav active subtle pulse --- */
+.nav-item.active i{animation:navPulse 2s ease-in-out infinite}
+@keyframes navPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+
+/* --- Better empty states --- */
+.empty-state i{animation:floaty 3s ease-in-out infinite}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+
+/* --- Toolbar wrap improvements on tablet --- */
+@media(max-width:900px){
+  .toolbar select.fc{flex:1;min-width:0}
+}
+
+/* --- Sidebar scroll fade --- */
+.sb-nav{position:relative}
+
+/* --- Quick action chips --- */
+.chip{
+  display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;
+  font-size:11px;font-weight:600;background:var(--surface-2);color:var(--text-sec);
+  border:1px solid var(--border);cursor:pointer;transition:var(--transition-fast)
+}
+.chip:hover{border-color:var(--primary);color:var(--primary);background:var(--primary-light)}
+
+/* --- Improved scrollbar for light --- */
+:root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cbd5e1}
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
+
+/* --- Loading bar at top --- */
+#topLoadBar{
+  position:fixed;top:0;left:0;height:3px;width:0;z-index:9999;
+  background:linear-gradient(90deg,var(--primary),var(--purple));
+  transition:width .3s ease,opacity .3s;opacity:0;box-shadow:0 0 10px rgba(59,130,246,.6)
+}
 </style>
 </head>
 <body>
@@ -861,10 +1006,14 @@ function refreshPage(){renderPage(currentPage)}
 
 async function renderPage(page){
   const area=document.getElementById('contentArea');
-  area.innerHTML='<div class="loading"><div class="spinner"></div>Loading...</div>';
+  showTopLoad();
+  // Use context-aware skeleton
+  const statsPages = ['dashboard','customers','adjustments','bookings'];
+  area.innerHTML = skeletonLoader(statsPages.includes(page) ? 'stats' : 'table');
   try{switch(page){
     case'search':await renderSearchPage(area);break;case'dashboard':await renderDashboard(area);break;case'inventory':await renderInventory(area);break;case'pos':await renderPOS(area);break;case'sales':await renderSales(area);break;case'delivery':await renderDelivery(area);break;case'customers':await renderCustomers(area);break;case'bookings':await renderBookings(area);break;case'payments':await renderPayments(area);break;case'suppliers':await renderSuppliers(area);break;case'stockHistory':await renderStockHistory(area);break;case'expenses':await renderExpenses(area);break;case'adjustments':await renderAdjustments(area);break;case'affiliates':await renderAffiliates(area);break;case'vouchers':await renderVouchers(area);break;case'settings':await renderSettings(area);break;
   }}catch(e){area.innerHTML=`<div class="loading" style="color:var(--danger)"><i class="fas fa-exclamation-circle"></i>Failed to load. Check API & try again.</div>`}
+  finally{ hideTopLoad(); updateFAB(); }
 }
 // ============================================================
 // PHONE NUMBER FORMATTER (Bangladesh format: 017-1234-5678)
@@ -7931,7 +8080,75 @@ function cancelBookingConversion() {
   clearPOS();
   toast('Booking conversion cancelled', 'info');
 }
-  
+
+// ============================================================
+// ENHANCEMENT PACK — JS Improvements
+// ============================================================
+
+// --- DARK/LIGHT THEME TOGGLE ---
+function initTheme() {
+  const saved = localStorage.getItem('ff_theme') || 'dark';
+  applyTheme(saved);
+}
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('ff_theme', theme);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.innerHTML = theme === 'light'
+    ? '<i class="fas fa-moon"></i>'
+    : '<i class="fas fa-sun"></i>';
+}
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+
+// --- TOP LOADING BAR ---
+function showTopLoad() {
+  let bar = document.getElementById('topLoadBar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'topLoadBar';
+    document.body.appendChild(bar);
+  }
+  bar.style.opacity = '1';
+  bar.style.width = '30%';
+  setTimeout(() => { bar.style.width = '70%'; }, 150);
+}
+function hideTopLoad() {
+  const bar = document.getElementById('topLoadBar');
+  if (!bar) return;
+  bar.style.width = '100%';
+  setTimeout(() => {
+    bar.style.opacity = '0';
+    setTimeout(() => { bar.style.width = '0'; }, 300);
+  }, 200);
+}
+
+// --- SKELETON LOADER ---
+function skeletonLoader(type = 'table') {
+  if (type === 'stats') {
+    return `<div class="stats-grid">${Array(6).fill('<div class="skeleton skeleton-card"></div>').join('')}</div>
+      <div class="card"><div class="card-body">${Array(6).fill('<div class="skeleton skeleton-row"></div>').join('')}</div></div>`;
+  }
+  return `<div class="card"><div class="card-body">${Array(8).fill('<div class="skeleton skeleton-row"></div>').join('')}</div></div>`;
+}
+
+// --- MOBILE SEARCH (jump to search page) ---
+function openMobileSearch() {
+  nav('search');
+  setTimeout(() => document.getElementById('bigSearchInput')?.focus(), 300);
+}
+
+// --- Make FAB show on more pages with proper icon ---
+function updateFAB() {
+  const fab = document.getElementById('fabBtn');
+  if (!fab) return;
+  const showOn = ['inventory','customers','suppliers','expenses','affiliates','vouchers','sales','bookings','pos'];
+  const isMobile = window.innerWidth <= 768;
+  fab.style.display = (showOn.includes(currentPage) && isMobile) ? 'flex' : 'none';
+}
+
 // INIT — Open Search page by default
 document.addEventListener('DOMContentLoaded', async () => {
   // Preload key data so search is instant
