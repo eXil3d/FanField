@@ -1281,12 +1281,26 @@ function searchAll(query) {
   
   // Split query into tokens for word-flexible search
   const tokens = q.split(/\s+/).filter(t => t.length > 0);
-  
-  // Helper: check if ALL tokens are found in haystack
+
+  // Sizes collide as substrings (L ⊂ XL ⊂ 2XL ...), so they must match as whole words
+  const SIZE_TOKENS = ['xs','s','m','l','xl','2xl','3xl','4xl','5xl','xxl','xxxl','xxxxl','xxxxxl'];
+
+  // Helper: check if ALL tokens are found in haystack.
+  // If a token is a known size, it must match a whole word in the haystack (exact),
+  // never as a substring — so "l" won't match "xl"/"2xl".
   const matchesAllTokens = (haystack) => {
     if (!haystack) return false;
     const lower = haystack.toLowerCase();
-    return tokens.every(token => lower.includes(token));
+    // Split haystack into whole words for exact size comparison
+    const words = lower.split(/[\s,/|\-_]+/).filter(Boolean);
+    return tokens.every(token => {
+      if (SIZE_TOKENS.includes(token)) {
+        // size token: require an exact whole-word match
+        return words.includes(token);
+      }
+      // normal token: substring match anywhere
+      return lower.includes(token);
+    });
   };
   
   // ============================================================
