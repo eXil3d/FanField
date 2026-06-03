@@ -5417,12 +5417,16 @@ function slCompare(a,b){
   }
 }
 
+// In filterSL(), change the wrapper line from:
+//   el.innerHTML=sorted.length?`<table>...
+// to add stack-table to the parent. Update the <td> cells with data-label:
+
 function filterSL(){
   const srch=(document.getElementById('slSrch')?.value||'').toLowerCase();const st=document.getElementById('slStatus')?.value||'';
   let data=S.sales.filter(s=>{const ms=!srch||(s.InvoiceNo||'').toLowerCase().includes(srch)||(s.CustomerName||'').toLowerCase().includes(srch);return ms&&(!st||s.Status===st)});
-  // Apply sort (default: Date desc = latest first)
   const sorted=[...data].sort(slCompare);
   const c=C();const el=document.getElementById('slTbl');
+  el.className = 'tbl-wrap stack-table';
   el.innerHTML=sorted.length?`<table><thead><tr>
     <th class="sortable" onclick="toggleSLSort('InvoiceNo')">Invoice ${slSortIcon('InvoiceNo')}</th>
     <th class="sortable" onclick="toggleSLSort('Date')">Date ${slSortIcon('Date')}</th>
@@ -5437,22 +5441,22 @@ function filterSL(){
   </tr></thead><tbody>${sorted.map(s=>{
     const isCancelled=s.Status==='Cancelled';
     return`<tr style="${isCancelled?'opacity:.5':''}">
-    <td><strong>${s.InvoiceNo}</strong></td><td>${fmtD(s.Date)}</td><td>${esc(s.CustomerName||'Walk-in')}</td>
-    <td><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td>
-    <td>${c}${Number(s.PaidAmount).toLocaleString()}</td>
-    <td style="color:${Number(s.DueAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.DueAmount).toLocaleString()}</td>
-    <td><span class="badge badge-i">${s.PaymentMethod||'-'}</span></td>
-    <td>${deliveryBadge(s.DeliveryStatus||s.DeliveryType)}</td>
-    <td>${statusBadge(s.Status)}</td>
-    <td><div class="btn-group">
+    <td data-label="Invoice"><strong>${s.InvoiceNo}</strong></td><td data-label="Date">${fmtD(s.Date)}</td><td data-label="Customer">${esc(s.CustomerName||'Walk-in')}</td>
+    <td data-label="Total"><strong>${c}${Number(s.FinalAmount).toLocaleString()}</strong></td>
+    <td data-label="Paid">${c}${Number(s.PaidAmount).toLocaleString()}</td>
+    <td data-label="Due" style="color:${Number(s.DueAmount)>0?'var(--danger)':'inherit'}">${c}${Number(s.DueAmount).toLocaleString()}</td>
+    <td data-label="Method"><span class="badge badge-i">${s.PaymentMethod||'-'}</span></td>
+    <td data-label="Delivery">${deliveryBadge(s.DeliveryStatus||s.DeliveryType)}</td>
+    <td data-label="Status">${statusBadge(s.Status)}</td>
+    <td data-label="Actions"><div class="btn-group">
       <button class="btn btn-primary btn-sm" onclick="viewInvoice('${s.InvoiceNo}')" title="Invoice"><i class="fas fa-file-invoice"></i></button>
       <button class="btn btn-outline btn-sm" onclick="showSaleSummary('${s.ID}')" title="Summary"><i class="fas fa-share-alt"></i></button>
       ${!isCancelled&&Number(s.DueAmount)>0?`<button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i></button>`:''}
-      ${!isCancelled?`<button class="btn btn-outline btn-sm" onclick="openAdjustAmountModal('${s.ID}','${s.InvoiceNo}',${Number(s.FinalAmount)||0},${Number(s.PaidAmount)||0},${Number(s.DueAmount)||0})" title="Adjust Sale Amount" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-pen-to-square"></i></button>
-<button class="btn btn-success btn-sm" onclick="openExchangeReplaceModal('${s.ID}','${s.InvoiceNo}')" title="Exchange & Replace"><i class="fas fa-right-left"></i></button>
-<button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Partial Return/Refund"><i class="fas fa-rotate-left"></i></button>
-<button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel Full Order"><i class="fas fa-undo"></i></button>`:''}
-    </div></td></tr>`}).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No sales</div>';
+      ${!isCancelled?`<button class="btn btn-outline btn-sm" onclick="openAdjustAmountModal('${s.ID}','${s.InvoiceNo}',${Number(s.FinalAmount)||0},${Number(s.PaidAmount)||0},${Number(s.DueAmount)||0})" title="Adjust" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-pen-to-square"></i></button>
+<button class="btn btn-success btn-sm" onclick="openExchangeReplaceModal('${s.ID}','${s.InvoiceNo}')" title="Exchange"><i class="fas fa-right-left"></i></button>
+<button class="btn btn-warning btn-sm" onclick="openPartialReturnModal('${s.ID}','${s.InvoiceNo}')" title="Return"><i class="fas fa-rotate-left"></i></button>
+<button class="btn btn-danger btn-sm" onclick="reverseSale('${s.ID}','${s.InvoiceNo}')" title="Cancel"><i class="fas fa-undo"></i></button>`:''}
+    </div></td></tr>`}).join('')}</tbody></table>`:'<div class="empty-state"><i class="fas fa-receipt"></i><h4>No sales found</h4><p>Sales will appear here once you create them.</p></div>';
 }
   function showSaleSummary(id){
   const s=S.sales.find(x=>x.ID===id);if(!s)return;const c=C();
@@ -5791,7 +5795,8 @@ async function openPartialReturnModal(saleId, invoiceNo) {
           Select items to return. Stock will be restored, customer totals adjusted, and commissions reversed proportionally.
           For exchanges (e.g., size change), return the item here, then create a new sale for the replacement.
         </div>
-        
+
+        <div class="scroll-hint"><i class="fas fa-arrows-left-right"></i> Swipe table sideways to see all columns</div>
         <div class="tbl-wrap"><table class="si-tbl">
           <thead><tr>
             <th style="width:40px"><input type="checkbox" id="prSelectAll" onchange="toggleAllReturnItems(this)"></th>
