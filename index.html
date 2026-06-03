@@ -1203,10 +1203,10 @@ function renderBigSearchResults(results, query) {
             <div style="font-size:18px;font-weight:800;color:${stockStatus.color};margin-top:2px">${available}</div>
             <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px">${stockStatus.txt}</div>
           </div>
-          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
+          <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center;${reserved > 0 ? 'cursor:pointer;border:1px solid var(--purple)' : ''}" ${reserved > 0 ? `onclick="showProductBookings('${esc(p.ID)}','${esc(p.ProductName)}')" title="Click to see who booked this"` : ''}>
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Booked</div>
-            <div style="font-size:18px;font-weight:800;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'};margin-top:2px">${reserved}</div>
-            <div style="font-size:9.5px;color:var(--text-muted);margin-top:2px">${reserved > 0 ? 'reserved' : 'physical: ' + physical}</div>
+            <div style="font-size:18px;font-weight:800;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'};margin-top:2px">${reserved}${reserved > 0 ? ' <i class="fas fa-calendar-check" style="font-size:11px"></i>' : ''}</div>
+            <div style="font-size:9.5px;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'};margin-top:2px">${reserved > 0 ? '<i class="fas fa-hand-pointer"></i> view bookings' : 'physical: ' + physical}</div>
           </div>
           <div style="padding:10px;background:var(--bg);border-radius:8px;text-align:center">
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px">Sell Price</div>
