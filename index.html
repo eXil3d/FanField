@@ -1635,6 +1635,90 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── Show which bookings/customers have reserved (or backordered) a product ──
+async function showProductBookings(productId, productName) {
+  toast('Loading bookings...', 'info');
+
+  // Make sure we have the bookings list
+  if (!S.bookings || !S.bookings.length) S.bookings = await apiGet('getBookings');
+
+  // Only open bookings hold reservations/backorders worth showing
+  const openBookings = (S.bookings || []).filter(
+    b => b.Status !== 'Completed' && b.Status !== 'Cancelled'
+  );
+
+  // Fetch each open booking's items in parallel, then keep those containing this product
+  const results = await Promise.all(
+    openBookings.map(b => apiGet('getBooking', { bookingId: b.BookingID }).catch(() => null))
+  );
+
+  const c = C();
+  const rows = [];
+  results.forEach(res => {
+    if (!res || !res.success) return;
+    const b = res.booking;
+    (res.items || []).forEach(it => {
+      if (it.ProductID !== productId) return;
+      const reserved = Number(it.ReservedQty) || 0;
+      const backorder = Number(it.BackorderedQty) || 0;
+      if (reserved <= 0 && backorder <= 0) return;
+      rows.push({
+        bookingId: b.BookingID,
+        number: b.BookingNumber,
+        customer: b.CustomerName || '-',
+        phone: b.CustomerPhone || '',
+        status: b.Status,
+        priority: b.Priority || 'Normal',
+        date: b.BookingDate,
+        reserved,
+        backorder,
+        unitPrice: Number(it.UnitPrice) || 0
+      });
+    });
+  });
+
+  // Sort: reserved first, then by date
+  rows.sort((a, b) => (b.reserved - a.reserved) || (new Date(a.date) - new Date(b.date)));
+
+  const totalReserved = rows.reduce((s, r) => s + r.reserved, 0);
+  const totalBackorder = rows.reduce((s, r) => s + r.backorder, 0);
+
+  let m = document.getElementById('productBookingsModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay active" id="productBookingsModal" style="z-index:3100"><div class="modal" style="max-width:760px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-calendar-check" style="color:var(--purple);margin-right:6px"></i>Bookings for: ${esc(productName)}</h3>
+        <button class="modal-close" onclick="closeModal('productBookingsModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="background:rgba(139,92,246,.08);padding:12px;border-radius:8px;border-left:3px solid var(--purple);margin-bottom:14px;font-size:12.5px;color:var(--text-sec);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <span><i class="fas fa-info-circle" style="color:var(--purple)"></i> Customers who have this product on an active booking.</span>
+          <span style="font-weight:700;white-space:nowrap"><span style="color:var(--secondary)">${totalReserved} reserved</span>${totalBackorder>0?` • <span style="color:var(--warning)">${totalBackorder} backordered</span>`:''}</span>
+        </div>
+        ${rows.length ? `
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Customer</th><th>Phone</th><th>Booking</th><th>Priority</th><th>Reserved</th><th>Backorder</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td><strong>${esc(r.customer)}</strong></td>
+              <td>${esc(r.phone || '-')}</td>
+              <td><strong>${esc(r.number)}</strong><br><small style="color:var(--text-muted)">${fmtD(r.date)}</small></td>
+              <td><span class="badge badge-p">${esc(r.priority)}</span></td>
+              <td style="color:var(--secondary);font-weight:700">${r.reserved}</td>
+              <td style="color:${r.backorder>0?'var(--warning)':'inherit'};font-weight:${r.backorder>0?'700':'400'}">${r.backorder}</td>
+              <td>${bookingStatusBadge(r.status)}</td>
+              <td><button class="btn btn-outline btn-sm" onclick="closeModal('productBookingsModal');closeModal('prodDetailsModal');nav('bookings');setTimeout(()=>openBookingDetail('${r.bookingId}'),300)" title="Open booking"><i class="fas fa-arrow-right"></i></button></td>
+            </tr>`).join('')}
+          </tbody>
+        </table></div>
+        ` : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No active bookings hold this product</div>'}
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('productBookingsModal')">Close</button>
+      </div>
+    </div></div>`);
+}
+  
 // ============================================================
 // CUSTOMER DETAILS — Full history + quick actions
 // ============================================================
@@ -1844,9 +1928,10 @@ async function showProductDetails(productId) {
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Available</div>
             <div style="font-size:16px;font-weight:800;margin-top:2px;color:${available <= 0 ? 'var(--danger)' : available <= minStock ? 'var(--warning)' : 'var(--secondary)'}">${available}</div>
           </div>
-          <div style="padding:10px;background:var(--bg);border-radius:8px">
+          <div style="padding:10px;background:var(--bg);border-radius:8px;${reserved > 0 ? 'cursor:pointer;border:1px solid var(--purple)' : ''}" ${reserved > 0 ? `onclick="showProductBookings('${esc(p.ID)}','${esc(p.ProductName)}')" title="Click to see who booked this"` : ''}>
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Booked / Reserved</div>
             <div style="font-size:16px;font-weight:800;margin-top:2px;color:${reserved > 0 ? 'var(--purple)' : 'var(--text-muted)'}">${reserved}${reserved > 0 ? ' <i class="fas fa-calendar-check" style="font-size:11px"></i>' : ''}</div>
+            ${reserved > 0 ? '<div style="font-size:9px;color:var(--purple);margin-top:3px"><i class="fas fa-hand-pointer"></i> View bookings</div>' : ''}
           </div>
           <div style="padding:10px;background:var(--bg);border-radius:8px">
             <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:1px">Physical Stock</div>
