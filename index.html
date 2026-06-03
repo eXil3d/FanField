@@ -3640,8 +3640,7 @@ async function saveBatch() {
 // ============================================================
 // POS - NEW SALE (with delivery, voucher, notes on receipt)
 // ============================================================
-async function renderPOS(area){
-  if(!S.inventory.length)S.inventory=await apiGet('getInventory');if(!S.customers.length)S.customers=await apiGet('getCustomers');if(!S.affiliates.length)S.affiliates=await apiGet('getAffiliates');S.vouchers=await apiGet('getVouchers');S.settings=await apiGet('getSettings');
+async function renderPOS(area){S.inventory=await apiGet('getInventoryWithReserved');if(!S.customers.length)S.customers=await apiGet('getCustomers');if(!S.affiliates.length)S.affiliates=await apiGet('getAffiliates');S.vouchers=await apiGet('getVouchers');S.settings=await apiGet('getSettings');
   const dInDhaka=S.settings.deliveryInsideDhaka||80;const dOutDhaka=S.settings.deliveryOutsideDhaka||150;const dCampus=S.settings.deliveryOnCampus||0;
   area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-cash-register" style="color:var(--primary);margin-right:6px"></i>Create New Sale</h3></div><div class="card-body">
     <div class="fg">
@@ -3878,7 +3877,12 @@ function addPOSRow() {
     <td><select class="pos-prod" onchange="onPOSProdChange(this)">
       <option value="">Select</option>
       <option value="__CUSTOMIZATION__" data-price="0" data-cost="0" data-name="Bring-your-own jersey customization" data-club="" data-ed="" data-type="Service" data-size="" data-stock="">Bring-your-own jersey customization (Service)</option>
-      ${sortedProducts.map(p => `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${p.Stock}">${esc(p.ProductName)} [${p.Stock}]</option>`).join('')}
+      ${sortedProducts.map(p => {
+        const physical = Number(p.Stock) || 0;
+        const booked = Number(p.ReservedQty) || 0;
+        const avail = (p.AvailableQty !== undefined) ? Number(p.AvailableQty) : (physical - booked);
+        return `<option value="${p.ID}" data-price="${p.SellPrice}" data-cost="${p.CostPrice}" data-name="${esc(p.ProductName)}" data-club="${p.Club_Country}" data-ed="${p.Edition}" data-type="${p.Type}" data-size="${p.Size}" data-stock="${physical}">${esc(p.ProductName)} [A${avail}:B${booked}:P${physical}]</option>`;
+      }).join('')}
     </select></td>
     <td class="custom-col" ${hideStyle}><input type="checkbox" class="pos-patch cb" onchange="calcPOSTotal()"></td>
     <td class="custom-col" ${hideStyle}><input class="pos-nameprint" placeholder="Name/number" oninput="calcPOSTotal()"></td>
