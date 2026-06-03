@@ -1468,6 +1468,10 @@ function searchAll(query) {
   // ============================================================
   // PRODUCTS — Flexible multi-field token search
   // ============================================================
+  // Sizes collide as substrings AND single letters (M, L, S) appear inside many words
+  // (hoMe, preMier, arSenal...). So size tokens must match a WHOLE WORD only.
+  const SIZE_TOKENS = ['xs','s','m','l','xl','2xl','3xl','4xl','5xl','xxl','xxxl','xxxxl','xxxxxl'];
+
   const products = (S.inventory || []).filter(p => {
     const combined = [
       p.ProductName || '',
@@ -1478,8 +1482,21 @@ function searchAll(query) {
       p.ID || '',
       p.Color || ''
     ].join(' ').toLowerCase();
-    
-    return tokens.every(token => combined.includes(token));
+
+    // Words of the haystack for exact size comparison
+    const words = combined.split(/[^a-z0-9]+/).filter(Boolean);
+    // The product's actual size, normalized
+    const prodSize = String(p.Size || '').toLowerCase().trim();
+
+    return tokens.every(token => {
+      if (SIZE_TOKENS.includes(token)) {
+        // size token → must equal the product's Size field exactly,
+        // OR appear as a standalone word (handles size embedded in ProductName as its own word)
+        return prodSize === token || words.includes(token);
+      }
+      // normal token → substring match anywhere
+      return combined.includes(token);
+    });
   });
   
   return { customers, sales, products };
