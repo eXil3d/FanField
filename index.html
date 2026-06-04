@@ -3876,8 +3876,17 @@ async function deleteMonthlySnapshot(monthKey) {
   }
 }
   
-async function delProduct(id){if(!confirm('Delete product?'))return;const r=await apiPost('deleteProduct',{ID:id});if(r.success){toast('Deleted');renderPage('inventory')}}
-function openStockModal(id,cur){
+async function delProduct(id){
+  if(!confirm('Delete product?'))return;
+  const r=await apiPost('deleteProduct',{ID:id});
+  if(r.success){
+    toast('Product deleted');
+    renderPage('inventory');
+  }else{
+    toast(r.error||'Could not delete product','error');
+  }
+}
+  function openStockModal(id,cur){
   let m=document.getElementById('stockModal');if(m)m.remove();
   const prod = S.inventory.find(x=>x.ID===id);
   const reserved = prod ? (Number(prod.ReservedQty)||0) : 0;
@@ -6682,6 +6691,7 @@ function filterStockHistory() {
       const action = log.Action || '';
       let badgeClass = 'badge-i';
       if (action.includes('Sale')) badgeClass = 'badge-d';
+      else if (action.includes('Delete')) badgeClass = 'badge-d';
       else if (action.includes('Batch') || action.includes('Initial')) badgeClass = 'badge-s';
       else if (action.includes('Reverse') || action.includes('Return')) badgeClass = 'badge-w';
       else if (action.includes('Exchange')) badgeClass = 'badge-p';
