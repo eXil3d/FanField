@@ -2878,6 +2878,7 @@ function toggleInvSort(col) {
 function si(col){if(invSortCol!==col)return'<i class="fas fa-sort" style="opacity:.3;margin-left:3px"></i>';return invSortDir==='asc'?'<i class="fas fa-sort-up" style="color:var(--primary);margin-left:3px"></i>':'<i class="fas fa-sort-down" style="color:var(--primary);margin-left:3px"></i>'}
 function renderInvTable(data){
   const el=document.getElementById('invTbl');const c=C();
+  el.className='tbl-wrap stack-table';
   if(!data.length){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-muted)">No products found</div>';return}
   const getAvail = i => (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
   el.innerHTML=`<table><thead><tr>
@@ -2900,11 +2901,11 @@ function renderInvTable(data){
     const pct=Math.min(100,(Math.max(0,avail)/Math.max(mn*3,1))*100);
     const col=avail<=0?'#dc2626':avail<=mn?'#d97706':'#059669';
     const isBatch=String(i.ID).match(/^PRD-\d+[A-Z]$/);
-    return`<tr><td><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td>${i.Edition||'-'}</td><td>${i.Type||'-'}</td><td>${i.Size||'-'}</td><td>${c}${Number(i.CostPrice).toLocaleString()}</td><td><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
-    <td><strong style="font-size:14px;color:${avail<=0?'var(--danger)':avail<=mn?'var(--warning)':'var(--text)'}">${avail}</strong></td>
-    <td>${reserved>0?`<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>`:'<span style="color:var(--text-faint)">—</span>'}</td>
-    <td><span style="color:var(--text-muted)">${physical}</span></td>
-    <td><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td>${esc(i.SupplierName||'-')}</td><td><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
+    return`<tr><td data-label="Product"><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td data-label="Club"><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td data-label="Edition">${i.Edition||'-'}</td><td data-label="Type">${i.Type||'-'}</td><td data-label="Size">${i.Size||'-'}</td><td data-label="Cost">${c}${Number(i.CostPrice).toLocaleString()}</td><td data-label="Sell"><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
+    <td data-label="Available"><strong style="font-size:14px;color:${avail<=0?'var(--danger)':avail<=mn?'var(--warning)':'var(--text)'}">${avail}</strong></td>
+    <td data-label="Booked">${reserved>0?`<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>`:'<span style="color:var(--text-faint)">—</span>'}</td>
+    <td data-label="Physical"><span style="color:var(--text-muted)">${physical}</span></td>
+    <td data-label="Health"><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td data-label="Supplier">${esc(i.SupplierName||'-')}</td><td data-label="Actions"><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
 }
 function openProductModal(prod = null) {
   let m = document.getElementById('productModal');
@@ -6479,14 +6480,12 @@ function sendVIPMessage(name, phone) {
 function filterCust() {
   const srch = (document.getElementById('cSrch')?.value || '').toLowerCase();
   const data = S.customers.filter(c => 
-    flexMatch(srch, 
-      [c.Name, c.Email, c.Address, c.Phone],  // text fields
-      [c.Phone]                                 // phone fields
-    )
+    flexMatch(srch, [c.Name, c.Email, c.Address, c.Phone], [c.Phone])
   );
   const c = C();
-  
-  document.getElementById('cTbl').innerHTML = data.length ? `
+  const el = document.getElementById('cTbl');
+  el.className = 'tbl-wrap stack-table';
+  el.innerHTML = data.length ? `
     <table><thead><tr>
       <th>Name</th><th>Phone</th><th>Email</th>
       <th>Purchases</th><th>Total Spent</th><th>Pending</th>
@@ -6496,13 +6495,13 @@ function filterCust() {
       const spent = Number(cu.TotalSpent) || 0;
       const pending = Number(cu.PendingAmount) || 0;
       return `<tr>
-        <td><strong>${esc(cu.Name || '-')}</strong></td>
-        <td>${cu.Phone ? esc(formatPhoneBD(cu.Phone)) : '-'}</td>
-        <td>${esc(cu.Email || '-')}</td>
-        <td><span class="badge badge-i">${purchases}</span></td>
-        <td>${c}${spent.toLocaleString()}</td>
-        <td style="color:${pending > 0 ? 'var(--danger)' : 'inherit'};font-weight:${pending > 0 ? '700' : '400'}">${c}${pending.toLocaleString()}</td>
-        <td><div class="btn-group">
+        <td data-label="Name"><strong>${esc(cu.Name || '-')}</strong></td>
+        <td data-label="Phone">${cu.Phone ? esc(formatPhoneBD(cu.Phone)) : '-'}</td>
+        <td data-label="Email">${esc(cu.Email || '-')}</td>
+        <td data-label="Purchases"><span class="badge badge-i">${purchases}</span></td>
+        <td data-label="Total Spent">${c}${spent.toLocaleString()}</td>
+        <td data-label="Pending" style="color:${pending > 0 ? 'var(--danger)' : 'inherit'};font-weight:${pending > 0 ? '700' : '400'}">${c}${pending.toLocaleString()}</td>
+        <td data-label="Actions"><div class="btn-group">
   <button class="btn btn-success btn-sm" onclick="createSaleForCustomer('${cu.ID}','${esc(cu.Name)}','${esc(cu.Phone || '')}')" title="Create New Sale"><i class="fas fa-cash-register"></i></button>
   <button class="btn btn-outline btn-sm" onclick="viewCustomerLedger('${cu.ID}','${esc(cu.Name)}')" title="View History"><i class="fas fa-history"></i></button>
   <button class="btn btn-outline btn-sm" onclick="editCust('${cu.ID}')" title="Edit"><i class="fas fa-pen"></i></button>
@@ -6512,7 +6511,6 @@ function filterCust() {
     }).join('')}</tbody></table>` 
     : '<div style="padding:30px;text-align:center;color:var(--text-muted)">No customers found</div>';
 }
-
 async function viewCustomerLedger(custId, custName) {
   const ledger = await apiGet('getCustomerLedger', {customerId: custId});
   const c = C();
@@ -6752,7 +6750,13 @@ async function createSaleForCustomer(customerId, customerName, customerPhone) {
     }
   }, 400); // Give POS time to render and load data
 }
-async function renderPayments(area){if(!S.sales.length)S.sales=await apiGet('getSales');S.payments=await apiGet('getPayments');const c=C();const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td><strong>${s.InvoiceNo}</strong></td><td>${esc(s.CustomerName||'Walk-in')}</td><td>${c}${Number(s.FinalAmount).toLocaleString()}</td><td>${c}${Number(s.PaidAmount).toLocaleString()}</td><td style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td>${fmtD(p.Date)}</td><td>${p.InvoiceNo}</td><td style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`}
+async function renderPayments(area){
+  if(!S.sales.length)S.sales=await apiGet('getSales');
+  S.payments=await apiGet('getPayments');
+  const c=C();
+  const pending=S.sales.filter(s=>Number(s.DueAmount)>0&&s.Status!=='Cancelled');
+  area.innerHTML=`<div class="card"><div class="card-hdr"><h3><i class="fas fa-money-bill-wave" style="color:var(--warning);margin-right:6px"></i>Pending (${pending.length})</h3></div><div class="card-body np"><div class="tbl-wrap stack-table">${pending.length?`<table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Paid</th><th>Due</th><th>Action</th></tr></thead><tbody>${pending.map(s=>`<tr><td data-label="Invoice"><strong>${s.InvoiceNo}</strong></td><td data-label="Customer">${esc(s.CustomerName||'Walk-in')}</td><td data-label="Total">${c}${Number(s.FinalAmount).toLocaleString()}</td><td data-label="Paid">${c}${Number(s.PaidAmount).toLocaleString()}</td><td data-label="Due" style="color:var(--danger);font-weight:700">${c}${Number(s.DueAmount).toLocaleString()}</td><td data-label="Action"><button class="btn btn-success btn-sm" onclick="openPayModal('${s.InvoiceNo}','${s.CustomerID}','${esc(s.CustomerName)}',${s.DueAmount})"><i class="fas fa-money-bill"></i>Pay</button></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--secondary)">All clear!</div>'}</div></div></div><div class="card"><div class="card-hdr"><h3>Payment History</h3></div><div class="card-body np"><div class="tbl-wrap stack-table">${S.payments.length?`<table><thead><tr><th>Date</th><th>Invoice</th><th>Amount</th><th>Method</th></tr></thead><tbody>${[...S.payments].reverse().slice(0,30).map(p=>`<tr><td data-label="Date">${fmtD(p.Date)}</td><td data-label="Invoice">${p.InvoiceNo}</td><td data-label="Amount" style="color:var(--secondary)">${c}${Number(p.Amount).toLocaleString()}</td><td data-label="Method"><span class="badge badge-i">${p.PaymentMethod}</span></td></tr>`).join('')}</tbody></table>`:'<div style="padding:30px;text-align:center;color:var(--text-muted)">No records</div>'}</div></div></div>`;
+}
 function openPayModal(inv,custId,custName,due){let m=document.getElementById('payModal');if(m)m.remove();document.body.insertAdjacentHTML('beforeend',`<div class="modal-overlay" id="payModal"><div class="modal" style="max-width:500px"><div class="modal-hdr"><h3>Receive Payment</h3><button class="modal-close" onclick="closeModal('payModal')">&times;</button></div><div class="modal-body"><div class="fg"><div class="form-group"><label>Invoice</label><input class="fc" value="${inv}" readonly></div><div class="form-group"><label>Due</label><input class="fc" value="${due}" readonly></div><input type="hidden" id="pyInv" value="${inv}"><input type="hidden" id="pyCustId" value="${custId}"><input type="hidden" id="pyCustN" value="${custName}"><div class="form-group"><label>Amount</label><input type="number" class="fc" id="pyAmt" value="${due}"></div><div class="form-group"><label>Method</label><select class="fc" id="pyMethod">${makeOptions(PAY_METHODS)}</select></div></div></div><div class="modal-foot"><button class="btn btn-outline" onclick="closeModal('payModal')">Cancel</button><button class="btn btn-success" onclick="submitPayment()"><i class="fas fa-check"></i>Receive</button></div></div></div>`);openModal('payModal')}
 async function submitPayment(){const data={InvoiceNo:document.getElementById('pyInv').value,CustomerID:document.getElementById('pyCustId').value,CustomerName:document.getElementById('pyCustN').value,Amount:document.getElementById('pyAmt').value,PaymentMethod:document.getElementById('pyMethod').value};if(!data.Amount||Number(data.Amount)<=0){toast('Invalid amount','error');return}const r=await apiPost('addPayment',data);if(r.success){toast('Received!');closeModal('payModal');S.sales=await apiGet('getSales');renderPage('payments')}}
 
@@ -7746,14 +7750,20 @@ async function openBookingModal(bookingId = '') {
         </div>
         ${existing?'':`
           <hr style="margin:14px 0;border:none;border-top:1px solid var(--border)">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
             <h4 style="font-size:12px;font-weight:700">Products to Book</h4>
-            <div class="btn-group">
-              <button type="button" class="btn btn-success btn-sm" onclick="openProductModal()" title="Create a brand-new product (same as Inventory page)"><i class="fas fa-box"></i> New Product</button>
-              <button type="button" class="btn btn-outline btn-sm" onclick="addBookingRow()"><i class="fas fa-plus"></i> Add</button>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <label style="font-size:11px;font-weight:500;display:flex;align-items:center;gap:5px;color:var(--text-muted);cursor:pointer">
+                <input type="checkbox" id="bkShowCustomization" onchange="toggleBookingCustomization()" class="cb">
+                <i class="fas fa-sparkles"></i> Customization
+              </label>
+              <div class="btn-group">
+                <button type="button" class="btn btn-success btn-sm" onclick="openProductModal()" title="Create a brand-new product (same as Inventory page)"><i class="fas fa-box"></i> New Product</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="addBookingRow()"><i class="fas fa-plus"></i> Add</button>
+              </div>
             </div>
           </div>
-          <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product (Available)</th><th>Price</th><th>Qty</th><th></th></tr></thead><tbody id="bkItems"></tbody></table></div>
+          <div class="tbl-wrap"><table class="si-tbl"><thead><tr><th>Product (Available)</th><th class="bk-custom-col" style="display:none">Patch</th><th class="bk-custom-col" style="display:none">Name/No. Print</th><th class="bk-custom-col" style="display:none">Patch ৳</th><th class="bk-custom-col" style="display:none">Print ৳</th><th>Price</th><th>Qty</th><th></th></tr></thead><tbody id="bkItems"></tbody></table></div>
         `}
       </div>
       <div class="modal-foot">
@@ -7797,17 +7807,31 @@ function addBookingRow() {
   const tbody = document.getElementById('bkItems');
   if (!tbody) return;
   const products = smartSort([...S.inventory]);
+  const pD = Number(S.settings?.patchDefaultPrice) || 0;
+  const nD = Number(S.settings?.namePrintDefaultPrice) || 0;
+  const isCustomVisible = document.getElementById('bkShowCustomization')?.checked;
+  const hideStyle = isCustomVisible ? '' : 'style="display:none"';
   const tr = document.createElement('tr');
   tr.innerHTML = `
     <td><select class="bk-prod" onchange="onBookingProdChange(this)">
       ${buildBookingProductOptions(products)}
     </select></td>
+    <td class="bk-custom-col" ${hideStyle}><input type="checkbox" class="bk-patch cb"></td>
+    <td class="bk-custom-col" ${hideStyle}><input class="bk-nameprint" placeholder="Name/number"></td>
+    <td class="bk-custom-col" ${hideStyle}><input type="number" class="bk-patchprice" value="${pD}" style="width:70px"></td>
+    <td class="bk-custom-col" ${hideStyle}><input type="number" class="bk-nameprice" value="${nD}" style="width:70px"></td>
     <td><input type="number" class="bk-price" value="0" style="width:80px"></td>
     <td><input type="number" class="bk-qty" value="1" min="1" style="width:55px"></td>
     <td><button class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()"><i class="fas fa-times"></i></button></td>`;
   tbody.appendChild(tr);
 }
 
+function toggleBookingCustomization() {
+  const show = document.getElementById('bkShowCustomization')?.checked;
+  document.querySelectorAll('.bk-custom-col').forEach(el => {
+    el.style.display = show ? '' : 'none';
+  });
+}
 function onBookingProdChange(sel) {
   const tr = sel.closest('tr');
   const opt = sel.selectedOptions[0];
@@ -7833,21 +7857,55 @@ async function saveBooking(bookingId) {
     return;
   }
 
-  // New booking — collect items
+  // New booking — collect items + customizations
   const items = [];
+  const customizationLines = [];
   document.querySelectorAll('#bkItems tr').forEach(tr => {
     const ps = tr.querySelector('.bk-prod');
     if (!ps.value) return;
     const o = ps.selectedOptions[0];
+
+    // ── Read customization fields (if present) ──
+    const hasPatch = tr.querySelector('.bk-patch')?.checked || false;
+    const namePrintVal = (tr.querySelector('.bk-nameprint')?.value || '').trim();
+    const hasName = namePrintVal !== '';
+    const patchPrice = hasPatch ? (Number(tr.querySelector('.bk-patchprice')?.value) || 0) : 0;
+    const namePrice = hasName ? (Number(tr.querySelector('.bk-nameprice')?.value) || 0) : 0;
+    const qty = Number(tr.querySelector('.bk-qty').value) || 1;
+    const basePrice = Number(tr.querySelector('.bk-price').value) || 0;
+
+    // Build a human-readable customization note for this product
+    if (hasPatch || hasName) {
+      const parts = [];
+      if (hasPatch) parts.push(`Patch (${C()}${patchPrice})`);
+      if (hasName) parts.push(`Name/No. Print: "${namePrintVal}" (${C()}${namePrice})`);
+      customizationLines.push(`• ${o.dataset.name}${o.dataset.size ? ' ['+o.dataset.size+']' : ''} → ${parts.join(', ')}`);
+    }
+
+    // Add customization charge into the unit price so totals stay correct
+    const finalUnitPrice = basePrice + patchPrice + namePrice;
+
     items.push({
       ProductID: ps.value, ProductName: o.dataset.name,
       Club_Country: o.dataset.club, Edition: o.dataset.ed, Type: o.dataset.type, Size: o.dataset.size,
-      RequestedQty: tr.querySelector('.bk-qty').value,
-      UnitPrice: tr.querySelector('.bk-price').value,
-      CostPrice: o.dataset.cost
+      RequestedQty: qty,
+      UnitPrice: finalUnitPrice,
+      CostPrice: o.dataset.cost,
+      Patch: hasPatch,
+      PatchPrice: patchPrice,
+      NamePrint: namePrintVal,
+      NamePrintPrice: namePrice
     });
   });
   if (!items.length) { toast('Add at least one product', 'error'); return; }
+
+  // ── Append customization summary into the booking Notes ──
+  if (customizationLines.length) {
+    const customizationBlock = `🎨 Customizations:\n${customizationLines.join('\n')}`;
+    header.Notes = header.Notes
+      ? `${header.Notes}\n\n${customizationBlock}`
+      : customizationBlock;
+  }
 
   const r = await apiPost('createBooking', { ...header, Items: items });
   if (r.success) {
@@ -7857,7 +7915,6 @@ async function saveBooking(bookingId) {
     renderPage('bookings');
   }
 }
-
 // ---- Add single item to existing booking ----
 async function openAddBookingItemModal(bookingId) {
   S.inventory = await apiGet('getInventoryWithReserved');
