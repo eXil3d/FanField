@@ -2387,6 +2387,12 @@ async function renderInventory(area){
   const eds=[...new Set(S.inventory.map(i=>i.Edition).filter(Boolean))];
   const types=[...new Set(S.inventory.map(i=>i.Type).filter(Boolean))];
   const sizes=[...new Set(S.inventory.map(i=>i.Size).filter(Boolean))];
+  // Build batch-count map for badges
+  const allBatches = await apiGet('getBatches');
+  S._batchCounts = {};
+  allBatches.forEach(b => {
+    S._batchCounts[b.ProductID] = (S._batchCounts[b.ProductID] || 0) + 1;
+  });
   invSortCol='default';invSortDir='asc';
   // Reset to smart sort by default every time inventory loads
   invSortCol='smart';invSortDir='asc';
@@ -2900,13 +2906,102 @@ function renderInvTable(data){
     const mn=Number(i.MinStock)||5;
     const pct=Math.min(100,(Math.max(0,avail)/Math.max(mn*3,1))*100);
     const col=avail<=0?'#dc2626':avail<=mn?'#d97706':'#059669';
-    const isBatch=String(i.ID).match(/^PRD-\d+[A-Z]$/);
-    return`<tr><td data-label="Product"><strong>${esc(i.ProductName)}</strong><br><small style="color:var(--text-muted)">${esc(i.ID)}${isBatch?' <span class="badge badge-p" style="font-size:9px">Batch</span>':''}</small></td><td data-label="Club"><span class="badge badge-i">${i.Club_Country||'-'}</span></td><td data-label="Edition">${i.Edition||'-'}</td><td data-label="Type">${i.Type||'-'}</td><td data-label="Size">${i.Size||'-'}</td><td data-label="Cost">${c}${Number(i.CostPrice).toLocaleString()}</td><td data-label="Sell"><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
+    
+    // NEW
+    const batchCount=(S._batchCounts && S._batchCounts[i.ID]) || 0;
+    
+    const batchBadge=batchCount>0
+      ? ` <span class="badge badge-p"
+            title="${batchCount} purchase batch(es)"
+            style="font-size:9px;cursor:pointer"
+            onclick="event.stopPropagation();openBatchHistory('${i.ID}')">
+            <i class="fas fa-layer-group"
+               style="font-size:8px;margin-right:2px"></i>${batchCount}
+          </span>`
+      : '';
+    return`<tr>
+    <td data-label="Product"><strong>${esc(i.ProductName)}</strong>${batchBadge}<br><small style="color:var(--text-muted)">${esc(i.ID)}</small></td>
+    <td data-label="Club"><span class="badge badge-i">${i.Club_Country||'-'}</span></td>
+    <td data-label="Edition">${i.Edition||'-'}</td>
+    <td data-label="Type">${i.Type||'-'}</td>
+    <td data-label="Size">${i.Size||'-'}</td><td data-label="Cost">${c}${Number(i.CostPrice).toLocaleString()}</td><td data-label="Sell"><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
     <td data-label="Available"><strong style="font-size:14px;color:${avail<=0?'var(--danger)':avail<=mn?'var(--warning)':'var(--text)'}">${avail}</strong></td>
     <td data-label="Booked">${reserved>0?`<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>`:'<span style="color:var(--text-faint)">—</span>'}</td>
     <td data-label="Physical"><span style="color:var(--text-muted)">${physical}</span></td>
-    <td data-label="Health"><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td data-label="Supplier">${esc(i.SupplierName||'-')}</td><td data-label="Actions"><div class="btn-group"><button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button><button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button><button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button></div></td></tr>`}).join('')}</tbody></table>`;
+    <td data-label="Health"><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td data-label="Supplier">${esc(i.SupplierName||'-')}</td>
+    <td data-label="Actions"><div class="btn-group">
+      <button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button>
+      <button class="btn btn-outline btn-sm" onclick="openAddBatchModal('${i.ID}')" title="Add batch (purchase)" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-layer-group"></i></button>
+      <button class="btn btn-outline btn-sm" onclick="openBatchHistory('${i.ID}')" title="View batch history"><i class="fas fa-clock-rotate-left"></i></button>
+      <button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button>
+      <button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button>
+      </div></td>
+      </tr>`}).join('')}</tbody></table>`;
 }
+
+async function openBatchHistory(productId) {
+  const prod = S.inventory.find(p => p.ID === productId);
+  const batches = await apiGet('getBatches', { productId });
+  const c = C();
+
+  const totalQty = batches.reduce((s, b) => s + Number(b.Quantity || 0), 0);
+  const totalRemaining = batches.reduce((s, b) => s + Number(b.RemainingQty || 0), 0);
+  const totalCapital = batches.reduce((s, b) => s + (Number(b.RemainingQty || 0) * Number(b.CostPrice || 0)), 0);
+  const weightedAvg = totalRemaining > 0 ? totalCapital / totalRemaining : 0;
+
+  let m = document.getElementById('batchHistModal'); if (m) m.remove();
+  document.body.insertAdjacentHTML('beforeend', `
+    <div class="modal-overlay" id="batchHistModal"><div class="modal" style="max-width:820px">
+      <div class="modal-hdr">
+        <h3><i class="fas fa-layer-group" style="color:var(--purple);margin-right:6px"></i>Batch History — ${esc(prod?.ProductName || productId)}</h3>
+        <button class="modal-close" onclick="closeModal('batchHistModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px;padding:12px 14px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(59,130,246,.08));border-left:3px solid var(--purple);border-radius:10px;font-size:12.5px">
+          <div>
+            <strong style="font-size:13px">${prod?.Stock || 0}</strong> units in stock
+            <span style="color:var(--text-muted);margin:0 8px">•</span>
+            Weighted avg cost: <strong style="color:var(--purple)">${c}${Math.round(weightedAvg).toLocaleString()}</strong>
+            <span style="color:var(--text-muted);margin:0 8px">•</span>
+            Capital tied: <strong>${c}${Math.round(totalCapital).toLocaleString()}</strong>
+          </div>
+          <button class="btn btn-success btn-sm" onclick="openAddBatchModal('${productId}')"><i class="fas fa-plus"></i> Add Batch</button>
+        </div>
+        <div class="tbl-wrap stack-table"><table>
+          <thead><tr><th>Date</th><th>Supplier</th><th>Qty Bought</th><th>Cost/Unit</th><th>Remaining</th><th>Notes</th><th></th></tr></thead>
+          <tbody>${batches.length ? batches.map(b => `<tr>
+            <td data-label="Date">${fmtD(b.BatchDate)}</td>
+            <td data-label="Supplier">${esc(b.SupplierName || '-')}</td>
+            <td data-label="Qty Bought">${b.Quantity}</td>
+            <td data-label="Cost/Unit">${c}${Number(b.CostPrice).toLocaleString()}</td>
+            <td data-label="Remaining"><strong>${b.RemainingQty}</strong></td>
+            <td data-label="Notes" style="font-size:11px;color:var(--text-muted)">${esc(b.Notes || '-')}</td>
+            <td data-label=""><button class="btn btn-danger btn-sm" onclick="delBatch('${b.ID}','${productId}')" title="Delete batch record"><i class="fas fa-trash"></i></button></td>
+          </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text-muted)">No batches recorded yet</td></tr>'}</tbody>
+        </table></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-outline" onclick="closeModal('batchHistModal')">Close</button>
+      </div>
+    </div></div>`);
+  openModal('batchHistModal');
+}
+
+async function delBatch(batchId, productId) {
+  if (!confirm('Delete this batch record?\n\nChoose OK to also subtract its remaining stock, or Cancel to keep stock.')) {
+    // User cancelled entirely — do nothing
+    return;
+  }
+  const r = await apiPost('deleteBatch', { ID: batchId, SubtractStock: true });
+  if (r.success) {
+    toast('Batch deleted');
+    closeModal('batchHistModal');
+    renderPage('inventory');
+  } else {
+    toast(r.error || 'Could not delete batch', 'error');
+  }
+}
+
 function openProductModal(prod = null) {
   let m = document.getElementById('productModal');
   if (m) m.remove();
@@ -3923,7 +4018,7 @@ async function delProduct(id){
     window._restockFromBookings = false;
   }
 }
-function openAddBatchModal() {
+function openAddBatchModal(productId = '') {
   let m = document.getElementById('batchModal'); if (m) m.remove();
   // Allow ALL products (including existing variants) to be selected
   // Smart group sort: Club → Type → Edition → Size (logical grouping)
@@ -3979,6 +4074,31 @@ function openAddBatchModal() {
     </div>
   </div></div>`);
   openModal('batchModal');
+
+// Preselect product when opened from inventory/batch history
+if (productId) {
+  const prodSel = document.getElementById('bProd');
+
+  if (prodSel) {
+    const exists = [...prodSel.options]
+      .some(o => o.value === productId);
+
+    if (exists) {
+      prodSel.value = productId;
+
+      // Trigger existing autofill logic
+      onBatchProdChange();
+
+      // UX improvement:
+      // focus quantity because product is already chosen
+      setTimeout(() => {
+        document.getElementById('bQty')?.focus();
+      }, 50);
+    } else {
+      toast(`Product ${productId} not found`, 'warning');
+    }
+  }
+}
 }
 
 // Auto-fill supplier and prices when a product is selected
@@ -7108,7 +7228,65 @@ async function renderSettings(area){
     <div class="form-group"><label>Inside Dhaka (${C()})</label><input type="number" class="fc" id="stDelIn" value="${s.deliveryInsideDhaka||80}"></div>
     <div class="form-group"><label>Outside Dhaka (${C()})</label><input type="number" class="fc" id="stDelOut" value="${s.deliveryOutsideDhaka||150}"></div>
     <div class="form-group"><label>On Campus (${C()})</label><input type="number" class="fc" id="stDelCampus" value="${s.deliveryOnCampus||0}"></div>
-  </div>   <button class="btn btn-primary" onclick="saveSets()" style="margin-top:14px"><i class="fas fa-save"></i>Save Settings</button>      <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">      <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--warning)">     <i class="fas fa-wand-magic-sparkles" style="margin-right:6px"></i>Data Maintenance   </h4>   <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">     <strong>Format All Phone Numbers</strong><br>     Converts all existing phone numbers in <strong>Customers</strong>, <strong>Suppliers</strong>, and <strong>Sales</strong> records to the standard format: <code style="background:var(--bg);padding:2px 6px;border-radius:4px">017-1234-5678</code><br>     <span style="color:var(--text-muted);font-size:11px">⚠️ This is a one-time migration. Safe to run multiple times — already-formatted numbers won't change.</span>   </div>   <button class="btn btn-warning" onclick="formatAllPhoneNumbers()">     <i class="fas fa-arrows-rotate"></i> Format All Phone Numbers   </button> </div></div>`;
+  </div>
+  
+  
+  <button class="btn btn-primary" onclick="saveSets()" style="margin-top:14px"><i class="fas fa-save"></i>Save Settings</button>      <hr style="margin:24px 0;border:none;border-top:1px solid var(--border)">      <h4 style="font-size:14px;font-weight:700;margin-bottom:10px;color:var(--warning)">     <i class="fas fa-wand-magic-sparkles" style="margin-right:6px"></i>Data Maintenance   </h4>   <div style="background:rgba(245,158,11,.08);padding:12px;border-radius:8px;border-left:3px solid var(--warning);margin-bottom:14px;font-size:12px;color:var(--text-sec)">     <strong>Format All Phone Numbers</strong><br>     Converts all existing phone numbers in <strong>Customers</strong>, <strong>Suppliers</strong>, and <strong>Sales</strong> records to the standard format: <code style="background:var(--bg);padding:2px 6px;border-radius:4px">017-1234-5678</code><br>     <span style="color:var(--text-muted);font-size:11px">⚠️ This is a one-time migration. Safe to run multiple times — already-formatted numbers won't change.</span>   </div>
+  <button class="btn btn-warning" onclick="formatAllPhoneNumbers()">
+    <i class="fas fa-arrows-rotate"></i> Format All Phone Numbers
+  </button>
+  
+  </div></div>
+  
+  <!-- INSERT HERE -->
+  <div class="card" style="margin-top:16px">
+    <div class="card-hdr">
+      <h3>
+        <i class="fas fa-wand-magic-sparkles"
+           style="color:var(--purple);margin-right:6px"></i>
+        Inventory Maintenance
+      </h3>
+    </div>
+  
+    <div class="card-body">
+  
+      <div style="
+        background:rgba(245,158,11,.08);
+        padding:12px;
+        border-radius:8px;
+        border-left:3px solid var(--warning);
+        font-size:12.5px;
+        color:var(--text-sec);
+        margin-bottom:14px">
+  
+        <i class="fas fa-triangle-exclamation"
+           style="color:var(--warning)"></i>
+  
+        <strong>Consolidate Variants:</strong>
+  
+        Merges all batch-variant products
+        (e.g. PRD-0043A, PRD-0043B)
+        back into their base product (PRD-0043).
+  
+        Stock is summed, batch history is preserved,
+        and past sales stay linked.
+  
+        <strong>Run this once.</strong>
+        Back up your data first.
+      </div>
+  
+      <button
+        class="btn btn-primary"
+        onclick="runVariantMigration()">
+  
+        <i class="fas fa-arrows-to-circle"></i>
+        Consolidate All Variants Now
+      </button>
+  
+    </div>
+  </div>
+  
+  `;
 }
 async function saveSets(){const settings={businessName:document.getElementById('stBiz').value,motto:document.getElementById('stMotto').value,currency:document.getElementById('stCur').value,invoicePrefix:document.getElementById('stPfx').value,nextInvoiceNum:document.getElementById('stNum').value,phone:document.getElementById('stPhone').value,address:document.getElementById('stAddr').value,patchDefaultPrice:document.getElementById('stPatch').value,patchDefaultCost:document.getElementById('stPatchCost').value,namePrintDefaultPrice:document.getElementById('stName').value,namePrintDefaultCost:document.getElementById('stNameCost').value,deliveryInsideDhaka:document.getElementById('stDelIn').value,deliveryOutsideDhaka:document.getElementById('stDelOut').value,deliveryOnCampus:document.getElementById('stDelCampus').value};const r=await apiPost('updateSettings',{settings});if(r.success){toast('Saved!');S.currency=settings.currency;S.settings=settings}}
 // ============================================================
