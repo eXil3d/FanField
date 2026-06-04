@@ -7288,6 +7288,25 @@ async function renderSettings(area){
   
   `;
 }
+async function runVariantMigration() {
+  if (!confirm('⚠️ CONSOLIDATE VARIANTS\n\nThis will merge all PRD-xxxxA/B/C variants into their base products.\n\n• Stock will be summed into the base product\n• Each variant becomes a batch (cost layer)\n• Past sales remain linked\n• Variants with active booking reservations are skipped\n\nThis cannot be undone. Have you backed up?\n\nProceed?')) return;
+
+  const btn = event?.target?.closest('button');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Migrating...'; }
+
+  const r = await apiPost('migrateConsolidateVariants', {});
+
+  if (r.success) {
+    let msg = `✅ Done! Processed ${r.basesProcessed} product(s), merged ${r.variantsMerged} variant(s).`;
+    if (r.skippedReserved > 0) msg += ` Skipped ${r.skippedReserved} reserved variant(s).`;
+    toast(msg, 'success');
+    console.log('Migration results:', r.results);
+    setTimeout(() => renderPage('inventory'), 1200);
+  } else {
+    toast(r.error || 'Migration failed', 'error');
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-arrows-to-circle"></i> Consolidate All Variants Now'; }
+  }
+}
 async function saveSets(){const settings={businessName:document.getElementById('stBiz').value,motto:document.getElementById('stMotto').value,currency:document.getElementById('stCur').value,invoicePrefix:document.getElementById('stPfx').value,nextInvoiceNum:document.getElementById('stNum').value,phone:document.getElementById('stPhone').value,address:document.getElementById('stAddr').value,patchDefaultPrice:document.getElementById('stPatch').value,patchDefaultCost:document.getElementById('stPatchCost').value,namePrintDefaultPrice:document.getElementById('stName').value,namePrintDefaultCost:document.getElementById('stNameCost').value,deliveryInsideDhaka:document.getElementById('stDelIn').value,deliveryOutsideDhaka:document.getElementById('stDelOut').value,deliveryOnCampus:document.getElementById('stDelCampus').value};const r=await apiPost('updateSettings',{settings});if(r.success){toast('Saved!');S.currency=settings.currency;S.settings=settings}}
 // ============================================================
 // MIGRATION: Format all existing phone numbers
