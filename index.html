@@ -7671,7 +7671,7 @@ async function openBookingDetail(bookingId) {
       </tbody>
     </table></div>
 
-    ${b.Notes?`<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px"><strong>Customer Notes:</strong> ${esc(b.Notes)}</div>`:''}
+    ${renderBookingNotes(b.Notes)}
     ${b.InternalNotes?`<div style="margin-top:8px;padding:10px;background:rgba(245,158,11,.08);border-left:3px solid var(--warning);border-radius:8px;font-size:12px"><strong>Internal:</strong> ${esc(b.InternalNotes)}</div>`:''}
 
     <h4 style="font-size:13px;font-weight:700;margin:16px 0 8px">Timeline</h4>
@@ -7712,6 +7712,51 @@ async function openBookingDetail(bookingId) {
   // DESKTOP: render into the right panel
   const panel = document.getElementById('bkDetail');
   if (panel) panel.innerHTML = detailHTML;
+}
+
+// Splits booking Notes into (a) plain customer notes and (b) a styled customization box
+function renderBookingNotes(notes) {
+  if (!notes) return '';
+  const MARKER = '🎨 Customizations:';
+  const idx = notes.indexOf(MARKER);
+
+  // No customization block — render plain notes as before
+  if (idx === -1) {
+    return `<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;white-space:pre-wrap"><strong>Customer Notes:</strong> ${esc(notes)}</div>`;
+  }
+
+  // Split: everything before the marker = plain notes; after = customization lines
+  const plainPart = notes.slice(0, idx).trim();
+  const customPart = notes.slice(idx + MARKER.length).trim();
+
+  // Each customization line starts with "• "
+  const lines = customPart.split('\n').map(l => l.trim()).filter(Boolean);
+
+  let html = '';
+
+  // Plain notes (if any remain)
+  if (plainPart) {
+    html += `<div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;white-space:pre-wrap"><strong>Customer Notes:</strong> ${esc(plainPart)}</div>`;
+  }
+
+  // Styled customization box
+  html += `
+    <div style="margin-top:12px;padding:14px;background:linear-gradient(135deg,rgba(139,92,246,.1),rgba(59,130,246,.08));border:1px solid rgba(139,92,246,.3);border-left:3px solid var(--purple);border-radius:10px">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;font-size:12.5px;font-weight:700;color:var(--purple)">
+        <span style="font-size:15px">🎨</span> Customizations
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px">
+        ${lines.map(line => {
+          const text = line.replace(/^•\s*/, ''); // strip leading bullet
+          return `<div style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-sec);line-height:1.4">
+            <i class="fas fa-sparkles" style="color:var(--purple);font-size:10px;margin-top:3px;flex-shrink:0"></i>
+            <span>${esc(text)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+
+  return html;
 }
 // ---- Create / Edit Booking modal ----
 async function openBookingModal(bookingId = '') {
