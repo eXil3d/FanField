@@ -7612,19 +7612,21 @@ function filterBookingList() {
     el.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted)">No bookings</div>';
     return;
   }
-  el.innerHTML = data.map(b => `
+  el.innerHTML = data.map(b => {
+    const hasCustomization = (b.Notes || '').includes('🎨 Customizations:');
+    return `
     <div onclick="openBookingDetail('${b.BookingID}')" style="padding:14px 16px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .15s;${_selectedBookingId===b.BookingID?'background:var(--surface-hover)':''}" onmouseover="this.style.background='var(--surface-hover)'" onmouseout="this.style.background='${_selectedBookingId===b.BookingID?'var(--surface-hover)':''}'">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
         <div style="flex:1;min-width:0">
-          <div style="font-size:13.5px;font-weight:700">${esc(b.CustomerName)}</div>
+          <div style="font-size:13.5px;font-weight:700">${esc(b.CustomerName)} ${hasCustomization?'<span title="Has customization (patch/name print)" style="font-size:13px;margin-left:2px">🎨</span>':''}</div>
           <div style="font-size:11px;color:var(--text-muted);margin-top:2px">${esc(b.BookingNumber)} • ${b.itemCount} item${b.itemCount!==1?'s':''}</div>
         </div>
         <div style="text-align:right">${bookingStatusBadge(b.Status)}</div>
       </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 }
-
 async function openBookingDetail(bookingId) {
   _selectedBookingId = bookingId;
   filterBookingList();
@@ -7637,7 +7639,7 @@ async function openBookingDetail(bookingId) {
   const detailHTML = `
     <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;margin-bottom:6px">
       <div>
-        <h2 style="font-size:20px;font-weight:800">${esc(b.CustomerName)}</h2>
+        <h2 style="font-size:20px;font-weight:800">${esc(b.CustomerName)} ${(b.Notes||'').includes('🎨 Customizations:')?'<span title="Has customization" style="font-size:18px">🎨</span>':''}</h2>
         <div style="font-size:12px;color:var(--text-muted)">${esc(b.CustomerPhone||'-')}</div>
       </div>
       ${bookingStatusBadge(b.Status)}
