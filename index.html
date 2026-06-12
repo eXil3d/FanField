@@ -764,6 +764,53 @@ mark { background: rgba(59,130,246,.3); color: inherit; padding: 0 2px; border-r
 :root[data-theme="light"] ::-webkit-scrollbar-thumb{background:#cbd5e1}
 :root[data-theme="light"] ::-webkit-scrollbar-thumb:hover{background:#94a3b8}
 
+
+
+/* --- Professional inventory workbench --- */
+.inventory-shell{display:flex;flex-direction:column;gap:18px}
+.inventory-hero{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:stretch;
+  padding:22px;border-radius:22px;border:1px solid rgba(59,130,246,.18);
+  background:
+    radial-gradient(circle at top left,rgba(59,130,246,.20),transparent 34%),
+    radial-gradient(circle at bottom right,rgba(139,92,246,.16),transparent 30%),
+    linear-gradient(135deg,var(--surface),var(--bg-2));
+  box-shadow:var(--shadow-md);overflow:hidden;position:relative
+}
+.inventory-hero::after{content:'';position:absolute;inset:auto -80px -120px auto;width:260px;height:260px;border-radius:50%;background:rgba(16,185,129,.08);pointer-events:none}
+.inventory-eyebrow{font-size:10.5px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--primary);margin-bottom:6px}
+.inventory-hero h3{font-size:24px;line-height:1.15;letter-spacing:-.8px;margin:0 0 7px;font-weight:850}
+.inventory-hero p{font-size:13px;color:var(--text-sec);max-width:720px;margin:0}
+.inventory-hero-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;z-index:1}
+.inventory-kpis{display:grid;grid-template-columns:repeat(5,minmax(140px,1fr));gap:12px}
+.inventory-kpi{padding:14px 15px;border-radius:16px;background:linear-gradient(180deg,var(--surface),var(--bg-2));border:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.inventory-kpi .kpi-label{display:flex;align-items:center;gap:7px;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--text-muted);font-weight:800;margin-bottom:6px}
+.inventory-kpi .kpi-value{font-size:20px;font-weight:850;letter-spacing:-.5px;font-feature-settings:"tnum"}
+.inventory-kpi .kpi-sub{font-size:11px;color:var(--text-muted);margin-top:2px}
+.inventory-workbench{border-radius:18px;overflow:hidden}
+.inventory-toolbar{display:grid;grid-template-columns:minmax(260px,1.7fr) repeat(5,minmax(112px,.62fr));gap:10px;width:100%;align-items:center}
+.inventory-toolbar .search-box{min-width:0;width:100%}
+.inventory-toolbar .fc{width:100%!important;min-width:0!important}
+.inventory-toolbar-actions{grid-column:1/-1;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;padding-top:2px}
+.inventory-view-tools,.inventory-primary-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.inventory-summary-bar{padding:12px 22px;background:linear-gradient(90deg,rgba(59,130,246,.07),rgba(139,92,246,.04));border-bottom:1px solid var(--border);display:flex;gap:10px;flex-wrap:wrap;font-size:12px;align-items:center}
+.summary-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.035);border:1px solid var(--border);color:var(--text-muted)}
+.summary-pill strong{color:var(--text)}
+.inventory-table table{min-width:1120px}
+.product-cell{display:flex;align-items:flex-start;gap:11px;min-width:220px}
+.product-avatar{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:linear-gradient(135deg,var(--primary-light),var(--purple-light));color:var(--primary);font-weight:850;border:1px solid rgba(59,130,246,.22)}
+.product-title{font-weight:800;line-height:1.25;color:var(--text)}
+.product-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;color:var(--text-muted);font-size:10.5px}
+.money-stack{display:flex;flex-direction:column;line-height:1.25;gap:2px}
+.money-stack strong{font-size:13px;font-feature-settings:"tnum"}
+.money-stack small{font-size:10px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.stock-metric{display:flex;align-items:center;gap:8px}
+.stock-number{font-size:17px;font-weight:850;font-feature-settings:"tnum"}
+.cost-policy-note{margin-top:12px;padding:11px 12px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.18);border-left:3px solid var(--warning);border-radius:10px;color:var(--text-sec);font-size:11.5px}
+.batch-policy-card{background:linear-gradient(135deg,rgba(16,185,129,.09),rgba(59,130,246,.07));border:1px solid rgba(16,185,129,.16);border-left:3px solid var(--secondary);border-radius:12px;padding:12px 14px;color:var(--text-sec);font-size:12px;margin-bottom:14px}
+@media(max-width:1100px){.inventory-hero{grid-template-columns:1fr}.inventory-hero-actions{justify-content:flex-start}.inventory-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.inventory-toolbar{grid-template-columns:minmax(0,1fr) repeat(2,minmax(120px,1fr))}}
+@media(max-width:640px){.inventory-hero{padding:18px;border-radius:18px}.inventory-hero h3{font-size:20px}.inventory-kpis{grid-template-columns:1fr}.inventory-toolbar{grid-template-columns:1fr}.inventory-toolbar-actions{flex-direction:column;align-items:stretch}.inventory-view-tools,.inventory-primary-actions{width:100%}.inventory-view-tools .btn,.inventory-primary-actions .btn{flex:1;justify-content:center}.product-cell{min-width:0}.inventory-summary-bar{padding:12px}}
+
 /* --- Loading bar at top --- */
 #topLoadBar{
   position:fixed;top:0;left:0;height:3px;width:0;z-index:9999;
@@ -1106,6 +1153,26 @@ function deliveryBadge(s){if(!s||s===''||s==='None')return'-';const m={'Processi
 function makeOptions(arr,sel=''){return arr.map(a=>`<option value="${a}" ${a===sel?'selected':''}>${a}</option>`).join('')}
 function C(){return S.currency||'৳'}
 function esc(s){if(!s)return'';const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+function money(n){return C()+Number(n||0).toLocaleString()}
+function productInitials(item){
+  const raw = item?.Club_Country || item?.ProductName || 'FF';
+  return String(raw).split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || 'FF';
+}
+function getAvailableQty(item){
+  return (item?.AvailableQty !== undefined) ? Number(item.AvailableQty) : (Number(item?.Stock) - Number(item?.ReservedQty || 0));
+}
+function getCurrentCost(item){
+  // CostPrice is intentionally treated as the last batch cost, not a weighted/average cost.
+  return Number(item?.CostPrice) || 0;
+}
+function getBatchTime(batch){
+  const raw = batch?.BatchDate || batch?.Date || batch?.CreatedAt || batch?.Timestamp || '';
+  const t = raw ? new Date(raw).getTime() : 0;
+  return Number.isFinite(t) ? t : 0;
+}
+function getLatestBatch(batches=[]){
+  return [...batches].sort((a,b)=>getBatchTime(b)-getBatchTime(a))[0] || null;
+}
 function buildPN(club,type,edition,size){return[club,type,edition,size].filter(Boolean).join(' ')}
 function smartSort(data){return[...data].sort((a,b)=>{const cA=(a.Club_Country||'').toLowerCase(),cB=(b.Club_Country||'').toLowerCase();if(cA!==cB)return cA<cB?-1:1;const tA=TYPE_ORDER[a.Type]||99,tB=TYPE_ORDER[b.Type]||99;if(tA!==tB)return tA-tB;const eA=EDITION_ORDER[a.Edition]||99,eB=EDITION_ORDER[b.Edition]||99;if(eA!==eB)return eA-eB;return(SIZE_ORDER[a.Size]||99)-(SIZE_ORDER[b.Size]||99)})}
 function statCard(icon,color,val,label){return`<div class="stat-card"><div class="stat-hdr"><div class="stat-icon ${color}"><i class="fas ${icon}"></i></div></div><div class="stat-val">${val}</div><div class="stat-label">${label}</div></div>`}
@@ -2382,33 +2449,79 @@ async function renderDashboard(area){
 // INVENTORY (with filters & sorting)
 // ============================================================
 async function renderInventory(area){
-  S.inventory=await apiGet('getInventoryWithReserved');S.suppliers=await apiGet('getSuppliers');
-  const cats=[...new Set(S.inventory.map(i=>i.Club_Country).filter(Boolean))].sort();
-  const eds=[...new Set(S.inventory.map(i=>i.Edition).filter(Boolean))];
-  const types=[...new Set(S.inventory.map(i=>i.Type).filter(Boolean))];
-  const sizes=[...new Set(S.inventory.map(i=>i.Size).filter(Boolean))];
-  // Build batch-count map for badges
+  S.inventory = await apiGet('getInventoryWithReserved');
+  S.suppliers = await apiGet('getSuppliers');
+  const cats = [...new Set(S.inventory.map(i => i.Club_Country).filter(Boolean))].sort();
+  const eds = [...new Set(S.inventory.map(i => i.Edition).filter(Boolean))].sort();
+  const types = [...new Set(S.inventory.map(i => i.Type).filter(Boolean))].sort();
+  const sizes = [...new Set(S.inventory.map(i => i.Size).filter(Boolean))].sort((a,b)=>(SIZE_ORDER[a]||99)-(SIZE_ORDER[b]||99));
   const allBatches = await apiGet('getBatches');
   S._batchCounts = {};
-  allBatches.forEach(b => {
-    S._batchCounts[b.ProductID] = (S._batchCounts[b.ProductID] || 0) + 1;
-  });
-  invSortCol='default';invSortDir='asc';
-  // Reset to smart sort by default every time inventory loads
-  invSortCol='smart';invSortDir='asc';
-  area.innerHTML=`<div class="card"><div class="card-hdr"><div class="toolbar" style="width:100%">
-    <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Flexible search: 'Argentina S Player' or 'Real Madrid M'..." oninput="filterInv()"></div>
-    <select class="fc" style="width:auto;min-width:100px" id="invCat" onchange="filterInv()"><option value="">All Clubs</option>${cats.map(c=>`<option>${c}</option>`).join('')}</select>
-    <select class="fc" style="width:auto;min-width:90px" id="invEd" onchange="filterInv()"><option value="">All Editions</option>${eds.map(e=>`<option>${e}</option>`).join('')}</select>
-    <select class="fc" style="width:auto;min-width:80px" id="invType" onchange="filterInv()"><option value="">All Types</option>${types.map(t=>`<option>${t}</option>`).join('')}</select>
-    <select class="fc" style="width:auto;min-width:70px" id="invSize" onchange="filterInv()"><option value="">Size</option>${sizes.map(s=>`<option>${s}</option>`).join('')}</select>
-    <select class="fc" style="width:auto;min-width:80px" id="invStock" onchange="filterInv()"><option value="">Stock</option><option value="low">Low</option><option value="out">Out</option><option value="ok">OK</option></select>
-    <button class="btn btn-outline btn-sm" onclick="openInventoryInsights()" title="Inventory Insights — quick stats, top performers, alerts"><i class="fas fa-chart-pie"></i><span class="hide-mobile"> Insights</span></button>
-    <button class="btn btn-success btn-sm" onclick="openAddBatchModal()"><i class="fas fa-layer-group"></i><span class="hide-mobile"> Batch</span></button>
-    <button class="btn btn-primary btn-sm" onclick="openProductModal()"><i class="fas fa-plus"></i><span class="hide-mobile"> Add</span></button>
-  </div></div>
-  <div id="invSummaryBar" style="padding:12px 22px;background:var(--bg);border-bottom:1px solid var(--border);display:flex;gap:18px;flex-wrap:wrap;font-size:12px;align-items:center"></div>
-  <div class="card-body np"><div class="tbl-wrap" id="invTbl"></div></div></div>`;
+  allBatches.forEach(b => { S._batchCounts[b.ProductID] = (S._batchCounts[b.ProductID] || 0) + 1; });
+  invSortCol = 'smart';
+  invSortDir = 'asc';
+
+  const totalProducts = S.inventory.length;
+  const totalPhysical = S.inventory.reduce((sum, item) => sum + (Number(item.Stock) || 0), 0);
+  const totalAvailable = S.inventory.reduce((sum, item) => sum + getAvailableQty(item), 0);
+  const totalReserved = S.inventory.reduce((sum, item) => sum + (Number(item.ReservedQty) || 0), 0);
+  const lastBatchCapital = S.inventory.reduce((sum, item) => sum + ((Number(item.Stock) || 0) * getCurrentCost(item)), 0);
+  const lowProducts = S.inventory.filter(item => {
+    const available = getAvailableQty(item);
+    return available > 0 && available <= Number(item.MinStock || 5);
+  }).length;
+  const outProducts = S.inventory.filter(item => getAvailableQty(item) <= 0).length;
+
+  area.innerHTML = `
+    <section class="inventory-shell">
+      <div class="inventory-hero">
+        <div>
+          <div class="inventory-eyebrow">Inventory Operations</div>
+          <h3>Stock, batches, bookings and pricing in one workspace.</h3>
+          <p>Search by any jersey detail, review available vs. booked units, and restock through purchase batches. Cost is now intentionally shown as the <strong>last batch cost</strong> for the product.</p>
+          <div class="cost-policy-note"><i class="fas fa-circle-info" style="color:var(--warning);margin-right:6px"></i>No average-cost calculation is used in inventory. New restocks update the product cost to the latest batch cost.</div>
+        </div>
+        <div class="inventory-hero-actions">
+          <button class="btn btn-outline" onclick="openInventoryInsights()"><i class="fas fa-chart-pie"></i> Insights</button>
+          <button class="btn btn-success" onclick="openAddBatchModal()"><i class="fas fa-layer-group"></i> Restock Batch</button>
+          <button class="btn btn-primary" onclick="openProductModal()"><i class="fas fa-plus"></i> Add Product</button>
+        </div>
+      </div>
+
+      <div class="inventory-kpis">
+        <div class="inventory-kpi"><div class="kpi-label"><i class="fas fa-boxes-stacked" style="color:var(--primary)"></i> Products</div><div class="kpi-value">${totalProducts}</div><div class="kpi-sub">Active catalog items</div></div>
+        <div class="inventory-kpi"><div class="kpi-label"><i class="fas fa-cubes" style="color:var(--secondary)"></i> Available</div><div class="kpi-value">${totalAvailable}</div><div class="kpi-sub">${totalPhysical} physical units</div></div>
+        <div class="inventory-kpi"><div class="kpi-label"><i class="fas fa-calendar-check" style="color:var(--purple)"></i> Booked</div><div class="kpi-value">${totalReserved}</div><div class="kpi-sub">Reserved by open bookings</div></div>
+        <div class="inventory-kpi"><div class="kpi-label"><i class="fas fa-coins" style="color:var(--warning)"></i> Capital</div><div class="kpi-value">${money(lastBatchCapital)}</div><div class="kpi-sub">Stock × last batch cost</div></div>
+        <div class="inventory-kpi"><div class="kpi-label"><i class="fas fa-triangle-exclamation" style="color:var(--danger)"></i> Attention</div><div class="kpi-value">${lowProducts + outProducts}</div><div class="kpi-sub">${lowProducts} low • ${outProducts} out</div></div>
+      </div>
+
+      <div class="card inventory-workbench">
+        <div class="card-hdr">
+          <div class="inventory-toolbar">
+            <div class="search-box"><i class="fas fa-search"></i><input type="text" id="invSrch" placeholder="Search: Argentina S Player, Real Madrid M, PRD-0006..." oninput="filterInv()"></div>
+            <select class="fc" id="invCat" onchange="filterInv()"><option value="">All Clubs</option>${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</select>
+            <select class="fc" id="invEd" onchange="filterInv()"><option value="">All Editions</option>${eds.map(e=>`<option>${esc(e)}</option>`).join('')}</select>
+            <select class="fc" id="invType" onchange="filterInv()"><option value="">All Types</option>${types.map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+            <select class="fc" id="invSize" onchange="filterInv()"><option value="">All Sizes</option>${sizes.map(s=>`<option>${esc(s)}</option>`).join('')}</select>
+            <select class="fc" id="invStock" onchange="filterInv()"><option value="">All Stock</option><option value="low">Low</option><option value="out">Out</option><option value="ok">Healthy</option></select>
+            <div class="inventory-toolbar-actions">
+              <div class="inventory-view-tools">
+                <button class="btn btn-outline btn-sm" onclick="setInvSort('smart')"><i class="fas fa-layer-group"></i> Smart Sort</button>
+                <button class="btn btn-outline btn-sm" onclick="document.getElementById('invSrch').value='';document.getElementById('invCat').value='';document.getElementById('invEd').value='';document.getElementById('invType').value='';document.getElementById('invSize').value='';document.getElementById('invStock').value='';filterInv();"><i class="fas fa-filter-circle-xmark"></i> Clear Filters</button>
+              </div>
+              <div class="inventory-primary-actions">
+                <button class="btn btn-outline btn-sm" onclick="openInventoryInsights()"><i class="fas fa-chart-pie"></i> Insights</button>
+                <button class="btn btn-success btn-sm" onclick="openAddBatchModal()"><i class="fas fa-layer-group"></i> Restock Batch</button>
+                <button class="btn btn-primary btn-sm" onclick="openProductModal()"><i class="fas fa-plus"></i> Add Product</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="invSummaryBar" class="inventory-summary-bar"></div>
+        <div class="card-body np"><div class="tbl-wrap inventory-table" id="invTbl"></div></div>
+      </div>
+    </section>`;
   filterInv();
 }
 function filterInv(){
@@ -2455,25 +2568,24 @@ function updateInvSummaryBar(data) {
   const bar = document.getElementById('invSummaryBar');
   if (!bar) return;
   const c = C();
-  const getAvail = i => (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
   const totalProducts = data.length;
   const totalUnits = data.reduce((s, i) => s + (Number(i.Stock) || 0), 0);
   const totalReserved = data.reduce((s, i) => s + (Number(i.ReservedQty) || 0), 0);
-  const totalAvailable = data.reduce((s, i) => s + getAvail(i), 0);
-  const totalCostValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * (Number(i.CostPrice) || 0)), 0);
-  const reservedValue = data.reduce((s, i) => s + ((Number(i.ReservedQty) || 0) * (Number(i.CostPrice) || 0)), 0);
-  const lowCount = data.filter(i => getAvail(i) > 0 && getAvail(i) <= Number(i.MinStock || 5)).length;
-  const outCount = data.filter(i => getAvail(i) <= 0).length;
+  const totalAvailable = data.reduce((s, i) => s + getAvailableQty(i), 0);
+  const totalCostValue = data.reduce((s, i) => s + ((Number(i.Stock) || 0) * getCurrentCost(i)), 0);
+  const reservedValue = data.reduce((s, i) => s + ((Number(i.ReservedQty) || 0) * getCurrentCost(i)), 0);
+  const lowCount = data.filter(i => getAvailableQty(i) > 0 && getAvailableQty(i) <= Number(i.MinStock || 5)).length;
+  const outCount = data.filter(i => getAvailableQty(i) <= 0).length;
 
   bar.innerHTML = `
-    <span style="color:var(--text-muted)"><i class="fas fa-boxes-stacked" style="color:var(--primary);margin-right:4px"></i><strong style="color:var(--text)">${totalProducts}</strong> products</span>
-    <span style="color:var(--text-muted)"><i class="fas fa-cubes" style="color:var(--secondary);margin-right:4px"></i><strong style="color:var(--text)">${totalAvailable}</strong> available</span>
-    ${totalReserved > 0 ? `<span style="color:var(--text-muted)"><i class="fas fa-calendar-check" style="color:var(--purple);margin-right:4px"></i><strong style="color:var(--purple)">${totalReserved}</strong> booked</span>` : ''}
-    <span style="color:var(--text-muted)"><i class="fas fa-layer-group" style="color:var(--text-sec);margin-right:4px"></i>Physical: <strong style="color:var(--text)">${totalUnits}</strong></span>
-    <span style="color:var(--text-muted)"><i class="fas fa-coins" style="color:var(--warning);margin-right:4px"></i>Capital: <strong style="color:var(--text)">${c}${totalCostValue.toLocaleString()}</strong></span>
-    ${totalReserved > 0 ? `<span style="color:var(--text-muted)">Reserved Value: <strong style="color:var(--purple)">${c}${reservedValue.toLocaleString()}</strong></span>` : ''}
-    ${lowCount > 0 ? `<span style="color:var(--warning)"><i class="fas fa-triangle-exclamation"></i> <strong>${lowCount}</strong> low</span>` : ''}
-    ${outCount > 0 ? `<span style="color:var(--danger)"><i class="fas fa-circle-xmark"></i> <strong>${outCount}</strong> out</span>` : ''}
+    <span class="summary-pill"><i class="fas fa-boxes-stacked" style="color:var(--primary)"></i><strong>${totalProducts}</strong> products</span>
+    <span class="summary-pill"><i class="fas fa-cubes" style="color:var(--secondary)"></i><strong>${totalAvailable}</strong> available</span>
+    ${totalReserved > 0 ? `<span class="summary-pill"><i class="fas fa-calendar-check" style="color:var(--purple)"></i><strong style="color:var(--purple)">${totalReserved}</strong> booked</span>` : ''}
+    <span class="summary-pill"><i class="fas fa-layer-group" style="color:var(--text-sec)"></i>Physical <strong>${totalUnits}</strong></span>
+    <span class="summary-pill"><i class="fas fa-coins" style="color:var(--warning)"></i>Capital <strong>${c}${totalCostValue.toLocaleString()}</strong></span>
+    ${totalReserved > 0 ? `<span class="summary-pill">Reserved value <strong style="color:var(--purple)">${c}${reservedValue.toLocaleString()}</strong></span>` : ''}
+    ${lowCount > 0 ? `<span class="summary-pill" style="color:var(--warning)"><i class="fas fa-triangle-exclamation"></i><strong>${lowCount}</strong> low</span>` : ''}
+    ${outCount > 0 ? `<span class="summary-pill" style="color:var(--danger)"><i class="fas fa-circle-xmark"></i><strong>${outCount}</strong> out</span>` : ''}
   `;
 }
 function colSort(data,col,dir){return[...data].sort((a,b)=>{let vA,vB;switch(col){case'Edition':vA=EDITION_ORDER[a.Edition]||99;vB=EDITION_ORDER[b.Edition]||99;return dir==='asc'?vA-vB:vB-vA;case'Type':vA=TYPE_ORDER[a.Type]||99;vB=TYPE_ORDER[b.Type]||99;return dir==='asc'?vA-vB:vB-vA;case'Size':vA=SIZE_ORDER[a.Size]||99;vB=SIZE_ORDER[b.Size]||99;return dir==='asc'?vA-vB:vB-vA;case'Available':vA=(a.AvailableQty!==undefined?Number(a.AvailableQty):Number(a.Stock)-Number(a.ReservedQty||0));vB=(b.AvailableQty!==undefined?Number(b.AvailableQty):Number(b.Stock)-Number(b.ReservedQty||0));return dir==='asc'?vA-vB:vB-vA;case'ReservedQty':case'CostPrice':case'SellPrice':case'Stock':vA=Number(a[col])||0;vB=Number(b[col])||0;return dir==='asc'?vA-vB:vB-vA;default:vA=String(a[col]||'').toLowerCase();vB=String(b[col]||'').toLowerCase();return dir==='asc'?vA.localeCompare(vB):-vA.localeCompare(vB)}})}
@@ -2883,71 +2995,78 @@ function toggleInvSort(col) {
 
 function si(col){if(invSortCol!==col)return'<i class="fas fa-sort" style="opacity:.3;margin-left:3px"></i>';return invSortDir==='asc'?'<i class="fas fa-sort-up" style="color:var(--primary);margin-left:3px"></i>':'<i class="fas fa-sort-down" style="color:var(--primary);margin-left:3px"></i>'}
 function renderInvTable(data){
-  const el=document.getElementById('invTbl');const c=C();
-  el.className='tbl-wrap stack-table';
-  if(!data.length){el.innerHTML='<div style="padding:30px;text-align:center;color:var(--text-muted)">No products found</div>';return}
-  const getAvail = i => (i.AvailableQty !== undefined) ? Number(i.AvailableQty) : (Number(i.Stock) - Number(i.ReservedQty || 0));
-  el.innerHTML=`<table><thead><tr>
+  const el = document.getElementById('invTbl');
+  const c = C();
+  el.className = 'tbl-wrap stack-table inventory-table';
+  if (!data.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:38px;text-align:center;color:var(--text-muted)"><i class="fas fa-box-open" style="font-size:32px;margin-bottom:10px;display:block;color:var(--text-faint)"></i>No products match the current filters</div>';
+    return;
+  }
+
+  el.innerHTML = `<table><thead><tr>
     <th class="sortable" onclick="toggleInvSort('ProductName')">Product ${si('ProductName')}</th>
     <th class="sortable" onclick="toggleInvSort('Club_Country')">Club ${si('Club_Country')}</th>
     <th class="sortable" onclick="toggleInvSort('Edition')">Edition ${si('Edition')}</th>
     <th class="sortable" onclick="toggleInvSort('Type')">Type ${si('Type')}</th>
     <th class="sortable" onclick="toggleInvSort('Size')">Size ${si('Size')}</th>
-    <th class="sortable" onclick="toggleInvSort('CostPrice')">Cost ${si('CostPrice')}</th>
+    <th class="sortable" onclick="toggleInvSort('CostPrice')">Last Batch Cost ${si('CostPrice')}</th>
     <th class="sortable" onclick="toggleInvSort('SellPrice')">Sell ${si('SellPrice')}</th>
     <th class="sortable" onclick="toggleInvSort('Available')">Available ${si('Available')}</th>
     <th class="sortable" onclick="toggleInvSort('ReservedQty')">Booked ${si('ReservedQty')}</th>
     <th class="sortable" onclick="toggleInvSort('Stock')">Physical ${si('Stock')}</th>
     <th>Health</th><th>Supplier</th><th>Actions</th>
-  </tr></thead><tbody>${data.map(i=>{
-    const physical=Number(i.Stock)||0;
-    const reserved=Number(i.ReservedQty)||0;
-    const avail=getAvail(i);
-    const mn=Number(i.MinStock)||5;
-    const pct=Math.min(100,(Math.max(0,avail)/Math.max(mn*3,1))*100);
-    const col=avail<=0?'#dc2626':avail<=mn?'#d97706':'#059669';
-    
-    // NEW
-    const batchCount=(S._batchCounts && S._batchCounts[i.ID]) || 0;
-    
-    const batchBadge=batchCount>0
-      ? ` <span class="badge badge-p"
-            title="${batchCount} purchase batch(es)"
-            style="font-size:9px;cursor:pointer"
-            onclick="event.stopPropagation();openBatchHistory('${i.ID}')">
-            <i class="fas fa-layer-group"
-               style="font-size:8px;margin-right:2px"></i>${batchCount}
-          </span>`
+  </tr></thead><tbody>${data.map(i => {
+    const physical = Number(i.Stock) || 0;
+    const reserved = Number(i.ReservedQty) || 0;
+    const avail = getAvailableQty(i);
+    const mn = Number(i.MinStock) || 5;
+    const pct = Math.min(100, (Math.max(0, avail) / Math.max(mn * 3, 1)) * 100);
+    const col = avail <= 0 ? '#dc2626' : avail <= mn ? '#d97706' : '#059669';
+    const batchCount = (S._batchCounts && S._batchCounts[i.ID]) || 0;
+    const currentCost = getCurrentCost(i);
+    const margin = Number(i.SellPrice) > 0 ? Math.round(((Number(i.SellPrice) - currentCost) / Number(i.SellPrice)) * 100) : 0;
+    const batchBadge = batchCount > 0
+      ? ` <span class="badge badge-p" title="${batchCount} purchase batch(es)" style="font-size:9px;cursor:pointer" onclick="event.stopPropagation();openBatchHistory('${i.ID}')"><i class="fas fa-layer-group" style="font-size:8px;margin-right:2px"></i>${batchCount}</span>`
       : '';
-    return`<tr>
-    <td data-label="Product"><strong>${esc(i.ProductName)}</strong>${batchBadge}<br><small style="color:var(--text-muted)">${esc(i.ID)}</small></td>
-    <td data-label="Club"><span class="badge badge-i">${i.Club_Country||'-'}</span></td>
-    <td data-label="Edition">${i.Edition||'-'}</td>
-    <td data-label="Type">${i.Type||'-'}</td>
-    <td data-label="Size">${i.Size||'-'}</td><td data-label="Cost">${c}${Number(i.CostPrice).toLocaleString()}</td><td data-label="Sell"><strong>${c}${Number(i.SellPrice).toLocaleString()}</strong></td>
-    <td data-label="Available"><strong style="font-size:14px;color:${avail<=0?'var(--danger)':avail<=mn?'var(--warning)':'var(--text)'}">${avail}</strong></td>
-    <td data-label="Booked">${reserved>0?`<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>`:'<span style="color:var(--text-faint)">—</span>'}</td>
-    <td data-label="Physical"><span style="color:var(--text-muted)">${physical}</span></td>
-    <td data-label="Health"><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail<=0?'<span class="badge badge-d">Out</span>':avail<=mn?'<span class="badge badge-w">Low</span>':'<span class="badge badge-s">OK</span>'}</td><td data-label="Supplier">${esc(i.SupplierName||'-')}</td>
-    <td data-label="Actions"><div class="btn-group">
-      <button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})"><i class="fas fa-cubes"></i></button>
-      <button class="btn btn-outline btn-sm" onclick="openAddBatchModal('${i.ID}')" title="Add batch (purchase)" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-layer-group"></i></button>
-      <button class="btn btn-outline btn-sm" onclick="openBatchHistory('${i.ID}')" title="View batch history"><i class="fas fa-clock-rotate-left"></i></button>
-      <button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')"><i class="fas fa-pen"></i></button>
-      <button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')"><i class="fas fa-trash"></i></button>
+    return `<tr>
+      <td data-label="Product">
+        <div class="product-cell">
+          <div class="product-avatar">${esc(productInitials(i))}</div>
+          <div><div class="product-title">${esc(i.ProductName)}</div><div class="product-meta"><span>${esc(i.ID)}</span>${batchBadge}</div></div>
+        </div>
+      </td>
+      <td data-label="Club"><span class="badge badge-i">${esc(i.Club_Country || '-')}</span></td>
+      <td data-label="Edition">${esc(i.Edition || '-')}</td>
+      <td data-label="Type">${esc(i.Type || '-')}</td>
+      <td data-label="Size"><strong>${esc(i.Size || '-')}</strong></td>
+      <td data-label="Last Batch Cost"><div class="money-stack"><strong>${c}${currentCost.toLocaleString()}</strong><small>latest batch</small></div></td>
+      <td data-label="Sell"><div class="money-stack"><strong>${c}${Number(i.SellPrice || 0).toLocaleString()}</strong><small>${margin}% margin</small></div></td>
+      <td data-label="Available"><div class="stock-metric"><strong class="stock-number" style="color:${avail <= 0 ? 'var(--danger)' : avail <= mn ? 'var(--warning)' : 'var(--text)'}">${avail}</strong></div></td>
+      <td data-label="Booked">${reserved > 0 ? `<span class="badge badge-p" title="${reserved} unit(s) reserved by bookings"><i class="fas fa-calendar-check" style="font-size:9px;margin-right:3px"></i>${reserved}</span>` : '<span style="color:var(--text-faint)">—</span>'}</td>
+      <td data-label="Physical"><span style="color:var(--text-muted);font-weight:700">${physical}</span></td>
+      <td data-label="Health"><div class="stock-bar-c"><div class="stock-bar" style="width:${pct}%;background:${col}"></div></div>${avail <= 0 ? '<span class="badge badge-d">Out</span>' : avail <= mn ? '<span class="badge badge-w">Low</span>' : '<span class="badge badge-s">OK</span>'}</td>
+      <td data-label="Supplier">${esc(i.SupplierName || '-')}</td>
+      <td data-label="Actions"><div class="btn-group">
+        <button class="btn btn-outline btn-sm" onclick="openStockModal('${i.ID}',${physical})" title="Adjust stock"><i class="fas fa-cubes"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="openAddBatchModal('${i.ID}')" title="Restock with a new batch" style="border-color:var(--purple);color:var(--purple)"><i class="fas fa-layer-group"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="openBatchHistory('${i.ID}')" title="View batch history"><i class="fas fa-clock-rotate-left"></i></button>
+        <button class="btn btn-outline btn-sm" onclick="editProduct('${i.ID}')" title="Edit product"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-danger btn-sm" onclick="delProduct('${i.ID}')" title="Delete product"><i class="fas fa-trash"></i></button>
       </div></td>
-      </tr>`}).join('')}</tbody></table>`;
+    </tr>`;
+  }).join('')}</tbody></table>`;
 }
+
 
 async function openBatchHistory(productId) {
   const prod = S.inventory.find(p => p.ID === productId);
   const batches = await apiGet('getBatches', { productId });
   const c = C();
 
-  const totalQty = batches.reduce((s, b) => s + Number(b.Quantity || 0), 0);
   const totalRemaining = batches.reduce((s, b) => s + Number(b.RemainingQty || 0), 0);
-  const totalCapital = batches.reduce((s, b) => s + (Number(b.RemainingQty || 0) * Number(b.CostPrice || 0)), 0);
-  const weightedAvg = totalRemaining > 0 ? totalCapital / totalRemaining : 0;
+  const latestBatch = getLatestBatch(batches);
+  const lastBatchCost = latestBatch ? Number(latestBatch.CostPrice || 0) : getCurrentCost(prod);
+  const totalCapital = totalRemaining * lastBatchCost;
 
   let m = document.getElementById('batchHistModal'); if (m) m.remove();
   document.body.insertAdjacentHTML('beforeend', `
@@ -2961,9 +3080,9 @@ async function openBatchHistory(productId) {
           <div>
             <strong style="font-size:13px">${prod?.Stock || 0}</strong> units in stock
             <span style="color:var(--text-muted);margin:0 8px">•</span>
-            Weighted avg cost: <strong style="color:var(--purple)">${c}${Math.round(weightedAvg).toLocaleString()}</strong>
+            Last batch cost: <strong style="color:var(--purple)">${c}${Math.round(lastBatchCost).toLocaleString()}</strong>
             <span style="color:var(--text-muted);margin:0 8px">•</span>
-            Capital tied: <strong>${c}${Math.round(totalCapital).toLocaleString()}</strong>
+            Capital at last batch cost: <strong>${c}${Math.round(totalCapital).toLocaleString()}</strong>
           </div>
           <button class="btn btn-success btn-sm" onclick="openAddBatchModal('${productId}')"><i class="fas fa-plus"></i> Add Batch</button>
         </div>
@@ -4026,21 +4145,20 @@ function openAddBatchModal(productId = '') {
   
   document.body.insertAdjacentHTML('beforeend', `
   <div class="modal-overlay" id="batchModal"><div class="modal">
-    <div class="modal-hdr"><h3>Add New Price Batch</h3>
+    <div class="modal-hdr"><h3>Restock Product Batch</h3>
       <button class="modal-close" onclick="closeModal('batchModal')">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="margin-bottom:12px;font-size:12px;color:var(--text-sec);background:rgba(59,130,246,.08);padding:10px;border-radius:6px;border-left:3px solid var(--primary)">
-        <i class="fas fa-info-circle" style="color:var(--primary)"></i>
-        Use this when the <strong>same product</strong> is purchased at a <strong>different cost price</strong>
-        (from same or different supplier). Creates a variant with suffix ID (e.g., PRD-0006 → PRD-0006A).
-      </p>
+      <div class="batch-policy-card">
+        <i class="fas fa-info-circle" style="color:var(--secondary);margin-right:6px"></i>
+        Add a new purchase batch when restocking an existing product. The inventory cost policy is <strong>last batch cost</strong>: this batch cost becomes the product's displayed cost; no weighted or average cost is calculated.
+      </div>
       <div class="fg">
         <div class="form-group" style="grid-column:1/-1">
           <label>Base Product *</label>
           <select class="fc" id="bProd" onchange="onBatchProdChange()">
             <option value="">Select product</option>
-            ${prods.map(p => `<option value="${p.ID}" data-name="${esc(p.ProductName)}" data-cost="${p.CostPrice}" data-sell="${p.SellPrice}" data-supid="${p.SupplierID||''}" data-supname="${esc(p.SupplierName||'')}">${esc(p.ProductName)} [${p.ID}] — Current: ${C()}${Number(p.CostPrice).toLocaleString()}</option>`).join('')}
+            ${prods.map(p => `<option value="${p.ID}" data-name="${esc(p.ProductName)}" data-cost="${p.CostPrice}" data-sell="${p.SellPrice}" data-supid="${p.SupplierID||''}" data-supname="${esc(p.SupplierName||'')}">${esc(p.ProductName)} [${p.ID}] — Last cost: ${C()}${Number(p.CostPrice).toLocaleString()}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -4055,8 +4173,8 @@ function openAddBatchModal(productId = '') {
           <input type="number" class="fc" id="bQty" value="0">
         </div>
         <div class="form-group">
-          <label>New Cost Price *</label>
-          <input type="number" class="fc" id="bCost" value="0" placeholder="Different from original">
+          <label>Batch Cost Price *</label>
+          <input type="number" class="fc" id="bCost" value="0" placeholder="Cost for this shipment">
         </div>
         <div class="form-group">
           <label>Sell Price (optional)</label>
@@ -4070,7 +4188,7 @@ function openAddBatchModal(productId = '') {
     </div>
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="closeModal('batchModal')">Cancel</button>
-      <button class="btn btn-success" onclick="saveBatch()"><i class="fas fa-save"></i>Create Batch</button>
+      <button class="btn btn-success" onclick="saveBatch()"><i class="fas fa-save"></i>Save Restock</button>
     </div>
   </div></div>`);
   openModal('batchModal');
@@ -4147,7 +4265,7 @@ async function saveBatch() {
     Notes: document.getElementById('bNotes').value
   });
   if (r.success) {
-    toast(`Variant created: ${r.batchProductId}`);
+    toast(`Restocked ${qty} unit${qty !== 1 ? 's' : ''} at ${C()}${cost.toLocaleString()} last batch cost`);
     closeModal('batchModal');
     renderPage('inventory');
   }
