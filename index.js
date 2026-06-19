@@ -342,6 +342,79 @@ async function refreshBookingStatus(db, bookingId) {
   return status;
 }
 
+
+// Keep booking reservations consistent when physical stock is reduced outside
+// the booking flow (manual stock edits, sales, batch deletion, etc.).
+// If Inventory.ReservedQty is greater than physical Stock, move the excess
+// reservation quantity back to BookingItems.BackorderedQty and refresh statuses.
+async function reconcileBookingReservationsForProduct(db, productId, reason = 'Stock adjusted') {
+  if (!productId) return { released: 0, bookingsUpdated: 0 };
+
+  const prod = await one(db, 'SELECT * FROM Inventory WHERE ID=?', productId);
+  if (!prod) return { released: 0, bookingsUpdated: 0 };
+
+  const physical = Math.max(0, num(prod.Stock));
+  const reservedTotal = num(prod.ReservedQty);
+  let releaseNeeded = Math.max(0, reservedTotal - physical);
+  if (releaseNeeded <= 0) return { released: 0, bookingsUpdated: 0 };
+
+  // Deallocate lower-priority/newer bookings first so older and more important
+  // bookings keep their reservation whenever possible.
+  const reservedItems = await all(db,
+    `SELECT bi.*, b.BookingNumber, b.Priority, b.CreatedAt
+     FROM BookingItems bi
+     INNER JOIN Bookings b ON b.BookingID = bi.BookingID
+     WHERE bi.ProductID = ? AND bi.ReservedQty > 0
+       AND b.Status NOT IN ('Cancelled','Completed')
+     ORDER BY
+       CASE b.Priority WHEN 'Urgent' THEN 4 WHEN 'VIP' THEN 3 WHEN 'High' THEN 2 ELSE 1 END ASC,
+       b.CreatedAt DESC`, productId);
+
+  let released = 0;
+  const touchedBookings = new Set();
+
+  for (const item of reservedItems) {
+    if (releaseNeeded <= 0) break;
+    const take = Math.min(num(item.ReservedQty), releaseNeeded);
+    if (take <= 0) continue;
+
+    const newReserved = num(item.ReservedQty) - take;
+    const newBackordered = num(item.BackorderedQty) + take;
+    await updateRow(db, 'BookingItems', item.BookingItemID, {
+      ReservedQty: newReserved,
+      BackorderedQty: newBackordered,
+      Status: computeItemStatus({ RequestedQty: num(item.RequestedQty), ReservedQty: newReserved }),
+      UpdatedAt: now()
+    }, 'BookingItemID');
+
+    await addTimeline(db, item.BookingID, 'BOOK_STOCK_SHORTAGE',
+      `${take} × ${item.ProductName} moved to backorder because stock changed (${reason})`);
+
+    releaseNeeded -= take;
+    released += take;
+    touchedBookings.add(item.BookingID);
+  }
+
+  if (released > 0) {
+    const afterReserved = Math.max(0, reservedTotal - released);
+    await run(db, 'UPDATE Inventory SET ReservedQty=?, LastUpdated=? WHERE ID=?', afterReserved, now(), productId);
+    await auditStock(db, {
+      ProductID: productId,
+      ProductName: prod.ProductName,
+      Action: 'BOOK_STOCK_SHORTAGE',
+      ReferenceID: reason,
+      QtyChange: -released,
+      BeforeReserved: reservedTotal,
+      AfterReserved: afterReserved,
+      BeforePhysical: physical,
+      AfterPhysical: physical
+    });
+  }
+
+  for (const bid of touchedBookings) await refreshBookingStatus(db, bid);
+  return { released, bookingsUpdated: touchedBookings.size };
+}
+
 async function insertRow(db, table, obj) {
   const keys = Object.keys(obj);
   if (!keys.length) return;
@@ -453,6 +526,12 @@ const ACTIONS = {
         OldStock: num(cur.Stock), NewStock: num(p.Stock),
         Reference: 'Product edit', Notes: ''
       });
+      const stockChange = num(p.Stock) - num(cur.Stock);
+      if (stockChange > 0) {
+        try { await ACTIONS.allocateRestock({ productId: p.ID }, db); } catch (e) { console.error('allocate', e); }
+      } else if (stockChange < 0) {
+        try { await reconcileBookingReservationsForProduct(db, p.ID, 'Product edit'); } catch (e) { console.error('reconcile bookings', e); }
+      }
     }
     return { success: true };
   },
@@ -475,9 +554,11 @@ const ACTIONS = {
       Action: 'Manual ' + mode, Quantity: change, OldStock: oldStock, NewStock: newStock,
       Reference: p.Reference || 'Manual update', Notes: p.Notes || ''
     });
-    // Auto-allocate freshly added stock to waiting bookings
+    // Keep bookings in sync when stock moves in either direction.
     if (change > 0) {
       try { await ACTIONS.allocateRestock({ productId: p.ID }, db); } catch (e) { console.error('allocate', e); }
+    } else if (change < 0) {
+      try { await reconcileBookingReservationsForProduct(db, p.ID, 'Manual ' + mode); } catch (e) { console.error('reconcile bookings', e); }
     }
     return { success: true, newStock };
   },
@@ -855,6 +936,7 @@ const ACTIONS = {
             Action: 'Sale', Quantity: -it.Quantity, OldStock: oldS, NewStock: newS,
             Reference: invoiceNo, Notes: ''
           });
+          await reconcileBookingReservationsForProduct(db, it.ProductID, `Sale ${invoiceNo}`);
         }
       }
     }
