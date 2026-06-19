@@ -4124,6 +4124,13 @@ async function delProduct(id){
   if (r.success) {
     toast(`Stock: ${r.newStock}`);
     closeModal('stockModal');
+
+    // The backend may reallocate/release booking reservations after any stock
+    // change. Refresh both caches so booking badges, restock cards, product
+    // reserved counts, and any selected booking detail reflect that immediately.
+    S.inventory = await apiGet('getInventoryWithReserved');
+    S.bookings = await apiGet('getBookings');
+
     // If this restock was launched from the Bookings → restock modal,
     // refresh the Bookings page (which re-aggregates backorders & auto-fulfills).
     if (window._restockFromBookings) {
