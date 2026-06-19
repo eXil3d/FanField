@@ -4125,11 +4125,14 @@ async function delProduct(id){
     toast(`Stock: ${r.newStock}`);
     closeModal('stockModal');
     // If this restock was launched from the Bookings → restock modal,
-    // refresh the Bookings page (which re-aggregates backorders & auto-fulfills).
+    // navigate back to Bookings (renderBookings refetches S.bookings itself);
+    // otherwise stay on Inventory and refresh the bookings cache so the
+    // sidebar badge and Need-Restocking labels stay accurate.
     if (window._restockFromBookings) {
       window._restockFromBookings = false;
       renderPage('bookings');
     } else {
+      S.bookings = await apiGet('getBookings');
       renderPage('inventory');
     }
   } else {
@@ -4603,8 +4606,11 @@ async function submitSale(){
 
     showInvoice(r.invoiceNo,payload,items);
     clearPOS();
-    S.inventory=await apiGet('getInventory');
-  }
+    // Refresh inventory with reserved/available counts and bookings so
+    // any deallocation triggered by this sale is reflected immediately.
+    S.inventory = await apiGet('getInventoryWithReserved');
+    S.inventory = await apiGet('getInventoryWithReserved');
+    S.bookings  = await apiGet('getBookings');
 }
 
 // ============================================================
